@@ -1,19 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
+  View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS, GLASS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
+import { attendanceAPI } from '../services/api';
 
-const MOCK_DATA = [
-  { id: '1', date: '2026-03-29', checkIn: '09:02', checkOut: '18:15', status: 'present', hours: '9h 13m', location: 'Main Office', score: 91 },
-  { id: '2', date: '2026-03-28', checkIn: '09:15', checkOut: '18:30', status: 'late', hours: '9h 15m', location: 'Main Office', score: 78 },
-  { id: '3', date: '2026-03-27', checkIn: '08:55', checkOut: '18:00', status: 'present', hours: '9h 05m', location: 'Main Office', score: 94 },
-  { id: '4', date: '2026-03-26', checkIn: '—', checkOut: '—', status: 'absent', hours: '—', location: '—', score: 0 },
-  { id: '5', date: '2026-03-25', checkIn: '09:00', checkOut: '18:10', status: 'present', hours: '9h 10m', location: 'Client Site', score: 88 },
-  { id: '6', date: '2026-03-24', checkIn: '—', checkOut: '—', status: 'leave', hours: '—', location: '—', score: 0 },
-  { id: '7', date: '2026-03-23', checkIn: '08:50', checkOut: '17:45', status: 'present', hours: '8h 55m', location: 'Main Office', score: 92 },
-];
+const currentMonth = () => {
+  const now = new Date();
+  return {
+    key: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
+    label: now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }),
+  };
+};
 
 const statusConfig = {
   present: { color: COLORS.success, label: 'Present', dot: COLORS.success },
@@ -25,8 +24,32 @@ const statusConfig = {
 export default function HistoryScreen() {
   const { colors: C } = useTheme();
   const [filter, setFilter] = useState('all');
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+  const month = currentMonth();
   const filters = ['all', 'present', 'late', 'absent', 'leave'];
-  const filtered = filter === 'all' ? MOCK_DATA : MOCK_DATA.filter(d => d.status === filter);
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const res = await attendanceAPI.getHistory(`month=${month.key}`);
+      setRecords(Array.isArray(res?.records) ? res.records : []);
+    } catch (e) {
+      setError(e?.message || 'Could not load attendance history');
+      setRecords([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [month.key]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const onRefresh = () => { setRefreshing(true); load(); };
+
+  const filtered = filter === 'all' ? records : records.filter(d => d.status === filter);
 
   const formatDate = (dateStr) => {
     const date = new Date(dateStr);
@@ -37,7 +60,7 @@ export default function HistoryScreen() {
   };
 
   const renderItem = ({ item, index }) => {
-    const config = statusConfig[item.status];
+    const config = statusConfig[item.status] || statusConfig.present;
     const { day, weekday, month } = formatDate(item.date);
     const isLast = index === filtered.length - 1;
 
@@ -104,7 +127,7 @@ export default function HistoryScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: C.textPrimary }]}>Attendance Log</Text>
-        <Text style={[styles.headerSub, { color: C.textMuted }]}>March 2026</Text>
+        <Text style={[styles.headerSub, { color: C.textMuted }]}>{month.label}</Text>
       </View>
 
       {/* Filters */}
@@ -127,13 +150,36 @@ export default function HistoryScreen() {
         ))}
       </View>
 
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={{ padding: SPACING.xl, paddingBottom: 100 }}
-        showsVerticalScrollIndicator={false}
-      />
+      {loading ? (
+        <View style={styles.stateBox}>
+          <ActivityIndicator size="large" color={C.accent} />
+        </View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={{ padding: SPACING.xl, paddingBottom: 100, flexGrow: 1 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.accent} />}
+          ListEmptyComponent={
+            <View style={styles.stateBox}>
+              <Text style={[styles.stateEmoji]}>{error ? '⚠️' : '🗓️'}</Text>
+              <Text style={[styles.stateTitle, { color: C.textPrimary }]}>
+                {error ? 'Could not load history' : 'No attendance records'}
+              </Text>
+              <Text style={[styles.stateSub, { color: C.textMuted }]}>
+                {error || 'Your check-ins this month will appear here.'}
+              </Text>
+              {error && (
+                <TouchableOpacity style={[styles.retryBtn, { backgroundColor: C.accentSoft, borderColor: C.accentBorder }]} onPress={onRefresh}>
+                  <Text style={[styles.retryText, { color: C.textAccent }]}>Retry</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          }
+        />
+      )}
     </View>
   );
 }
@@ -175,4 +221,11 @@ const styles = StyleSheet.create({
   timeSepText: { fontSize: 14, color: COLORS.textMuted },
   locationText: { ...FONTS.small, color: COLORS.textMuted, marginTop: 10, fontSize: 11 },
   noDataText: { ...FONTS.caption, color: COLORS.textMuted, fontStyle: 'italic' },
+
+  stateBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80, paddingHorizontal: 32 },
+  stateEmoji: { fontSize: 36, marginBottom: 12 },
+  stateTitle: { fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  stateSub: { ...FONTS.caption, textAlign: 'center', marginTop: 6 },
+  retryBtn: { marginTop: 16, paddingHorizontal: 20, paddingVertical: 9, borderRadius: RADIUS.full, borderWidth: 1 },
+  retryText: { fontSize: 13, fontWeight: '600' },
 });
