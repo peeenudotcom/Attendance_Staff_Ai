@@ -2,6 +2,7 @@
   "expo": {
     "name": "tarahut-attendance",
     "slug": "tarahut-attendance",
+    "owner": "psukhija",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -36,6 +37,11 @@
     "plugins": [
       "expo-secure-store",
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ec478f59-dfe9-4b75-9daf-e8f07f33b6a4"
+      }
+    }
   }
 }
