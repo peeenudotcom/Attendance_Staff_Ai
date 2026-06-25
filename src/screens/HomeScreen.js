@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions,
   Animated, StatusBar, Platform,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, RADIUS, SPACING, FONTS } from '../utils/theme';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { attendanceAPI, staffAPI } from '../services/api';
 import GlassCard from '../components/GlassCard';
 import GradientButton from '../components/GradientButton';
 import GlowDot from '../components/GlowDot';
-import DailyBriefingCard from '../components/DailyBriefingCard';
-import PredictiveCard from '../components/PredictiveCard';
 import FloatingAssistantButton from '../components/FloatingAssistantButton';
 
 const { width } = Dimensions.get('window');
@@ -20,8 +20,24 @@ export default function HomeScreen({ navigation }) {
   const { user } = useAuth();
   const { colors: C, isDark, toggleTheme } = useTheme();
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [checkedIn, setCheckedIn] = useState(false);
+  const [today, setToday] = useState(null); // /attendance/today
+  const [staff, setStaff] = useState([]);   // /staff (admin only)
   const glowAnim = useRef(new Animated.Value(0.2)).current;
+
+  const isAdmin = user?.role === 'admin';
+
+  const loadStatus = useCallback(async () => {
+    try { const t = await attendanceAPI.getToday(); setToday(t || {}); }
+    catch { setToday({}); }
+  }, []);
+  const loadStaff = useCallback(async () => {
+    if (!isAdmin) return;
+    try { const r = await staffAPI.getAll(); setStaff(Array.isArray(r?.staff) ? r.staff : []); }
+    catch { setStaff([]); }
+  }, [isAdmin]);
+
+  // Refresh whenever Home regains focus (e.g. returning right after a check-in)
+  useFocusEffect(useCallback(() => { loadStatus(); loadStaff(); }, [loadStatus, loadStaff]));
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -41,28 +57,26 @@ export default function HomeScreen({ navigation }) {
     return h < 12 ? 'Good Morning' : h < 17 ? 'Good Afternoon' : 'Good Evening';
   };
 
-  const isAdmin = user?.role === 'admin';
-  const score = 82;
+  const checkedIn = !!today?.checkedIn;
+  const checkedOut = !!today?.checkedOut;
+  const canCheckOut = checkedIn && !checkedOut;
 
+  // Real org stats from the staff endpoint (admin)
+  const presentCount = staff.filter((s) => s.today?.status === 'present').length;
+  const lateCount = staff.filter((s) => s.today?.status === 'late').length;
+  const absentCount = staff.filter((s) => s.today?.status === 'absent').length;
   const stats = [
-    { label: 'Present', value: '22', color: C.success },
-    { label: 'Absent', value: '3', color: C.danger },
-    { label: 'Late', value: '2', color: C.warning },
-    { label: 'Leave', value: '1', color: C.info },
+    { label: 'Present', value: String(presentCount), color: C.success },
+    { label: 'Late', value: String(lateCount), color: C.warning },
+    { label: 'Absent', value: String(absentCount), color: C.danger },
+    { label: 'Staff', value: String(staff.length), color: C.info },
   ];
 
   const adminActions = [
-    { icon: '➕', label: 'Add Staff', value: '12 members', screen: 'AddStaff' },
-    { icon: '📈', label: 'Analytics', value: '96% rate', screen: 'Reports' },
-    { icon: '💳', label: 'Payroll', value: '₹2.4L due', screen: 'Payroll' },
-    { icon: '📡', label: 'Live Track', value: '5 active', screen: 'LiveTrack' },
-  ];
-
-  const team = [
-    { name: 'Rahul Sharma', role: 'Sales Lead', status: 'present', time: '09:02', score: 91 },
-    { name: 'Priya Verma', role: 'Marketing', status: 'present', time: '09:15', score: 87 },
-    { name: 'Amit Kumar', role: 'Developer', status: 'late', time: '10:30', score: 72 },
-    { name: 'Sunita Devi', role: 'Support', status: 'absent', time: '—', score: 0 },
+    { icon: '➕', label: 'Add Staff', value: `${staff.length} members`, screen: 'AddStaff' },
+    { icon: '📈', label: 'Analytics', value: 'View', screen: 'Reports' },
+    { icon: '💳', label: 'Payroll', value: '—', screen: 'Payroll' },
+    { icon: '📡', label: 'Live Track', value: '—', screen: 'LiveTrack' },
   ];
 
   const statusMap = {
@@ -110,69 +124,53 @@ export default function HomeScreen({ navigation }) {
               <View style={styles.statusRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.statusLabel, { color: C.textAccent }]}>
-                    {checkedIn ? '● CHECKED IN' : '○ NOT CHECKED IN'}
+                    {checkedOut ? '● CHECKED OUT' : checkedIn ? '● CHECKED IN' : '○ NOT CHECKED IN'}
                   </Text>
                   <Text style={[styles.statusTime, { color: C.textPrimary }]}>{formatTime(currentTime)}</Text>
                   <Text style={[styles.statusDate, { color: C.textMuted }]}>{formatDate(currentTime)}</Text>
-                </View>
-
-                {/* Score Ring */}
-                <View style={styles.scoreRing}>
-                  <LinearGradient
-                    colors={[C.accentStart, C.accentEnd]}
-                    style={styles.scoreGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
-                    <View style={[styles.scoreInner, { backgroundColor: C.bg }]}>
-                      <Text style={[styles.scoreNum, { color: C.textAccent }]}>{score}</Text>
-                      <Text style={[styles.scoreLbl, { color: C.textMuted }]}>Score</Text>
-                    </View>
-                  </LinearGradient>
                 </View>
               </View>
 
               {checkedIn && (
                 <View style={[styles.checkedRow, { borderTopColor: C.border }]}>
                   <GlowDot color={C.success} size={4} pulse />
-                  <Text style={[styles.checkedText, { color: C.textSecondary }]}>Since 09:02 AM · Main Office</Text>
+                  <Text style={[styles.checkedText, { color: C.textSecondary }]}>
+                    {today?.checkIn ? `Since ${today.checkIn}` : 'Checked in'}
+                    {today?.location ? ` · ${today.location}` : ''}
+                    {checkedOut && today?.checkOut ? ` — out ${today.checkOut}` : ''}
+                  </Text>
                 </View>
               )}
             </View>
           </GlassCard>
         </View>
 
-        {/* AI Briefing - Admin Only */}
-        {isAdmin && (
-          <View style={{ marginHorizontal: SPACING.xl, marginTop: 20 }}>
-            <DailyBriefingCard />
-          </View>
-        )}
-
         {/* CTA - Gradient Button */}
         <View style={styles.ctaWrap}>
           <Animated.View style={[styles.ctaGlowOrb, { opacity: glowAnim }]} />
           <GradientButton
-            title={checkedIn ? 'Check Out' : 'Check In'}
-            icon={checkedIn ? '⏹' : '▶'}
-            variant={checkedIn ? 'danger' : 'primary'}
-            onPress={() => navigation.navigate('MarkAttendance', { type: checkedIn ? 'check-out' : 'check-in' })}
+            title={canCheckOut ? 'Check Out' : 'Check In'}
+            icon={canCheckOut ? '⏹' : '▶'}
+            variant={canCheckOut ? 'danger' : 'primary'}
+            onPress={() => navigation.navigate('MarkAttendance', { type: canCheckOut ? 'check-out' : 'check-in' })}
           />
         </View>
 
-        {/* Today Insights */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: C.textMuted }]}>TODAY'S INSIGHTS</Text>
-          <View style={styles.insightsRow}>
-            {stats.map((s) => (
-              <View key={s.label} style={[styles.insightCard, { backgroundColor: C.bgCard, borderColor: C.border }]}>
-                <GlowDot color={s.color} size={6} />
-                <Text style={[styles.insightValue, { color: s.color }]}>{s.value}</Text>
-                <Text style={[styles.insightLabel, { color: C.textMuted }]}>{s.label}</Text>
-              </View>
-            ))}
+        {/* Today Insights - real org stats (admin) */}
+        {isAdmin && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionLabel, { color: C.textMuted }]}>TODAY'S INSIGHTS</Text>
+            <View style={styles.insightsRow}>
+              {stats.map((s) => (
+                <View key={s.label} style={[styles.insightCard, { backgroundColor: C.bgCard, borderColor: C.border }]}>
+                  <GlowDot color={s.color} size={6} />
+                  <Text style={[styles.insightValue, { color: s.color }]}>{s.value}</Text>
+                  <Text style={[styles.insightLabel, { color: C.textMuted }]}>{s.label}</Text>
+                </View>
+              ))}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Quick Access */}
         <View style={styles.section}>
@@ -210,44 +208,38 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
 
-        {/* AI Predictions - Admin Only */}
-        {isAdmin && (
-          <View style={styles.section}>
-            <PredictiveCard />
-          </View>
-        )}
-
-        {/* Team Activity */}
+        {/* Team Activity - real staff from /staff */}
         {isAdmin && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionLabel, { color: C.textMuted }]}>TEAM ACTIVITY</Text>
-              <TouchableOpacity><Text style={[styles.viewAll, { color: C.textAccent }]}>View All →</Text></TouchableOpacity>
+              <Text style={[styles.viewAll, { color: C.textMuted }]}>{staff.length} staff</Text>
             </View>
-            {team.map((m, i) => {
-              const st = statusMap[m.status];
+            {staff.length === 0 ? (
+              <View style={[styles.memberRow, { backgroundColor: C.bgCard, borderColor: C.border }]}>
+                <Text style={[styles.memberRole, { color: C.textMuted }]}>No staff data yet</Text>
+              </View>
+            ) : staff.map((m, i) => {
+              const status = m.today?.status || 'absent';
+              const st = statusMap[status] || statusMap.absent;
+              const time = m.today?.checkIn && m.today.checkIn !== '—' ? m.today.checkIn : null;
               return (
-                <View key={i} style={[styles.memberRow, { backgroundColor: C.bgCard, borderColor: C.border }]}>
+                <View key={m.id || i} style={[styles.memberRow, { backgroundColor: C.bgCard, borderColor: C.border }]}>
                   <View style={styles.memberAvatarWrap}>
                     <View style={[styles.memberAvatar, { backgroundColor: C.bgElevated }]}>
-                      <Text style={[styles.memberInitial, { color: C.textPrimary }]}>{m.name[0]}</Text>
+                      <Text style={[styles.memberInitial, { color: C.textPrimary }]}>{(m.name || '?')[0]}</Text>
                     </View>
                     <View style={styles.memberDotWrap}>
-                      <GlowDot color={st.color} size={5} pulse={m.status === 'present'} />
+                      <GlowDot color={st.color} size={5} pulse={status === 'present'} />
                     </View>
                   </View>
                   <View style={styles.memberInfo}>
                     <Text style={[styles.memberName, { color: C.textPrimary }]}>{m.name}</Text>
-                    <Text style={[styles.memberRole, { color: C.textSecondary }]}>{m.role}</Text>
+                    <Text style={[styles.memberRole, { color: C.textSecondary }]}>{m.role || 'Staff'}</Text>
                   </View>
                   <View style={styles.memberRight}>
                     <Text style={[styles.memberStatus, { color: st.color }]}>{st.label}</Text>
-                    {m.time !== '—' && <Text style={[styles.memberTime, { color: C.textMuted }]}>{m.time}</Text>}
-                    {m.score > 0 && (
-                      <View style={[styles.memberScoreBadge, { backgroundColor: C.accentSoft }]}>
-                        <Text style={[styles.memberScore, { color: C.textAccent }]}>{m.score}</Text>
-                      </View>
-                    )}
+                    {time && <Text style={[styles.memberTime, { color: C.textMuted }]}>{time}</Text>}
                   </View>
                 </View>
               );

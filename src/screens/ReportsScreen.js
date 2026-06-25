@@ -1,25 +1,68 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { COLORS, SHADOWS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
+import { attendanceAPI } from '../services/api';
+
+const parseMins = (h) => {
+  if (!h || h === '—') return null;
+  const m = /(\d+)h\s*(\d+)m/.exec(h);
+  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+};
+const fmtMins = (mins) => (mins == null ? '—' : `${Math.floor(mins / 60)}h ${String(Math.round(mins % 60)).padStart(2, '0')}m`);
+const monthKey = () => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`; };
+const monthLabel = () => new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
 
 export default function ReportsScreen() {
   const { colors: C } = useTheme();
-  const [selectedMonth, setSelectedMonth] = useState('March 2026');
+  const [selectedMonth] = useState(monthLabel());
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await attendanceAPI.getHistory(`month=${monthKey()}`);
+        if (active) setRecords(Array.isArray(res?.records) ? res.records : []);
+      } catch (e) {
+        if (active) setError(e?.message || 'Could not load reports');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const count = (s) => records.filter((r) => r.status === s).length;
+  const present = count('present');
+  const late = count('late');
+  const absent = count('absent');
+  const leave = count('leave');
+  const workedMins = records.map((r) => parseMins(r.hours)).filter((m) => m != null);
   const overview = {
-    totalDays: 28, present: 22, absent: 3, late: 2, leave: 1,
-    avgHours: '8h 45m', totalCalls: 145, totalPhotos: 38,
+    totalDays: records.length,
+    present, absent, late, leave,
+    avgHours: workedMins.length ? fmtMins(workedMins.reduce((a, b) => a + b, 0) / workedMins.length) : '—',
   };
 
-  const weeklyData = [
-    { week: 'Week 1', present: 5, absent: 0, late: 1 },
-    { week: 'Week 2', present: 5, absent: 1, late: 0 },
-    { week: 'Week 3', present: 6, absent: 0, late: 1 },
-    { week: 'Week 4', present: 6, absent: 2, late: 0 },
-  ];
+  const weeks = {};
+  records.forEach((r) => {
+    const w = Math.floor((new Date(r.date).getDate() - 1) / 7) + 1;
+    weeks[w] = weeks[w] || { week: `Week ${w}`, present: 0, absent: 0, late: 0 };
+    if (r.status === 'present') weeks[w].present += 1;
+    else if (r.status === 'absent') weeks[w].absent += 1;
+    else if (r.status === 'late') weeks[w].late += 1;
+  });
+  const weeklyData = Object.values(weeks);
+  const rateDenom = present + late + absent + leave;
+
+  if (loading) {
+    return <View style={[styles.center, { backgroundColor: C.bg }]}><ActivityIndicator size="large" color={C.accent} /></View>;
+  }
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: C.bg }]} showsVerticalScrollIndicator={false}>
@@ -58,37 +101,39 @@ export default function ReportsScreen() {
           <View style={[styles.rateSegment, { flex: overview.leave, backgroundColor: COLORS.secondary }]} />
         </View>
         <Text style={[styles.ratePercent, { color: C.textAccent }]}>
-          {Math.round(((overview.present + overview.late) / overview.totalDays) * 100)}% attendance rate
+          {rateDenom ? Math.round(((overview.present + overview.late) / rateDenom) * 100) : 0}% attendance rate
         </Text>
       </View>
 
       {/* Weekly Breakdown */}
-      <Text style={[styles.sectionTitleOutside, { color: C.textMuted }]}>Weekly Breakdown</Text>
-      {weeklyData.map((week) => (
-        <View key={week.week} style={[styles.weekCard, { backgroundColor: C.bgCard, borderColor: C.border, borderWidth: 1 }]}>
-          <Text style={[styles.weekTitle, { color: C.textPrimary }]}>{week.week}</Text>
-          <View style={styles.weekStats}>
-            <Text style={[styles.weekStat, { color: COLORS.success }]}>✅ {week.present}</Text>
-            <Text style={[styles.weekStat, { color: COLORS.danger }]}>❌ {week.absent}</Text>
-            <Text style={[styles.weekStat, { color: COLORS.warning }]}>⏰ {week.late}</Text>
-          </View>
-        </View>
-      ))}
+      {weeklyData.length > 0 && (
+        <>
+          <Text style={[styles.sectionTitleOutside, { color: C.textMuted }]}>Weekly Breakdown</Text>
+          {weeklyData.map((week) => (
+            <View key={week.week} style={[styles.weekCard, { backgroundColor: C.bgCard, borderColor: C.border, borderWidth: 1 }]}>
+              <Text style={[styles.weekTitle, { color: C.textPrimary }]}>{week.week}</Text>
+              <View style={styles.weekStats}>
+                <Text style={[styles.weekStat, { color: COLORS.success }]}>✅ {week.present}</Text>
+                <Text style={[styles.weekStat, { color: COLORS.danger }]}>❌ {week.absent}</Text>
+                <Text style={[styles.weekStat, { color: COLORS.warning }]}>⏰ {week.late}</Text>
+              </View>
+            </View>
+          ))}
+        </>
+      )}
 
-      {/* Activity Summary */}
-      <Text style={[styles.sectionTitleOutside, { color: C.textMuted }]}>Activity Summary</Text>
-      <View style={styles.activityRow}>
-        <View style={[styles.activityCard, { backgroundColor: C.bgCard, borderColor: C.border, borderWidth: 1 }]}>
-          <Text style={styles.activityIcon}>📞</Text>
-          <Text style={[styles.activityValue, { color: C.accent }]}>{overview.totalCalls}</Text>
-          <Text style={[styles.activityLabel, { color: C.textMuted }]}>Total Calls</Text>
+      {/* Empty / error state */}
+      {overview.totalDays === 0 && (
+        <View style={styles.emptyBox}>
+          <Text style={styles.emptyEmoji}>{error ? '⚠️' : '📊'}</Text>
+          <Text style={[styles.emptyTitle, { color: C.textPrimary }]}>
+            {error ? 'Could not load reports' : 'No data this month'}
+          </Text>
+          <Text style={[styles.emptySub, { color: C.textMuted }]}>
+            {error || 'Reports populate from your check-ins as the month progresses.'}
+          </Text>
         </View>
-        <View style={[styles.activityCard, { backgroundColor: C.bgCard, borderColor: C.border, borderWidth: 1 }]}>
-          <Text style={styles.activityIcon}>📸</Text>
-          <Text style={[styles.activityValue, { color: C.accent }]}>{overview.totalPhotos}</Text>
-          <Text style={[styles.activityLabel, { color: C.textMuted }]}>Photos Uploaded</Text>
-        </View>
-      </View>
+      )}
 
       <View style={{ height: 40 }} />
     </ScrollView>
@@ -97,6 +142,11 @@ export default function ReportsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  emptyBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: 48, paddingHorizontal: 32 },
+  emptyEmoji: { fontSize: 34, marginBottom: 10 },
+  emptyTitle: { fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  emptySub: { fontSize: 13, textAlign: 'center', marginTop: 6, lineHeight: 18 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, backgroundColor: COLORS.primary, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
   title: { fontSize: 22, fontWeight: '700', color: COLORS.white },
   monthPicker: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
