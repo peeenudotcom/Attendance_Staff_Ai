@@ -74,8 +74,8 @@ devices with `eas device:create`.
 
 ## 6. Gaps a reviewer may notice (fix before or soon after v1.0)
 
-Honest status: the app builds and can be submitted, but functionally it is a polished prototype. Only sign-in
-and check-in/check-out call the backend. Every other screen shows hardcoded sample data. Apple's reviewers test the app by hand, so the items below are ordered by how
+Honest status: the store build now contains only screens that work against the backend or the device; the
+sample-data screens are hidden (item 3) until they are wired up. Apple's reviewers test the app by hand, so the items below are ordered by how
 likely they are to cause a rejection under Guideline 2.1 (completeness) and 2.3 (accurate metadata).
 
 1. **Demo sign-in fallback.** Removed in this branch: sign-in now fails visibly when the backend rejects the
@@ -84,15 +84,12 @@ likely they are to cause a rejection under Guideline 2.1 (completeness) and 2.3 
 2. **Face verification.** Resolved by renaming the feature to what it is: a selfie check-in. The simulated
    "detecting face" and "92 to 99 percent match" steps are gone; the flow is capture, preview, confirm, and the
    selfie is stored with the attendance record. Describe it as a selfie check-in in the listing.
-3. **Sample data and inert controls.** Home stats, History (fixed to March 2026), Reports, Payroll, Leave,
-   Live Track, Notifications, the Chat assistant and the Profile stats are all hardcoded. The Add Staff and
-   Leave forms discard what you type. "Pay All Pending", "Generate Slips", "Pay Now", "View All", the month
-   pickers and 16 Profile menu items do nothing. The fake success alerts are gone: Call Logs sync and Add Staff
-   now call the API (`POST /call-logs/sync`, `POST /staff`) and report real outcomes, Mark Attendance reports a
-   failed request as a failure, the Gallery upload button is removed until an upload endpoint exists, Leave
-   approve/reject/submit only change what is on screen, and the chat assistant says plainly what it cannot do
-   yet. Reviewers reject apps that behave like demos: hide the screens you do not want judged for v1.0 and wire
-   the rest to the API before you advertise them.
+3. **Sample data and inert controls.** Hidden from the store build behind `SHOW_SAMPLE_DATA` in
+   `src/config/features.js` (false by default): the History tab, Reports, Leave, Payroll/Salary, Live Track, the
+   chat assistant, Notifications, and the sample sections on Home (score, insights, briefing, predictions, team
+   activity, Command Center values) and Profile (stats). What ships is sign-in, selfie check-in/out, Gallery,
+   Add Staff (admin), Calls (Android, real device logs) and Profile. Flip the flag for demos; when a screen is
+   wired to the API, remove its gate rather than keeping it behind the flag.
 4. **Status bar and keyboard on current iPhones.** Fixed in this branch: every screen now pads its header
    from the device safe-area inset (via the hooks in `src/utils/safeArea.js`), the tab bar and floating assistant
    button follow the home-indicator inset, the Leave and Add Staff forms avoid the keyboard, and Reports has a back

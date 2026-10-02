@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { RADIUS } from '../utils/theme';
 import { useBottomInset } from '../utils/safeArea';
+import { SHOW_SAMPLE_DATA } from '../config/features';
 
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -111,7 +112,7 @@ function TabNavigator() {
       screenOptions={{ headerShown: false }}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="History" component={HistoryScreen} />
+      {SHOW_SAMPLE_DATA && <Tab.Screen name="History" component={HistoryScreen} />}
       {/* iOS has no public API for call history, so the Calls tab only ships on Android. */}
       {Platform.OS === 'android' && <Tab.Screen name="CallLogs" component={CallLogsScreen} />}
       <Tab.Screen name="Gallery" component={GalleryScreen} />
@@ -132,19 +133,24 @@ export default function AppNavigator() {
           <>
             <Stack.Screen name="Main" component={TabNavigator} />
             <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-            <Stack.Screen name="Reports" component={ReportsScreen} />
-            <Stack.Screen name="Leave" component={LeaveScreen} />
             {/* Admin-only screens are not registered for staff, so no shortcut or chat action can open them. */}
-            {isAdmin && (
+            {isAdmin && <Stack.Screen name="AddStaff" component={AddStaffScreen} />}
+            {/* Screens that still show sample data are left out of the store build (see src/config/features.js). */}
+            {SHOW_SAMPLE_DATA && (
               <Stack.Group>
-                <Stack.Screen name="AddStaff" component={AddStaffScreen} />
+                <Stack.Screen name="Reports" component={ReportsScreen} />
+                <Stack.Screen name="Leave" component={LeaveScreen} />
+                <Stack.Screen name="Chat" component={ChatScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+                <Stack.Screen name="Notifications" component={NotificationsScreen} />
+              </Stack.Group>
+            )}
+            {SHOW_SAMPLE_DATA && isAdmin && (
+              <Stack.Group>
                 <Stack.Screen name="Payroll" component={PayrollScreen} />
                 <Stack.Screen name="Salary" component={PayrollScreen} />
                 <Stack.Screen name="LiveTrack" component={LiveTrackScreen} />
               </Stack.Group>
             )}
-            <Stack.Screen name="Chat" component={ChatScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-            <Stack.Screen name="Notifications" component={NotificationsScreen} />
           </>
         ) : (
           <Stack.Screen name="Login" component={LoginScreen} />

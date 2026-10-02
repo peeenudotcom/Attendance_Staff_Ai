@@ -5,6 +5,7 @@ import {
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS, GLASS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
 import { callLogAPI } from '../services/api';
+import { SHOW_SAMPLE_DATA } from '../config/features';
 import { useHeaderInset } from '../utils/safeArea';
 
 const MOCK_CALLS = [
@@ -25,7 +26,7 @@ const typeConfig = {
 export default function CallLogsScreen() {
   const { colors: C } = useTheme();
   const headerTop = useHeaderInset(16);
-  const [calls, setCalls] = useState(MOCK_CALLS);
+  const [calls, setCalls] = useState(SHOW_SAMPLE_DATA ? MOCK_CALLS : []);
   const [filter, setFilter] = useState('all');
   const [syncing, setSyncing] = useState(false);
 
@@ -179,6 +180,7 @@ export default function CallLogsScreen() {
         renderItem={renderItem}
         contentContainerStyle={{ paddingHorizontal: SPACING.xl, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
+        ListEmptyComponent={<Text style={[styles.emptyText, { color: C.textMuted }]}>No calls to show yet. Allow call-log access to see your recent calls here.</Text>}
       />
     </View>
   );
@@ -221,4 +223,5 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: COLORS.border },
   actionBtn: { flex: 1, paddingVertical: 7, borderRadius: RADIUS.xs, backgroundColor: COLORS.bgElevated, alignItems: 'center' },
   actionText: { fontSize: 11, fontWeight: '600', color: COLORS.textSecondary },
+  emptyText: { textAlign: 'center', marginTop: 40, fontSize: 13, lineHeight: 20 },
 });
