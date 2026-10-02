@@ -69,23 +69,21 @@ devices with `eas device:create`.
 - **Privacy policy URL** (required): host a page that covers phone number, name, selfie photos, precise location at check-in/out, and any call-log data on Android. A page on tarahut.com works.
 - **App Privacy (nutrition labels)**: declare at least Name, Phone Number, Precise Location, Photos (selfie), and User ID (auth token), all "linked to the user" and used for App Functionality. Say "No" to tracking.
 - **Age rating**: 4+. **Copyright**: TARAhut AI Labs.
-- **App Review Information**: give a working sign-in. Sign-in now goes through the backend only, so create a reviewer account on `tarahut-ams` whose OTP is fixed or forwarded to you, and put that phone number and OTP in the review notes. Explain why camera and location are needed (identity selfie and work-site verification at check-in).
+- **App Review Information**: give a working sign-in. Sign-in now goes through the backend only, so create a reviewer account on `tarahut-ams` whose OTP is fixed or forwarded to you, and put that phone number and OTP in the review notes. Explain why camera and location are needed (the check-in selfie and work-site location).
 - **Sign in with Apple** is not required because the only login is first-party phone OTP.
 
 ## 6. Gaps a reviewer may notice (fix before or soon after v1.0)
 
 Honest status: the app builds and can be submitted, but functionally it is a polished prototype. Only sign-in
-and check-in/check-out call the backend. Every other screen shows hardcoded sample data, and the face
-verification is simulated. Apple's reviewers test the app by hand, so the items below are ordered by how
+and check-in/check-out call the backend. Every other screen shows hardcoded sample data. Apple's reviewers test the app by hand, so the items below are ordered by how
 likely they are to cause a rejection under Guideline 2.1 (completeness) and 2.3 (accurate metadata).
 
 1. **Demo sign-in fallback.** Removed in this branch: sign-in now fails visibly when the backend rejects the
    OTP or is unreachable, and the Admin/Staff picker that only fed the demo profile is gone (the role comes from
    the backend user). Reviewers therefore need a real account on the backend; see section 5.
-2. **Face verification is simulated.** `FaceDetectionOverlay` reports a face after a random 1.5 to 2.5 second
-   timer, and `FaceMatchConfirmation` always reports a 92 to 99 percent match; the selfie is sent to the
-   backend as base64 but never compared. Do not describe "AI face verification" in the listing or screenshots
-   unless the backend really does it. Calling it "selfie check-in" is accurate today.
+2. **Face verification.** Resolved by renaming the feature to what it is: a selfie check-in. The simulated
+   "detecting face" and "92 to 99 percent match" steps are gone; the flow is capture, preview, confirm, and the
+   selfie is stored with the attendance record. Describe it as a selfie check-in in the listing.
 3. **Sample data and inert controls.** Home stats, History (fixed to March 2026), Reports, Payroll, Leave,
    Live Track, Notifications, the Chat assistant and the Profile stats are all hardcoded. The Add Staff and
    Leave forms discard what you type. "Pay All Pending", "Generate Slips", "Pay Now", "View All", the month
