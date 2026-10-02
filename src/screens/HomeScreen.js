@@ -180,7 +180,7 @@ export default function HomeScreen({ navigation }) {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
             {[
               { icon: '◷', label: 'History', screen: 'History' },
-              { icon: '◉', label: 'Calls', screen: 'CallLogs' },
+              ...(Platform.OS === 'android' ? [{ icon: '◉', label: 'Calls', screen: 'CallLogs' }] : []),
               { icon: '◫', label: 'Gallery', screen: 'Gallery' },
               { icon: '◈', label: 'Reports', screen: 'Reports' },
               { icon: '◇', label: 'Leave', screen: 'Leave' },
