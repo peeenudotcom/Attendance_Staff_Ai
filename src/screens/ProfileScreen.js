@@ -61,7 +61,7 @@ export default function ProfileScreen() {
         <Text style={[styles.role, { color: C.textSecondary }]}>{user?.designation || 'Staff'}</Text>
         <View style={styles.metaRow}>
           <View style={[styles.metaPill, { backgroundColor: C.bgCard, borderColor: C.border }]}>
-            <Text style={[styles.metaText, { color: C.textSecondary }]}>{user?.phone || '9915424411'}</Text>
+            <Text style={[styles.metaText, { color: C.textSecondary }]}>{user?.phone || 'No phone on file'}</Text>
           </View>
           <View style={[styles.metaPill, { backgroundColor: C.bgCard, borderColor: C.border }]}>
             <Text style={[styles.metaText, { color: C.textSecondary }]}>{user?.company || 'TARAhut AI Labs'}</Text>

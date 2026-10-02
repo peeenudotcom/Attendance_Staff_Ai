@@ -101,9 +101,10 @@ likely they are to cause a rejection under Guideline 2.1 (completeness) and 2.3 
    button. Still check each screen once on a Dynamic Island iPhone and an iPhone SE in TestFlight.
 5. **Role checks.** Staff users can open Reports, Leave and Salary (which lists everyone's pay), and the chat
    assistant offers staff the admin approve/reject actions.
-6. **Personal data in the source.** `ProfileScreen` falls back to a
-   real-looking phone number, and `src/data/mockData.js` ties health-related leave reasons to named people.
-   Replace these with neutral placeholders before the build is public.
+6. **Personal data in the source.** Resolved: `src/data/mockData.js` now uses placeholder people and neutral
+   leave reasons, and `ProfileScreen` no longer falls back to a real-looking phone number. The sample names in
+   the Home, Payroll, Live Track and Call Logs screens are fictional and go away when those screens are wired
+   to the API.
 7. **Account deletion** (Guideline 5.1.1 v) is not required while accounts are created by an admin rather than
    in the app. If you ever add self sign-up, an in-app delete option becomes mandatory.
 8. **Android call logs.** The Calls tab and Home shortcut are now Android-only. Google Play restricts the
