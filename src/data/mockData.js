@@ -1,4 +1,5 @@
-// Centralized mock data layer for AI features
+// Centralized mock data layer for AI features.
+// Sample data only: every person here is a placeholder, not a real employee.
 // All data is deterministic but varies by date to feel "alive"
 
 const STAFF_LIST = [
