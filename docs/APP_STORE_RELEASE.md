@@ -99,8 +99,10 @@ likely they are to cause a rejection under Guideline 2.1 (completeness) and 2.3 
    from the device safe-area inset (via the hooks in `src/utils/safeArea.js`), the tab bar and floating assistant
    button follow the home-indicator inset, the Leave and Add Staff forms avoid the keyboard, and Reports has a back
    button. Still check each screen once on a Dynamic Island iPhone and an iPhone SE in TestFlight.
-5. **Role checks.** Staff users can open Reports, Leave and Salary (which lists everyone's pay), and the chat
-   assistant offers staff the admin approve/reject actions.
+5. **Role checks.** Resolved: Payroll/Salary, Add Staff and Live Track are registered in the navigator only for
+   admins, the Salary shortcut is admin-only, and the chat assistant refuses admin intents (leave decisions,
+   reminders, scheduling, WhatsApp, payroll) for staff accounts. Reports and Leave stay available to staff and
+   already show role-appropriate content.
 6. **Personal data in the source.** Resolved: `src/data/mockData.js` now uses placeholder people and neutral
    leave reasons, and `ProfileScreen` no longer falls back to a real-looking phone number. The sample names in
    the Home, Payroll, Live Track and Call Logs screens are fictional and go away when those screens are wired
