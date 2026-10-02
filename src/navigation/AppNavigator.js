@@ -122,6 +122,7 @@ function TabNavigator() {
 
 export default function AppNavigator() {
   const { user, isLoading } = useAuth();
+  const isAdmin = user?.role === 'admin';
   if (isLoading) return null;
 
   return (
@@ -131,12 +132,17 @@ export default function AppNavigator() {
           <>
             <Stack.Screen name="Main" component={TabNavigator} />
             <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-            <Stack.Screen name="AddStaff" component={AddStaffScreen} />
             <Stack.Screen name="Reports" component={ReportsScreen} />
-            <Stack.Screen name="Payroll" component={PayrollScreen} />
-            <Stack.Screen name="LiveTrack" component={LiveTrackScreen} />
             <Stack.Screen name="Leave" component={LeaveScreen} />
-            <Stack.Screen name="Salary" component={PayrollScreen} />
+            {/* Admin-only screens are not registered for staff, so no shortcut or chat action can open them. */}
+            {isAdmin && (
+              <Stack.Group>
+                <Stack.Screen name="AddStaff" component={AddStaffScreen} />
+                <Stack.Screen name="Payroll" component={PayrollScreen} />
+                <Stack.Screen name="Salary" component={PayrollScreen} />
+                <Stack.Screen name="LiveTrack" component={LiveTrackScreen} />
+              </Stack.Group>
+            )}
             <Stack.Screen name="Chat" component={ChatScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
           </>

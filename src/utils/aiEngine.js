@@ -544,7 +544,14 @@ function generateStaffInfoResponse(staff) {
   };
 }
 
+// Intents that act on other people's data or send messages to the team.
+const ADMIN_INTENTS = ['admin_approve_leave', 'admin_reject_leave', 'admin_mark_attendance', 'admin_send_reminder', 'schedule_meeting', 'whatsapp_integration', 'payroll'];
+
 function generateChatResponse(intent, userId, rawQuery, context) {
+  const isAdmin = context.isAdmin === true;
+  if (!isAdmin && ADMIN_INTENTS.includes(intent)) {
+    return { intent, response: "That's an admin action, so I can't do it from a staff account. Please ask your admin." };
+  }
   const today = getTodayAttendance();
   const payroll = getPayrollSummary();
 
@@ -646,7 +653,6 @@ function generateChatResponse(intent, userId, rawQuery, context) {
     // ── Notifications ───────────────────────
 
     case 'notifications': {
-      const isAdmin = context.isAdmin !== false; // default to admin
       const notifs = generateSmartNotifications(isAdmin);
       if (notifs.length === 0) return { intent, response: 'All clear! No pending notifications.' };
       let resp = `You have ${notifs.length} notification${notifs.length > 1 ? 's' : ''}:\n`;
@@ -772,7 +778,7 @@ function generateChatResponse(intent, userId, rawQuery, context) {
       const names = absent.map((s) => `  ${s.name} (${s.status === 'leave' ? 'On Leave' : 'Absent'}) — ${s.department}`);
       return {
         intent, response: `${absent.length} staff not in today:\n${names.join('\n')}`,
-        actions: absent.some((s) => s.status === 'absent') ? [{ label: 'Send Reminder', action: 'send_reminder' }] : [],
+        actions: isAdmin && absent.some((s) => s.status === 'absent') ? [{ label: 'Send Reminder', action: 'send_reminder' }] : [],
       };
     }
 

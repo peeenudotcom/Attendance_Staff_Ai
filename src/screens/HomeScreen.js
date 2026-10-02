@@ -186,7 +186,7 @@ export default function HomeScreen({ navigation }) {
               { icon: '◫', label: 'Gallery', screen: 'Gallery' },
               { icon: '◈', label: 'Reports', screen: 'Reports' },
               { icon: '◇', label: 'Leave', screen: 'Leave' },
-              { icon: '◆', label: 'Salary', screen: 'Salary' },
+              ...(isAdmin ? [{ icon: '◆', label: 'Salary', screen: 'Salary' }] : []),
             ].map((a) => (
               <TouchableOpacity key={a.label} style={[styles.quickChip, { backgroundColor: C.bgCard, borderColor: C.border }]} onPress={() => navigation.navigate(a.screen)} activeOpacity={0.7}>
                 <Text style={[styles.quickIcon, { color: C.textMuted }]}>{a.icon}</Text>
