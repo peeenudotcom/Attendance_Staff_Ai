@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
 } from 'react-native';
 import { COLORS, RADIUS, SPACING, FONTS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
@@ -64,9 +64,6 @@ export default function NotificationsScreen({ navigation }) {
         break;
       case 'view_history':
         navigation.navigate('History');
-        break;
-      case 'send_reminder':
-        Alert.alert('Sent', 'Reminder sent to all absent staff.');
         break;
       default:
         break;

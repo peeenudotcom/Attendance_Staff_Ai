@@ -51,10 +51,6 @@ export default function GalleryScreen() {
     }
   };
 
-  const uploadAll = () => {
-    Alert.alert('Upload', `${images.length} photos will be synced to TARAhut CRM`);
-  };
-
   const renderItem = ({ item }) => (
     <View style={[styles.imageCard, { backgroundColor: C.bgCard, borderColor: C.border }]}>
       <Image source={{ uri: item.uri }} style={styles.image} />
@@ -74,11 +70,6 @@ export default function GalleryScreen() {
           <Text style={[styles.title, { color: C.textPrimary }]}>Gallery & Uploads</Text>
           <Text style={[styles.subtitle, { color: C.textMuted }]}>Proof of work & site photos</Text>
         </View>
-        {images.length > 0 && (
-          <TouchableOpacity style={[styles.uploadButton, { backgroundColor: C.accentSoft, borderColor: C.accentBorder }]} onPress={uploadAll}>
-            <Text style={[styles.uploadText, { color: C.textAccent }]}>Upload All</Text>
-          </TouchableOpacity>
-        )}
       </View>
 
       {/* Action Buttons */}
@@ -119,8 +110,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.xl, paddingBottom: 8 },
   title: { ...FONTS.h1, fontSize: 26 },
   subtitle: { ...FONTS.small, color: COLORS.textMuted, marginTop: 4 },
-  uploadButton: { backgroundColor: COLORS.accentSoft, paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.accentBorder },
-  uploadText: { fontSize: 12, fontWeight: '600', color: COLORS.textAccent },
   actionRow: { flexDirection: 'row', padding: SPACING.xl, gap: 12 },
   actionButton: { flex: 1, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: 20, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   actionIcon: { fontSize: 28 },

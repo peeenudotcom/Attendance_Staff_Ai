@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, Alert, Linking,
+  KeyboardAvoidingView, Platform, Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, RADIUS, SPACING, FONTS } from '../utils/theme';
@@ -41,40 +41,36 @@ export default function ChatScreen({ navigation }) {
     },
   ]);
 
+  const openWhatsApp = (encodedText) =>
+    Linking.openURL(`whatsapp://send?text=${encodedText}`).catch(() => addAIMessage('WhatsApp is not installed on this device.'));
+
   const handleAction = (action, data) => {
     switch (action) {
       case 'navigate':
         navigation.goBack();
         setTimeout(() => navigation.navigate(data?.screen), 100);
         break;
+      // Leave decisions, reminders, scheduling and WhatsApp alerts are not connected to the
+      // backend yet, so the assistant says so instead of claiming they happened.
       case 'approve_leave':
-        Alert.alert('Leave Approved', `${data?.name}'s leave has been approved.`);
-        addAIMessage(`Done! ${data?.name}'s leave request has been approved. They'll be notified.`);
-        break;
       case 'reject_leave':
-        Alert.alert('Leave Rejected', `${data?.name}'s leave has been rejected.`);
-        addAIMessage(`${data?.name}'s leave request has been rejected.`);
-        break;
       case 'approve_all_recommended':
-        Alert.alert('Bulk Approval', 'All AI-recommended leave requests have been approved.');
-        addAIMessage('All AI-recommended leave requests have been approved. Staff will be notified via push notification.');
+        addAIMessage(`I can't change leave requests from chat yet. Open Leave Management to review ${data?.name ? data.name + "'s" : 'the pending'} request.`);
         break;
       case 'send_reminder':
-        Alert.alert('Reminder Sent', 'Push notification sent to absent staff.');
-        addAIMessage('Attendance reminder sent to all absent staff via push notification.');
+        addAIMessage("Push reminders aren't set up yet. You can send a WhatsApp reminder instead.");
         break;
       case 'whatsapp_broadcast':
-        Linking.openURL('whatsapp://send?text=Hi%20team!%20Please%20mark%20your%20attendance%20on%20TARAhut%20app.%20-%20Admin');
+        openWhatsApp('Hi%20team!%20Please%20mark%20your%20attendance%20on%20TARAhut%20app.%20-%20Admin');
         break;
       case 'whatsapp_reminder':
-        Linking.openURL('whatsapp://send?text=Reminder:%20Please%20mark%20your%20attendance%20today%20on%20TARAhut%20app.');
+        openWhatsApp('Reminder:%20Please%20mark%20your%20attendance%20today%20on%20TARAhut%20app.');
         break;
       case 'whatsapp_setup':
-        addAIMessage('WhatsApp alerts setup:\n\n1. Daily briefing at 9 AM\n2. Absent staff alerts at 10 AM\n3. Payroll reminders 3 days before due\n4. Leave approval notifications\n\nAll enabled! You\'ll receive these on your registered WhatsApp number.');
+        addAIMessage("Scheduled WhatsApp alerts aren't available yet. For now I can open WhatsApp with a ready-made message whenever you ask.");
         break;
       case 'schedule_confirm':
-        Alert.alert('Meeting Scheduled', `Team meeting scheduled for ${data?.day}.`);
-        addAIMessage(`Team meeting has been scheduled for ${data?.day}.\n\nI'll send:\n  Calendar invites to all staff\n  WhatsApp reminder 1 day before\n  Push notification on the day\n\nMeeting details can be edited in Calendar.`);
+        addAIMessage(`I can't create calendar events or send invites yet, so nothing was scheduled for ${data?.day}. Please add the meeting in your calendar app.`);
         break;
       case 'check_in':
         navigation.goBack();

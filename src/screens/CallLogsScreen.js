@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS, GLASS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
+import { callLogAPI } from '../services/api';
 import { useHeaderInset } from '../utils/safeArea';
 
 const MOCK_CALLS = [
@@ -26,6 +27,19 @@ export default function CallLogsScreen() {
   const headerTop = useHeaderInset(16);
   const [calls, setCalls] = useState(MOCK_CALLS);
   const [filter, setFilter] = useState('all');
+  const [syncing, setSyncing] = useState(false);
+
+  const syncToCRM = async () => {
+    setSyncing(true);
+    try {
+      await callLogAPI.sync(calls);
+      Alert.alert('Synced', `${calls.length} calls synced to CRM`);
+    } catch (e) {
+      Alert.alert('Sync failed', e.message || 'Could not reach the server. Please try again.');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   useEffect(() => {
     if (Platform.OS === 'android') {
@@ -111,8 +125,8 @@ export default function CallLogsScreen() {
           <Text style={[styles.headerTitle, { color: C.textPrimary }]}>Call Activity</Text>
           <Text style={[styles.headerSub, { color: C.textMuted }]}>CRM-synced call tracking</Text>
         </View>
-        <TouchableOpacity style={[styles.syncBtn, { backgroundColor: C.accentSoft, borderColor: C.accentBorder }]} onPress={() => Alert.alert('Synced', `${calls.length} calls synced to CRM`)}>
-          <Text style={[styles.syncText, { color: C.textAccent }]}>Sync ↑</Text>
+        <TouchableOpacity style={[styles.syncBtn, { backgroundColor: C.accentSoft, borderColor: C.accentBorder }]} onPress={syncToCRM} disabled={syncing}>
+          <Text style={[styles.syncText, { color: C.textAccent }]}>{syncing ? 'Syncing…' : 'Sync ↑'}</Text>
         </TouchableOpacity>
       </View>
 
