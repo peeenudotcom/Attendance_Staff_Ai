@@ -8,8 +8,7 @@ import { COLORS, SHADOWS, RADIUS, SPACING, FONTS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
 import { useModalHeaderInset } from '../utils/safeArea';
 import { attendanceAPI } from '../services/api';
-import FaceDetectionOverlay from '../components/FaceDetectionOverlay';
-import FaceMatchConfirmation from '../components/FaceMatchConfirmation';
+import SelfieGuide from '../components/SelfieGuide';
 
 const { width } = Dimensions.get('window');
 
@@ -24,9 +23,6 @@ export default function MarkAttendanceScreen({ route, navigation }) {
   const [selfie, setSelfie] = useState(null);
   const [loading, setLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(true);
-  const [faceDetected, setFaceDetected] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [verified, setVerified] = useState(false);
 
   useEffect(() => { getLocation(); }, []);
 
@@ -89,7 +85,7 @@ export default function MarkAttendanceScreen({ route, navigation }) {
         <View style={[styles.permCard, { backgroundColor: C.bgCard, borderColor: C.border }]}>
           <Text style={{ fontSize: 48, marginBottom: 16 }}>📷</Text>
           <Text style={[styles.permTitle, { color: C.textPrimary }]}>Camera Access Required</Text>
-          <Text style={[styles.permDesc, { color: C.textSecondary }]}>We need camera access to verify your identity for attendance</Text>
+          <Text style={[styles.permDesc, { color: C.textSecondary }]}>We need camera access to take your check-in selfie</Text>
           <TouchableOpacity style={styles.permButton} onPress={requestPermission}>
             <Text style={styles.permButtonText}>Enable Camera</Text>
           </TouchableOpacity>
@@ -126,30 +122,23 @@ export default function MarkAttendanceScreen({ route, navigation }) {
         </View>
       </View>
       <Text style={[styles.stepLabel, { color: C.textAccent }]}>
-        {!selfie ? (faceDetected ? 'Face Detected — Capture' : 'Detecting Face...') : verifying ? 'Verifying Identity...' : verified ? 'Verified — Confirm' : 'Verify Identity'}
+        {!selfie ? 'Take a selfie' : 'Confirm your attendance'}
       </Text>
 
-      {/* Camera / Face Verification */}
+      {/* Camera / Selfie */}
       <View style={styles.cameraWrapper}>
-        {verifying || verified ? (
-          <View style={[styles.cameraView, { backgroundColor: C.bg, justifyContent: 'center' }]}>
-            <FaceMatchConfirmation
-              selfieUri={selfie?.uri}
-              onVerified={() => setVerified(true)}
-            />
-          </View>
-        ) : selfie ? (
+        {selfie ? (
           <Image source={{ uri: selfie.uri }} style={styles.cameraView} />
         ) : (
           <View style={styles.cameraView}>
             <CameraView ref={cameraRef} style={{ flex: 1 }} facing="front" />
             <View style={styles.faceOverlay}>
-              <FaceDetectionOverlay onFaceDetected={() => setFaceDetected(true)} />
+              <SelfieGuide />
             </View>
           </View>
         )}
-        {selfie && !verifying && !verified && (
-          <TouchableOpacity style={styles.retakeBtn} onPress={() => { setSelfie(null); setFaceDetected(false); }}>
+        {selfie && (
+          <TouchableOpacity style={styles.retakeBtn} onPress={() => setSelfie(null)}>
             <Text style={styles.retakeText}>🔄 Retake</Text>
           </TouchableOpacity>
         )}
@@ -179,7 +168,7 @@ export default function MarkAttendanceScreen({ route, navigation }) {
 
       {/* Bottom Action */}
       <View style={styles.bottom}>
-        {verified ? (
+        {selfie ? (
           <TouchableOpacity
             style={[styles.submitBtn, type === 'check-out' && { backgroundColor: COLORS.danger }]}
             onPress={submitAttendance}
@@ -194,27 +183,14 @@ export default function MarkAttendanceScreen({ route, navigation }) {
               </Text>
             )}
           </TouchableOpacity>
-        ) : selfie && !verifying ? (
-          <TouchableOpacity
-            style={[styles.submitBtn, { backgroundColor: C.accentStart || COLORS.accent }]}
-            onPress={() => setVerifying(true)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.submitText}>🔍  Verify Identity</Text>
-          </TouchableOpacity>
-        ) : !selfie ? (
-          <TouchableOpacity
-            style={[styles.captureBtn, !faceDetected && { opacity: 0.3 }]}
-            onPress={faceDetected ? takeSelfie : null}
-            activeOpacity={0.7}
-            disabled={!faceDetected}
-          >
+        ) : (
+          <TouchableOpacity style={styles.captureBtn} onPress={takeSelfie} activeOpacity={0.7}>
             <View style={styles.captureOuter}>
-              <View style={[styles.captureInner, faceDetected && { backgroundColor: C.success || COLORS.accent }]} />
+              <View style={styles.captureInner} />
             </View>
-            {!faceDetected && <Text style={[styles.waitText, { color: C.textMuted }]}>Detecting face...</Text>}
+            <Text style={[styles.waitText, { color: C.textMuted }]}>Tap to take your selfie</Text>
           </TouchableOpacity>
-        ) : null}
+        )}
       </View>
     </View>
   );

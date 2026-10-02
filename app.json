@@ -47,7 +47,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "TARAhut Attendance uses the camera to take a selfie that verifies your identity when you check in or check out, and to capture site photos.",
+          "cameraPermission": "TARAhut Attendance uses the camera to take a selfie when you check in or check out, and to capture site photos.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }

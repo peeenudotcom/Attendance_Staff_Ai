@@ -227,20 +227,6 @@ export function evaluateLeaveRequest(request) {
 }
 
 // ─────────────────────────────────────────────
-// Feature 4: Face Detection (simulation helpers)
-// ─────────────────────────────────────────────
-
-export function simulateFaceMatch() {
-  // Returns a simulated confidence between 92-99%
-  const base = 92 + Math.random() * 7;
-  return {
-    matched: true,
-    confidence: Math.round(base),
-    processingTime: 1200 + Math.random() * 800, // 1.2-2.0 seconds
-  };
-}
-
-// ─────────────────────────────────────────────
 // Feature 5: Smart Notifications Generator
 // ─────────────────────────────────────────────
 
@@ -322,7 +308,7 @@ export function generateSmartNotifications(isAdmin) {
       notifications.push({
         id: 'ns1', type: 'reminder', priority: 'high',
         title: 'Mark Your Attendance',
-        body: 'Don\'t forget to check in! Tap here to mark attendance with face verification.',
+        body: 'Don\'t forget to check in! Tap here to check in with a selfie.',
         action: 'check_in', time: 'Just now',
       });
     }
