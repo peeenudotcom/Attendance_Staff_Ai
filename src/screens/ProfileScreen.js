@@ -6,6 +6,7 @@ import { COLORS, SHADOWS, RADIUS, SPACING, FONTS, GLASS } from '../utils/theme';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useHeaderInset } from '../utils/safeArea';
+import { SHOW_SAMPLE_DATA } from '../config/features';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -69,6 +70,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* Stats */}
+        {SHOW_SAMPLE_DATA && (
         <View style={[styles.statsCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)', borderColor: C.border }]}>
           {[
             { value: '22', label: 'Present' },
@@ -84,6 +86,7 @@ export default function ProfileScreen() {
             </React.Fragment>
           ))}
         </View>
+        )}
       </View>
 
       {/* Menu */}

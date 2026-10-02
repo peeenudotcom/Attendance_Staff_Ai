@@ -14,6 +14,7 @@ import GlowDot from '../components/GlowDot';
 import DailyBriefingCard from '../components/DailyBriefingCard';
 import PredictiveCard from '../components/PredictiveCard';
 import FloatingAssistantButton from '../components/FloatingAssistantButton';
+import { SHOW_SAMPLE_DATA } from '../config/features';
 
 const { width } = Dimensions.get('window');
 
@@ -55,9 +56,11 @@ export default function HomeScreen({ navigation }) {
 
   const adminActions = [
     { icon: '➕', label: 'Add Staff', value: '12 members', screen: 'AddStaff' },
-    { icon: '📈', label: 'Analytics', value: '96% rate', screen: 'Reports' },
-    { icon: '💳', label: 'Payroll', value: '₹2.4L due', screen: 'Payroll' },
-    { icon: '📡', label: 'Live Track', value: '5 active', screen: 'LiveTrack' },
+    ...(SHOW_SAMPLE_DATA ? [
+      { icon: '📈', label: 'Analytics', value: '96% rate', screen: 'Reports' },
+      { icon: '💳', label: 'Payroll', value: '₹2.4L due', screen: 'Payroll' },
+      { icon: '📡', label: 'Live Track', value: '5 active', screen: 'LiveTrack' },
+    ] : []),
   ];
 
   const team = [
@@ -86,10 +89,12 @@ export default function HomeScreen({ navigation }) {
           </View>
           <View style={styles.headerRight}>
             {/* Notifications */}
-            <TouchableOpacity style={[styles.themeToggle, { backgroundColor: C.bgCard, borderColor: C.border }]} onPress={() => navigation.navigate('Notifications')} activeOpacity={0.7}>
-              <Text style={styles.themeIcon}>🔔</Text>
-              <View style={styles.notifDot} />
-            </TouchableOpacity>
+            {SHOW_SAMPLE_DATA && (
+              <TouchableOpacity style={[styles.themeToggle, { backgroundColor: C.bgCard, borderColor: C.border }]} onPress={() => navigation.navigate('Notifications')} activeOpacity={0.7}>
+                <Text style={styles.themeIcon}>🔔</Text>
+                <View style={styles.notifDot} />
+              </TouchableOpacity>
+            )}
             {/* Theme Toggle */}
             <TouchableOpacity style={[styles.themeToggle, { backgroundColor: C.bgCard, borderColor: C.border }]} onPress={toggleTheme} activeOpacity={0.7}>
               <Text style={styles.themeIcon}>{isDark ? '☀️' : '🌙'}</Text>
@@ -119,6 +124,7 @@ export default function HomeScreen({ navigation }) {
                 </View>
 
                 {/* Score Ring */}
+                {SHOW_SAMPLE_DATA && (
                 <View style={styles.scoreRing}>
                   <LinearGradient
                     colors={[C.accentStart, C.accentEnd]}
@@ -132,6 +138,7 @@ export default function HomeScreen({ navigation }) {
                     </View>
                   </LinearGradient>
                 </View>
+                )}
               </View>
 
               {checkedIn && (
@@ -145,7 +152,7 @@ export default function HomeScreen({ navigation }) {
         </View>
 
         {/* AI Briefing - Admin Only */}
-        {isAdmin && (
+        {SHOW_SAMPLE_DATA && isAdmin && (
           <View style={{ marginHorizontal: SPACING.xl, marginTop: 20 }}>
             <DailyBriefingCard />
           </View>
@@ -163,6 +170,7 @@ export default function HomeScreen({ navigation }) {
         </View>
 
         {/* Today Insights */}
+        {SHOW_SAMPLE_DATA && (
         <View style={styles.section}>
           <Text style={[styles.sectionLabel, { color: C.textMuted }]}>TODAY'S INSIGHTS</Text>
           <View style={styles.insightsRow}>
@@ -175,18 +183,18 @@ export default function HomeScreen({ navigation }) {
             ))}
           </View>
         </View>
+        )}
 
         {/* Quick Access */}
         <View style={styles.section}>
           <Text style={[styles.sectionLabel, { color: C.textMuted }]}>QUICK ACCESS</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
             {[
-              { icon: '◷', label: 'History', screen: 'History' },
+              ...(SHOW_SAMPLE_DATA ? [{ icon: '◷', label: 'History', screen: 'History' }] : []),
               ...(Platform.OS === 'android' ? [{ icon: '◉', label: 'Calls', screen: 'CallLogs' }] : []),
               { icon: '◫', label: 'Gallery', screen: 'Gallery' },
-              { icon: '◈', label: 'Reports', screen: 'Reports' },
-              { icon: '◇', label: 'Leave', screen: 'Leave' },
-              ...(isAdmin ? [{ icon: '◆', label: 'Salary', screen: 'Salary' }] : []),
+              ...(SHOW_SAMPLE_DATA ? [{ icon: '◈', label: 'Reports', screen: 'Reports' }, { icon: '◇', label: 'Leave', screen: 'Leave' }] : []),
+              ...(SHOW_SAMPLE_DATA && isAdmin ? [{ icon: '◆', label: 'Salary', screen: 'Salary' }] : []),
             ].map((a) => (
               <TouchableOpacity key={a.label} style={[styles.quickChip, { backgroundColor: C.bgCard, borderColor: C.border }]} onPress={() => navigation.navigate(a.screen)} activeOpacity={0.7}>
                 <Text style={[styles.quickIcon, { color: C.textMuted }]}>{a.icon}</Text>
@@ -205,7 +213,7 @@ export default function HomeScreen({ navigation }) {
                 <TouchableOpacity key={a.label} style={[styles.adminCard, { backgroundColor: C.bgCard, borderColor: C.border }]} onPress={() => navigation.navigate(a.screen)} activeOpacity={0.7}>
                   <Text style={styles.adminIcon}>{a.icon}</Text>
                   <Text style={[styles.adminLabel, { color: C.textPrimary }]}>{a.label}</Text>
-                  <Text style={[styles.adminValue, { color: C.textMuted }]}>{a.value}</Text>
+                  {SHOW_SAMPLE_DATA && <Text style={[styles.adminValue, { color: C.textMuted }]}>{a.value}</Text>}
                 </TouchableOpacity>
               ))}
             </View>
@@ -213,14 +221,14 @@ export default function HomeScreen({ navigation }) {
         )}
 
         {/* AI Predictions - Admin Only */}
-        {isAdmin && (
+        {SHOW_SAMPLE_DATA && isAdmin && (
           <View style={styles.section}>
             <PredictiveCard />
           </View>
         )}
 
         {/* Team Activity */}
-        {isAdmin && (
+        {SHOW_SAMPLE_DATA && isAdmin && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionLabel, { color: C.textMuted }]}>TEAM ACTIVITY</Text>
@@ -259,7 +267,7 @@ export default function HomeScreen({ navigation }) {
       </ScrollView>
 
       {/* AI Assistant FAB */}
-      <FloatingAssistantButton onPress={() => navigation.navigate('Chat')} />
+      {SHOW_SAMPLE_DATA && <FloatingAssistantButton onPress={() => navigation.navigate('Chat')} />}
     </View>
   );
 }
