@@ -75,9 +75,7 @@ export default function MarkAttendanceScreen({ route, navigation }) {
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (e) {
-      Alert.alert('Success!', `${type === 'check-in' ? 'Checked In' : 'Checked Out'} at ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`, [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
+      Alert.alert(`${type === 'check-in' ? 'Check In' : 'Check Out'} failed`, e.message || 'Could not reach the server. Please try again.');
     } finally {
       setLoading(false);
     }

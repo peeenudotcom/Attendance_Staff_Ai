@@ -46,6 +46,7 @@ export const attendanceAPI = {
 
 export const staffAPI = {
   getAll: () => request('/staff'),
+  create: (data) => request('/staff', { method: 'POST', body: JSON.stringify(data) }),
   getById: (id) => request(`/staff/${id}`),
   getAttendanceReport: (id, month) => request(`/staff/${id}/attendance?month=${month}`),
 };

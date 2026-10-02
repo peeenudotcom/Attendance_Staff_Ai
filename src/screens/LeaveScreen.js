@@ -34,6 +34,9 @@ export default function LeaveScreen({ navigation }) {
   const [showApply, setShowApply] = useState(false);
   const [leaveType, setLeaveType] = useState('');
   const [reason, setReason] = useState('');
+  // Local only until a leave endpoint exists: nothing here reaches the backend.
+  const [requests, setRequests] = useState(LEAVE_REQUESTS);
+  const [myLeaves, setMyLeaves] = useState(MY_LEAVES);
 
   const statusConfig = {
     pending: { color: COLORS.warning, bg: COLORS.warningLight, label: 'Pending' },
@@ -41,8 +44,20 @@ export default function LeaveScreen({ navigation }) {
     rejected: { color: COLORS.danger, bg: COLORS.dangerLight, label: 'Rejected' },
   };
 
-  const handleApprove = (id) => Alert.alert('Approved', 'Leave request has been approved');
-  const handleReject = (id) => Alert.alert('Rejected', 'Leave request has been rejected');
+  const setStatus = (id, status) => setRequests((rs) => rs.map((r) => (r.id === id ? { ...r, status } : r)));
+  const handleApprove = (id) => setStatus(id, 'approved');
+  const handleReject = (id) => setStatus(id, 'rejected');
+
+  const submitLeave = () => {
+    if (!leaveType) return Alert.alert('Required', 'Choose a leave type');
+    if (!reason.trim()) return Alert.alert('Required', 'Enter a reason for the leave');
+    const today = new Date().toISOString().split('T')[0]; // the form has no date picker yet
+    setMyLeaves((ls) => [{ id: String(Date.now()), type: leaveType, from: today, to: today, days: 1, reason: reason.trim(), status: 'pending' }, ...ls]);
+    setLeaveType('');
+    setReason('');
+    setShowApply(false);
+    setTab('history');
+  };
 
   const formatDate = (d) => {
     const date = new Date(d);
@@ -113,7 +128,7 @@ export default function LeaveScreen({ navigation }) {
           />
           <TouchableOpacity
             style={styles.submitBtn}
-            onPress={() => { setShowApply(false); Alert.alert('Submitted', 'Leave request submitted'); }}
+            onPress={submitLeave}
           >
             <Text style={styles.submitText}>Submit Request</Text>
           </TouchableOpacity>
@@ -150,7 +165,7 @@ export default function LeaveScreen({ navigation }) {
       {tab === 'requests' && isAdmin && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: C.textPrimary }]}>Pending Requests</Text>
-          {LEAVE_REQUESTS.map((req) => {
+          {requests.map((req) => {
             const config = statusConfig[req.status];
             return (
               <View key={req.id} style={[styles.requestCard, { backgroundColor: C.bgCard, borderWidth: 1, borderColor: C.border }]}>
@@ -202,7 +217,7 @@ export default function LeaveScreen({ navigation }) {
       {tab === 'history' && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: C.textPrimary }]}>Leave History</Text>
-          {MY_LEAVES.map((leave) => {
+          {myLeaves.map((leave) => {
             const config = statusConfig[leave.status];
             return (
               <View key={leave.id} style={[styles.historyCard, { backgroundColor: C.bgCard, borderWidth: 1, borderColor: C.border }]}>

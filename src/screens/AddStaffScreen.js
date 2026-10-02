@@ -6,6 +6,7 @@ import {
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
 import { useHeaderInset } from '../utils/safeArea';
+import { staffAPI } from '../services/api';
 
 export default function AddStaffScreen({ navigation }) {
   const { colors: C } = useTheme();
@@ -17,6 +18,7 @@ export default function AddStaffScreen({ navigation }) {
   const [salaryType, setSalaryType] = useState('monthly');
   const [salary, setSalary] = useState('');
   const [sendInvite, setSendInvite] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const departments = ['Sales', 'Marketing', 'Development', 'Support', 'HR', 'Operations', 'Finance'];
   const salaryTypes = [
@@ -26,16 +28,20 @@ export default function AddStaffScreen({ navigation }) {
     { key: 'weekly', label: 'Weekly', icon: '📆' },
   ];
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) return Alert.alert('Required', 'Please enter staff name');
     if (phone.length < 10) return Alert.alert('Required', 'Please enter valid phone number');
     if (!salary) return Alert.alert('Required', 'Please enter salary amount');
 
-    Alert.alert(
-      'Staff Added!',
-      `${name} has been added successfully.${sendInvite ? '\nAn invite link has been sent via WhatsApp.' : ''}`,
-      [{ text: 'OK', onPress: () => navigation.goBack() }]
-    );
+    setSaving(true);
+    try {
+      await staffAPI.create({ name: name.trim(), phone, department, designation, salaryType, salary: Number(salary), sendInvite });
+      Alert.alert('Staff Added', `${name.trim()} has been added.`, [{ text: 'OK', onPress: () => navigation.goBack() }]);
+    } catch (e) {
+      Alert.alert('Could not add staff', e.message || 'Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -187,8 +193,8 @@ export default function AddStaffScreen({ navigation }) {
         </View>
 
         {/* Save Button */}
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave} activeOpacity={0.8}>
-          <Text style={[styles.saveButtonText, { color: '#ffffff' }]}>Add Staff Member</Text>
+        <TouchableOpacity style={[styles.saveButton, saving && { opacity: 0.6 }]} onPress={handleSave} activeOpacity={0.8} disabled={saving}>
+          <Text style={[styles.saveButtonText, { color: '#ffffff' }]}>{saving ? 'Adding…' : 'Add Staff Member'}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />

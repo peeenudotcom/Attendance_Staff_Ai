@@ -89,10 +89,12 @@ likely they are to cause a rejection under Guideline 2.1 (completeness) and 2.3 
 3. **Sample data and inert controls.** Home stats, History (fixed to March 2026), Reports, Payroll, Leave,
    Live Track, Notifications, the Chat assistant and the Profile stats are all hardcoded. The Add Staff and
    Leave forms discard what you type. "Pay All Pending", "Generate Slips", "Pay Now", "View All", the month
-   pickers and 16 Profile menu items do nothing. Several buttons show a success alert without doing anything
-   ("Synced to CRM", "Invite sent via WhatsApp", "Push notification sent"). Reviewers reject apps that behave
-   like demos: hide the screens you do not want judged for v1.0, remove the fake success alerts, and wire the
-   rest to the API before you advertise them.
+   pickers and 16 Profile menu items do nothing. The fake success alerts are gone: Call Logs sync and Add Staff
+   now call the API (`POST /call-logs/sync`, `POST /staff`) and report real outcomes, Mark Attendance reports a
+   failed request as a failure, the Gallery upload button is removed until an upload endpoint exists, Leave
+   approve/reject/submit only change what is on screen, and the chat assistant says plainly what it cannot do
+   yet. Reviewers reject apps that behave like demos: hide the screens you do not want judged for v1.0 and wire
+   the rest to the API before you advertise them.
 4. **Status bar and keyboard on current iPhones.** Fixed in this branch: every screen now pads its header
    from the device safe-area inset (via the hooks in `src/utils/safeArea.js`), the tab bar and floating assistant
    button follow the home-indicator inset, the Leave and Add Staff forms avoid the keyboard, and Reports has a back
@@ -110,7 +112,8 @@ likely they are to cause a rejection under Guideline 2.1 (completeness) and 2.3 
 ## 7. Backend
 
 The app talks to `https://tarahut-ams.vercel.app/api` (`src/services/api.js`): auth (login, verify-otp, profile),
-attendance (check-in, check-out, history, today, approve, reject), staff, and call-log sync. The `tarahut-ams`
+attendance (check-in, check-out, history, today, approve, reject), staff (list, detail, and `POST /staff` to create,
+which the Add Staff form now relies on), and call-log sync. The `tarahut-ams`
 project exists in your Vercel team, but its deployment status could not be read from this environment, so confirm
 the production deployment is live and the OTP flow works end to end before review. All traffic is HTTPS,
 which is what the encryption declaration above relies on.
