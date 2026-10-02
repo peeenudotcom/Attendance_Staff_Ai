@@ -106,7 +106,8 @@ function TabNavigator() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="History" component={HistoryScreen} />
-      <Tab.Screen name="CallLogs" component={CallLogsScreen} />
+      {/* iOS has no public API for call history, so the Calls tab only ships on Android. */}
+      {Platform.OS === 'android' && <Tab.Screen name="CallLogs" component={CallLogsScreen} />}
       <Tab.Screen name="Gallery" component={GalleryScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>

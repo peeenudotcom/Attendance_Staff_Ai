@@ -1,24 +1,26 @@
 {
   "expo": {
-    "name": "tarahut-attendance",
+    "name": "TARAhut Attendance",
     "slug": "tarahut-attendance",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.tarahut.attendance",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.tarahut.attendance",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0A0E1A"
       },
       "edgeToEdgeEnabled": true
     },
@@ -26,8 +28,48 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store",
-      "expo-font"
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#0A0E1A"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "TARAhut Attendance uses the camera to take a selfie that verifies your identity when you check in or check out, and to capture site photos.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "TARAhut Attendance records your location at the moment you check in or check out so your attendance can be verified against your work site. Location is not tracked in the background.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "TARAhut Attendance needs access to your photo library so you can upload proof-of-work and site photos.",
+          "cameraPermission": "TARAhut Attendance uses the camera to capture proof-of-work and site photos.",
+          "microphonePermission": false
+        }
+      ]
     ]
   }
 }
