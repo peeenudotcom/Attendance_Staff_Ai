@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS } from '../utils/theme';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useHeaderInset } from '../utils/safeArea';
 import AIRecommendationBadge from '../components/AIRecommendationBadge';
 import { evaluateLeaveRequest } from '../utils/aiEngine';
 import { getLeaveRequests } from '../data/mockData';
@@ -26,6 +28,7 @@ const MY_LEAVES = [
 export default function LeaveScreen({ navigation }) {
   const { user } = useAuth();
   const { colors: C } = useTheme();
+  const headerTop = useHeaderInset(12);
   const isAdmin = user?.role === 'admin';
   const [tab, setTab] = useState(isAdmin ? 'requests' : 'balance');
   const [showApply, setShowApply] = useState(false);
@@ -47,9 +50,10 @@ export default function LeaveScreen({ navigation }) {
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: C.bg }]} showsVerticalScrollIndicator={false}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <ScrollView style={[styles.container, { backgroundColor: C.bg }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: C.bgCard, borderBottomColor: C.border }]}>
+      <View style={[styles.header, { paddingTop: headerTop, backgroundColor: C.bgCard, borderBottomColor: C.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backBtn, { backgroundColor: C.bgElevated }]}>
           <Text style={[styles.backIcon, { color: C.textPrimary }]}>←</Text>
         </TouchableOpacity>
@@ -221,12 +225,13 @@ export default function LeaveScreen({ navigation }) {
 
       <View style={{ height: 40 }} />
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.xl, paddingTop: 60, paddingBottom: 16, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.xl, paddingBottom: 16, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.gray100, justifyContent: 'center', alignItems: 'center' },
   backIcon: { fontSize: 20, color: COLORS.text },
   headerTitle: { ...FONTS.h3 },

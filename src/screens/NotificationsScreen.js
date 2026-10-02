@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { COLORS, RADIUS, SPACING, FONTS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
+import { useHeaderInset } from '../utils/safeArea';
 import { useAuth } from '../context/AuthContext';
 import GlassCard from '../components/GlassCard';
 import GlowDot from '../components/GlowDot';
@@ -29,6 +30,7 @@ const TYPE_ICONS = {
 
 export default function NotificationsScreen({ navigation }) {
   const { colors: C } = useTheme();
+  const headerTop = useHeaderInset(12);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const [notifications, setNotifications] = useState([]);
@@ -82,7 +84,7 @@ export default function NotificationsScreen({ navigation }) {
   return (
     <ScrollView style={[styles.container, { backgroundColor: C.bg }]} showsVerticalScrollIndicator={false}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: C.bgCard, borderBottomColor: C.border }]}>
+      <View style={[styles.header, { paddingTop: headerTop, backgroundColor: C.bgCard, borderBottomColor: C.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backBtn, { backgroundColor: C.bgElevated }]}>
           <Text style={[styles.backIcon, { color: C.textPrimary }]}>←</Text>
         </TouchableOpacity>
@@ -185,7 +187,7 @@ export default function NotificationsScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.xl, paddingTop: 60, paddingBottom: 16, borderBottomWidth: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.xl, paddingBottom: 16, borderBottomWidth: 1 },
   backBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   backIcon: { fontSize: 20 },
   headerTitle: { ...FONTS.h3 },

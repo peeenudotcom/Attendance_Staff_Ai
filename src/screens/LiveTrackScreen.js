@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
+import { useHeaderInset } from '../utils/safeArea';
 
 const { width } = Dimensions.get('window');
 
@@ -23,6 +24,7 @@ const OFFICE_LOCATIONS = [
 
 export default function LiveTrackScreen({ navigation }) {
   const { colors: C } = useTheme();
+  const headerTop = useHeaderInset(12);
   const [filter, setFilter] = useState('all');
 
   const activeCount = STAFF_LOCATIONS.filter(s => s.status === 'active').length;
@@ -42,7 +44,7 @@ export default function LiveTrackScreen({ navigation }) {
   return (
     <ScrollView style={[styles.container, { backgroundColor: C.bg }]} showsVerticalScrollIndicator={false}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: C.bgCard, borderBottomColor: C.border }]}>
+      <View style={[styles.header, { paddingTop: headerTop, backgroundColor: C.bgCard, borderBottomColor: C.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backBtn, { backgroundColor: C.bgElevated }]}>
           <Text style={[styles.backIcon, { color: C.textPrimary }]}>←</Text>
         </TouchableOpacity>
@@ -163,7 +165,7 @@ export default function LiveTrackScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.xl, paddingTop: 60, paddingBottom: 16, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.xl, paddingBottom: 16, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.gray100, justifyContent: 'center', alignItems: 'center' },
   backIcon: { fontSize: 20, color: COLORS.text },
   headerTitle: { ...FONTS.h3 },

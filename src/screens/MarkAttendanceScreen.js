@@ -6,6 +6,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
+import { useModalHeaderInset } from '../utils/safeArea';
 import { attendanceAPI } from '../services/api';
 import FaceDetectionOverlay from '../components/FaceDetectionOverlay';
 import FaceMatchConfirmation from '../components/FaceMatchConfirmation';
@@ -14,6 +15,7 @@ const { width } = Dimensions.get('window');
 
 export default function MarkAttendanceScreen({ route, navigation }) {
   const { colors: C } = useTheme();
+  const headerTop = useModalHeaderInset(12);
   const { type } = route.params;
   const cameraRef = useRef(null);
   const [permission, requestPermission] = useCameraPermissions();
@@ -101,7 +103,7 @@ export default function MarkAttendanceScreen({ route, navigation }) {
   return (
     <View style={[styles.container, { backgroundColor: C.bg }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: headerTop }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backBtn, { backgroundColor: C.bgCard, borderColor: C.border }]}>
           <Text style={[styles.backIcon, { color: C.textPrimary }]}>✕</Text>
         </TouchableOpacity>
@@ -230,7 +232,7 @@ const styles = StyleSheet.create({
   permButton: { backgroundColor: COLORS.accent, paddingHorizontal: 32, paddingVertical: 14, borderRadius: RADIUS.md, ...SHADOWS.accent },
   permButtonText: { ...FONTS.button, color: '#fff' },
 
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.xl, paddingTop: 56, paddingBottom: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.xl, paddingBottom: 12 },
   backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.bgCard, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   backIcon: { fontSize: 18, color: COLORS.textPrimary },
   headerTitle: { ...FONTS.h3 },

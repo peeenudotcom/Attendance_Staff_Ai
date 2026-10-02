@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, Switch,
+  ScrollView, Alert, Switch, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
+import { useHeaderInset } from '../utils/safeArea';
 
 export default function AddStaffScreen({ navigation }) {
   const { colors: C } = useTheme();
+  const headerTop = useHeaderInset(12);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [department, setDepartment] = useState('');
@@ -37,9 +39,10 @@ export default function AddStaffScreen({ navigation }) {
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: C.bg }]} showsVerticalScrollIndicator={false}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <ScrollView style={[styles.container, { backgroundColor: C.bg }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: C.bgCard, borderBottomColor: C.border }]}>
+      <View style={[styles.header, { paddingTop: headerTop, backgroundColor: C.bgCard, borderBottomColor: C.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backButton, { backgroundColor: C.bgElevated }]}>
           <Text style={[styles.backIcon, { color: C.textPrimary }]}>←</Text>
         </TouchableOpacity>
@@ -191,12 +194,13 @@ export default function AddStaffScreen({ navigation }) {
         <View style={{ height: 40 }} />
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.xl, paddingTop: 60, paddingBottom: 16, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.xl, paddingBottom: 16, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   backButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.gray100, justifyContent: 'center', alignItems: 'center' },
   backIcon: { fontSize: 20, color: COLORS.text },
   headerTitle: { ...FONTS.h3 },

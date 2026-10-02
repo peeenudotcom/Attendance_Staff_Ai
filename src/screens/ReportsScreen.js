@@ -4,9 +4,11 @@ import {
 } from 'react-native';
 import { COLORS, SHADOWS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
+import { useHeaderInset } from '../utils/safeArea';
 
-export default function ReportsScreen() {
+export default function ReportsScreen({ navigation }) {
   const { colors: C } = useTheme();
+  const headerTop = useHeaderInset(12);
   const [selectedMonth, setSelectedMonth] = useState('March 2026');
 
   const overview = {
@@ -23,8 +25,13 @@ export default function ReportsScreen() {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: C.bg }]} showsVerticalScrollIndicator={false}>
-      <View style={[styles.header, { backgroundColor: C.bg }]}>
-        <Text style={[styles.title, { color: C.textPrimary }]}>Reports</Text>
+      <View style={[styles.header, { paddingTop: headerTop, backgroundColor: C.bg }]}>
+        <View style={styles.titleRow}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backBtn, { backgroundColor: C.bgElevated }]}>
+            <Text style={[styles.backIcon, { color: C.textPrimary }]}>←</Text>
+          </TouchableOpacity>
+          <Text style={[styles.title, { color: C.textPrimary }]}>Reports</Text>
+        </View>
         <TouchableOpacity style={[styles.monthPicker, { backgroundColor: C.accentSoft }]}>
           <Text style={[styles.monthText, { color: C.textAccent }]}>{selectedMonth} ▾</Text>
         </TouchableOpacity>
@@ -97,7 +104,10 @@ export default function ReportsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, backgroundColor: COLORS.primary, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, backgroundColor: COLORS.primary, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  backBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  backIcon: { fontSize: 20 },
   title: { fontSize: 22, fontWeight: '700', color: COLORS.white },
   monthPicker: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
   monthText: { color: COLORS.white, fontSize: 14, fontWeight: '600' },

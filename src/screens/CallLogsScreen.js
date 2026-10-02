@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS, GLASS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
+import { useHeaderInset } from '../utils/safeArea';
 
 const MOCK_CALLS = [
   { id: '1', name: 'Rahul Sharma', number: '+91 98765 43210', type: 'outgoing', duration: '5:23', time: '10:30 AM', date: '2026-03-29', tagged: 'Lead' },
@@ -22,6 +23,7 @@ const typeConfig = {
 
 export default function CallLogsScreen() {
   const { colors: C } = useTheme();
+  const headerTop = useHeaderInset(16);
   const [calls, setCalls] = useState(MOCK_CALLS);
   const [filter, setFilter] = useState('all');
 
@@ -104,7 +106,7 @@ export default function CallLogsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: C.bg }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: headerTop }]}>
         <View>
           <Text style={[styles.headerTitle, { color: C.textPrimary }]}>Call Activity</Text>
           <Text style={[styles.headerSub, { color: C.textMuted }]}>CRM-synced call tracking</Text>
@@ -170,7 +172,7 @@ export default function CallLogsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.xl, paddingTop: 64, paddingBottom: 8 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.xl, paddingBottom: 8 },
   headerTitle: { ...FONTS.h1, fontSize: 26 },
   headerSub: { ...FONTS.small, color: COLORS.textMuted, marginTop: 4 },
   syncBtn: { backgroundColor: COLORS.accentSoft, paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.accentBorder },

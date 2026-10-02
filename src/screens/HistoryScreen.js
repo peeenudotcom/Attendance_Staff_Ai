@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS, GLASS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
+import { useHeaderInset } from '../utils/safeArea';
 
 const MOCK_DATA = [
   { id: '1', date: '2026-03-29', checkIn: '09:02', checkOut: '18:15', status: 'present', hours: '9h 13m', location: 'Main Office', score: 91 },
@@ -24,6 +25,7 @@ const statusConfig = {
 
 export default function HistoryScreen() {
   const { colors: C } = useTheme();
+  const headerTop = useHeaderInset(16);
   const [filter, setFilter] = useState('all');
   const filters = ['all', 'present', 'late', 'absent', 'leave'];
   const filtered = filter === 'all' ? MOCK_DATA : MOCK_DATA.filter(d => d.status === filter);
@@ -102,7 +104,7 @@ export default function HistoryScreen() {
   return (
     <View style={[styles.container, { backgroundColor: C.bg }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: headerTop }]}>
         <Text style={[styles.headerTitle, { color: C.textPrimary }]}>Attendance Log</Text>
         <Text style={[styles.headerSub, { color: C.textMuted }]}>March 2026</Text>
       </View>
@@ -140,7 +142,7 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  header: { paddingHorizontal: SPACING.xl, paddingTop: 64, paddingBottom: 8 },
+  header: { paddingHorizontal: SPACING.xl, paddingBottom: 8 },
   headerTitle: { ...FONTS.h1, fontSize: 26 },
   headerSub: { ...FONTS.caption, color: COLORS.textMuted, marginTop: 4 },
 
