@@ -6,6 +6,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, RADIUS, SPACING, FONTS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
+import { useModalHeaderInset, useBottomInset } from '../utils/safeArea';
 import { useAuth } from '../context/AuthContext';
 import ChatBubble from '../components/ChatBubble';
 import GlowDot from '../components/GlowDot';
@@ -21,6 +22,8 @@ function timeNow() {
 
 export default function ChatScreen({ navigation }) {
   const { colors: C } = useTheme();
+  const headerTop = useModalHeaderInset(12);
+  const bottomInset = useBottomInset(12);
   const { user } = useAuth();
   const listRef = useRef(null);
   const [input, setInput] = useState('');
@@ -145,7 +148,7 @@ export default function ChatScreen({ navigation }) {
       keyboardVerticalOffset={0}
     >
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: C.bgCard, borderBottomColor: C.border }]}>
+      <View style={[styles.header, { paddingTop: headerTop, backgroundColor: C.bgCard, borderBottomColor: C.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backBtn, { backgroundColor: C.bgElevated }]}>
           <Text style={[styles.backIcon, { color: C.textPrimary }]}>←</Text>
         </TouchableOpacity>
@@ -214,7 +217,7 @@ export default function ChatScreen({ navigation }) {
       </View>
 
       {/* Input */}
-      <View style={[styles.inputBar, { backgroundColor: C.bgCard, borderTopColor: C.border }]}>
+      <View style={[styles.inputBar, { paddingBottom: bottomInset, backgroundColor: C.bgCard, borderTopColor: C.border }]}>
         <TextInput
           style={[styles.input, { backgroundColor: C.bgElevated, borderColor: C.border, color: C.textPrimary }]}
           placeholder={isAdmin ? 'Ask or command...' : 'Ask about attendance, leaves...'}
@@ -247,7 +250,7 @@ export default function ChatScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
 
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.xl, paddingTop: 56, paddingBottom: 14, borderBottomWidth: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.xl, paddingBottom: 14, borderBottomWidth: 1 },
   backBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   backIcon: { fontSize: 20 },
   headerCenter: { flex: 1, marginLeft: 12 },
@@ -272,7 +275,7 @@ const styles = StyleSheet.create({
   quickChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.full, borderWidth: 1 },
   quickText: { fontSize: 12, fontWeight: '600' },
 
-  inputBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingVertical: 10, borderTopWidth: 1, paddingBottom: 30 },
+  inputBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingVertical: 10, borderTopWidth: 1 },
   input: { flex: 1, height: 44, borderRadius: RADIUS.full, paddingHorizontal: 18, fontSize: 15, borderWidth: 1 },
   sendBtn: { marginLeft: 10 },
   sendGradient: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },

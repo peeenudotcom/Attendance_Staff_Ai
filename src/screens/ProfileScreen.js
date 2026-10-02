@@ -5,10 +5,12 @@ import {
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS, GLASS } from '../utils/theme';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useHeaderInset } from '../utils/safeArea';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const { colors: C, isDark, toggleTheme } = useTheme();
+  const headerTop = useHeaderInset(16);
   const isAdmin = user?.role === 'admin';
 
   const handleLogout = () => {
@@ -51,7 +53,7 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={[styles.container, { backgroundColor: C.bg }]} showsVerticalScrollIndicator={false}>
       {/* Profile Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: headerTop }]}>
         <View style={[styles.avatarLg, { backgroundColor: C.bgElevated, borderColor: C.accentBorder }]}>
           <Text style={[styles.avatarText, { color: C.textPrimary }]}>{(user?.name || 'U')[0]}</Text>
         </View>
@@ -127,7 +129,7 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  header: { alignItems: 'center', paddingTop: 64, paddingBottom: 24, paddingHorizontal: SPACING.xl },
+  header: { alignItems: 'center', paddingBottom: 24, paddingHorizontal: SPACING.xl },
   avatarLg: { width: 72, height: 72, borderRadius: 36, backgroundColor: COLORS.bgElevated, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: COLORS.accentBorder },
   avatarText: { fontSize: 28, fontWeight: '800', color: COLORS.textPrimary },
   name: { ...FONTS.h2, marginTop: 14 },

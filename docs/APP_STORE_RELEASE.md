@@ -94,11 +94,10 @@ likely they are to cause a rejection under Guideline 2.1 (completeness) and 2.3 
    ("Synced to CRM", "Invite sent via WhatsApp", "Push notification sent"). Reviewers reject apps that behave
    like demos: hide the screens you do not want judged for v1.0, remove the fake success alerts, and wire the
    rest to the API before you advertise them.
-4. **Status bar and keyboard on current iPhones.** Every screen uses a fixed top padding of 56 to 64 points
-   instead of safe-area insets; on Dynamic Island iPhones the inset is about 59 to 62 points, so headers sit
-   flush with or under the status bar. The Leave and Add Staff forms have no keyboard avoidance, and Reports
-   has no back button (only the edge swipe). `react-native-safe-area-context` is already installed; use its
-   insets on each screen.
+4. **Status bar and keyboard on current iPhones.** Fixed in this branch: every screen now pads its header
+   from the device safe-area inset (via the hooks in `src/utils/safeArea.js`), the tab bar and floating assistant
+   button follow the home-indicator inset, the Leave and Add Staff forms avoid the keyboard, and Reports has a back
+   button. Still check each screen once on a Dynamic Island iPhone and an iPhone SE in TestFlight.
 5. **Role checks.** Staff users can open Reports, Leave and Salary (which lists everyone's pay), and the chat
    assistant offers staff the admin approve/reject actions.
 6. **Personal data in the source.** Your name and email are the demo profile, `ProfileScreen` falls back to a

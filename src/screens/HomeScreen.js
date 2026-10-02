@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, RADIUS, SPACING, FONTS } from '../utils/theme';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useHeaderInset } from '../utils/safeArea';
 import GlassCard from '../components/GlassCard';
 import GradientButton from '../components/GradientButton';
 import GlowDot from '../components/GlowDot';
@@ -19,6 +20,7 @@ const { width } = Dimensions.get('window');
 export default function HomeScreen({ navigation }) {
   const { user } = useAuth();
   const { colors: C, isDark, toggleTheme } = useTheme();
+  const headerTop = useHeaderInset(16);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [checkedIn, setCheckedIn] = useState(false);
   const glowAnim = useRef(new Animated.Value(0.2)).current;
@@ -77,7 +79,7 @@ export default function HomeScreen({ navigation }) {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
 
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: headerTop }]}>
           <View>
             <Text style={[styles.greeting, { color: C.textMuted }]}>{getGreeting()}</Text>
             <Text style={[styles.userName, { color: C.textPrimary }]}>{user?.name || 'User'}</Text>
@@ -265,7 +267,7 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
 
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingTop: 64, paddingBottom: 8 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingBottom: 8 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   greeting: { fontSize: 13 },
   userName: { fontSize: 24, fontWeight: '800', letterSpacing: -0.8, marginTop: 2 },

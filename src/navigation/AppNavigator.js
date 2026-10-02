@@ -7,6 +7,7 @@ import { BlurView } from 'expo-blur';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { RADIUS } from '../utils/theme';
+import { useBottomInset } from '../utils/safeArea';
 
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -44,25 +45,30 @@ const tabStyles = StyleSheet.create({
 });
 
 function GlassTabBar({ children, isDark }) {
+  const bottomInset = useBottomInset(12);
+  const sizing = { height: TAB_CONTENT_HEIGHT + bottomInset, paddingBottom: bottomInset };
   const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
   const hlColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.04)';
   const fallbackBg = isDark ? 'rgba(10,14,26,0.95)' : 'rgba(248,250,252,0.95)';
 
   if (Platform.OS === 'ios') {
     return (
-      <BlurView intensity={60} tint={isDark ? 'dark' : 'light'} style={[glassBarStyles.blur, { borderTopColor: borderColor }]}>
+      <BlurView intensity={60} tint={isDark ? 'dark' : 'light'} style={[glassBarStyles.blur, sizing, { borderTopColor: borderColor }]}>
         <View style={[glassBarStyles.highlight, { backgroundColor: hlColor }]} />
         {children}
       </BlurView>
     );
   }
-  return <View style={[glassBarStyles.fallback, { backgroundColor: fallbackBg, borderTopColor: borderColor }]}>{children}</View>;
+  return <View style={[glassBarStyles.fallback, sizing, { backgroundColor: fallbackBg, borderTopColor: borderColor }]}>{children}</View>;
 }
+
+// Icon + label rows; the home-indicator inset is added at render time.
+const TAB_CONTENT_HEIGHT = 62;
 
 const glassBarStyles = StyleSheet.create({
   blur: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    flexDirection: 'row', height: 84, paddingTop: 10, paddingBottom: 22,
+    flexDirection: 'row', paddingTop: 10,
     borderTopWidth: 1,
   },
   highlight: {
@@ -70,7 +76,7 @@ const glassBarStyles = StyleSheet.create({
   },
   fallback: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    flexDirection: 'row', height: 84, paddingTop: 10, paddingBottom: 22,
+    flexDirection: 'row', paddingTop: 10,
     borderTopWidth: 1,
   },
 });

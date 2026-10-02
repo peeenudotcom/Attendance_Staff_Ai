@@ -5,9 +5,11 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
+import { useHeaderInset } from '../utils/safeArea';
 
 export default function GalleryScreen() {
   const { colors: C } = useTheme();
+  const headerTop = useHeaderInset(16);
   const [images, setImages] = useState([]);
 
   const pickFromGallery = async () => {
@@ -67,7 +69,7 @@ export default function GalleryScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: C.bg }]}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: headerTop }]}>
         <View>
           <Text style={[styles.title, { color: C.textPrimary }]}>Gallery & Uploads</Text>
           <Text style={[styles.subtitle, { color: C.textMuted }]}>Proof of work & site photos</Text>
@@ -114,7 +116,7 @@ export default function GalleryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.xl, paddingTop: 64, paddingBottom: 8 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.xl, paddingBottom: 8 },
   title: { ...FONTS.h1, fontSize: 26 },
   subtitle: { ...FONTS.small, color: COLORS.textMuted, marginTop: 4 },
   uploadButton: { backgroundColor: COLORS.accentSoft, paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.accentBorder },
