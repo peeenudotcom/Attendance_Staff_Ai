@@ -17,7 +17,6 @@ export default function LoginScreen() {
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState('phone');
   const [loading, setLoading] = useState(false);
-  const [role, setRole] = useState('admin');
   const { login } = useAuth();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -32,8 +31,12 @@ export default function LoginScreen() {
   const handleSendOTP = async () => {
     if (phone.length < 10) return Alert.alert('Invalid', 'Enter a valid 10-digit number');
     setLoading(true);
-    try { await authAPI.login({ phone }); setStep('otp'); } catch { setStep('otp'); }
-    finally { setLoading(false); }
+    try {
+      await authAPI.login({ phone });
+      setStep('otp');
+    } catch (e) {
+      Alert.alert('Could not send OTP', e.message || 'Please check your connection and try again.');
+    } finally { setLoading(false); }
   };
 
   const handleVerifyOTP = async () => {
@@ -41,13 +44,11 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const res = await authAPI.verifyOTP({ phone, otp });
+      if (!res?.user || !res?.token) throw new Error('Unexpected response from server');
       await login(res.user, res.token);
-    } catch {
-      await login({
-        id: '1', name: 'Parveen Sukhija', phone, role,
-        company: 'TARAhut AI Labs', email: 'psukhija@tarahut.com',
-        designation: role === 'admin' ? 'Admin' : 'Staff Member',
-      }, 'demo-token-123');
+    } catch (e) {
+      setOtp('');
+      Alert.alert('Sign-in failed', e.message || 'The OTP is incorrect or has expired. Please try again.');
     } finally { setLoading(false); }
   };
 
@@ -80,17 +81,6 @@ export default function LoginScreen() {
 
             {step === 'phone' ? (
               <>
-                {/* Role */}
-                <View style={styles.roleRow}>
-                  {['admin', 'staff'].map((r) => (
-                    <TouchableOpacity key={r} style={[styles.roleBtn, role === r && styles.roleBtnActive]} onPress={() => setRole(r)}>
-                      <Text style={[styles.roleLabel, role === r && styles.roleLabelActive]}>
-                        {r === 'admin' ? 'Admin' : 'Staff'}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
                 <View style={styles.inputGroup}>
                   <View style={styles.prefix}>
                     <Text style={styles.prefixText}>+91</Text>
@@ -184,12 +174,6 @@ const styles = StyleSheet.create({
   card: { padding: SPACING.xxl },
   cardTitle: { ...FONTS.h2, textAlign: 'center' },
   cardSub: { ...FONTS.caption, textAlign: 'center', marginTop: 4, marginBottom: 24 },
-
-  roleRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
-  roleBtn: { flex: 1, paddingVertical: 11, borderRadius: RADIUS.sm, backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' },
-  roleBtnActive: { backgroundColor: COLORS.accentSoft, borderColor: COLORS.accentBorder },
-  roleLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textMuted },
-  roleLabelActive: { color: COLORS.textAccent },
 
   inputGroup: { flexDirection: 'row', alignItems: 'center', borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bgCard, overflow: 'hidden', marginBottom: 20 },
   prefix: { paddingHorizontal: 16, paddingVertical: 15, borderRightWidth: 1, borderRightColor: COLORS.border },
