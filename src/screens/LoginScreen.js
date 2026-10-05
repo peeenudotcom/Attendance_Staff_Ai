@@ -16,6 +16,7 @@ export default function LoginScreen() {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState('phone');
+  const [sentTo, setSentTo] = useState(''); // masked destination reported by the backend
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -32,7 +33,8 @@ export default function LoginScreen() {
     if (phone.length < 10) return Alert.alert('Invalid', 'Enter a valid 10-digit number');
     setLoading(true);
     try {
-      await authAPI.login({ phone });
+      const res = await authAPI.login({ phone });
+      setSentTo(res?.sentTo || '');
       setStep('otp');
     } catch (e) {
       Alert.alert('Could not send OTP', e.message || 'Please check your connection and try again.');
@@ -76,7 +78,7 @@ export default function LoginScreen() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{step === 'phone' ? 'Sign In' : 'Verification'}</Text>
             <Text style={styles.cardSub}>
-              {step === 'phone' ? 'Enter your mobile number to continue' : `Code sent to +91 ${phone}`}
+              {step === 'phone' ? 'Enter your mobile number to continue' : `Code sent to ${sentTo || `+91 ${phone}`}`}
             </Text>
 
             {step === 'phone' ? (
