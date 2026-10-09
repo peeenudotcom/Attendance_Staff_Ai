@@ -120,3 +120,35 @@ which is what the encryption declaration above relies on.
 
 - Bump `expo.version` in `app.json` for each store release; build numbers increment automatically.
 - Keep `com.tarahut.attendance` and the EAS project ID unchanged, or the app becomes a different app to Apple.
+
+## 9. Next: a standalone backend for the attendance app (planned, resume Friday 16 Oct 2026)
+
+Status on 5 Oct 2026:
+- Sign-in works end to end in production: phone number -> code by email (Resend) -> verify -> user + token.
+  Backend change lives in the CRM repo (`peeenudotcom/tarahut-ams`, commit `dd7209b`), with `OTP_CHANNEL=email`
+  set on its Vercel project. A follow-up patch restoring the CRM's WhatsApp sender to its original behaviour
+  (`tarahut-ams-restore-whatsapp.patch`) was handed over for the owner to apply.
+- Verified account: phone 9915424411, role `admin`.
+- Pending on this app's branch: "Show where the sign-in code was sent" (commit `40c227c`), not yet merged to `main`.
+- Reviewer access for App Review is still unsolved: reviewers cannot read the owner's inbox, so a
+  production-safe allowlist (one phone number accepts one fixed code) is needed wherever the backend ends up.
+
+Decision taken: the attendance app should not depend on the CRM codebase. Build it its own backend, then
+point `src/services/api.js` at it and remove the mobile routes from the CRM.
+
+Scope of the new backend (exactly what the app calls today):
+- `POST /auth/login` (phone -> OTP by email), `POST /auth/verify-otp` (-> user + token), `GET /auth/profile`
+- `POST /attendance/check-in`, `POST /attendance/check-out` (selfie base64, latitude, longitude, address,
+  timestamp, Bearer token), `GET /attendance/today`, `GET /attendance/history`
+- `GET /staff`, `POST /staff` (admin), `POST /call-logs/sync`
+- Carry over the proven logic from the CRM's mobile routes (`src/app/api/auth/{login,verify-otp,profile}`,
+  `src/app/api/attendance/*`, `src/lib/{otp,otp-delivery,ext-auth,whatsapp,transactional-email}.ts`).
+
+Proposed defaults, awaiting the owner's yes/override:
+1. Code location: a `backend/` folder in this repo (Vercel deploys from a subfolder). Alternative: a new repo.
+2. Database: a new project in the existing Supabase organization (free tier). Alternative: Neon / Vercel Postgres.
+3. Hosting: Vercel, same team as the CRM, new project `tarahut-attendance`.
+4. Staff accounts: start empty and add via the app, or copy current users (role, phone, email) from the CRM DB.
+5. OTP email: reuse the existing Resend key and sender, or a separate one.
+Also to include: the reviewer allowlist above, and the `OTP_CHANNEL` switch (email / whatsapp / sms) so the
+delivery method stays a config change.
