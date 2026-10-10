@@ -9,7 +9,6 @@
     "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "com.tarahut.attendance",
-      "buildNumber": "1",
       "supportsTablet": false,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false

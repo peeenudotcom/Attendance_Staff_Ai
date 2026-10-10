@@ -15,6 +15,7 @@ import DailyBriefingCard from '../components/DailyBriefingCard';
 import PredictiveCard from '../components/PredictiveCard';
 import FloatingAssistantButton from '../components/FloatingAssistantButton';
 import { SHOW_SAMPLE_DATA } from '../config/features';
+import { attendanceAPI } from '../services/api';
 
 const { width } = Dimensions.get('window');
 
@@ -23,7 +24,17 @@ export default function HomeScreen({ navigation }) {
   const { colors: C, isDark, toggleTheme } = useTheme();
   const headerTop = useHeaderInset(16);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [checkedIn, setCheckedIn] = useState(false);
+  // Today's attendance from the backend; reloaded whenever Home comes into view so the
+  // button reflects a check-in or check-out made on the Mark Attendance screen.
+  const [today, setToday] = useState(null);
+  const checkedIn = !!today?.checkedIn && !today?.checkedOut;
+  const checkedOut = !!today?.checkedOut;
+
+  useEffect(() => {
+    const load = () => attendanceAPI.getToday().then(setToday).catch(() => {});
+    load();
+    return navigation.addListener('focus', load);
+  }, [navigation]);
   const glowAnim = useRef(new Animated.Value(0.2)).current;
 
   useEffect(() => {
@@ -117,7 +128,7 @@ export default function HomeScreen({ navigation }) {
               <View style={styles.statusRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.statusLabel, { color: C.textAccent }]}>
-                    {checkedIn ? '● CHECKED IN' : '○ NOT CHECKED IN'}
+                    {checkedOut ? '✓ DONE FOR TODAY' : checkedIn ? '● CHECKED IN' : '○ NOT CHECKED IN'}
                   </Text>
                   <Text style={[styles.statusTime, { color: C.textPrimary }]}>{formatTime(currentTime)}</Text>
                   <Text style={[styles.statusDate, { color: C.textMuted }]}>{formatDate(currentTime)}</Text>
@@ -141,10 +152,10 @@ export default function HomeScreen({ navigation }) {
                 )}
               </View>
 
-              {checkedIn && (
+              {(checkedIn || checkedOut) && (
                 <View style={[styles.checkedRow, { borderTopColor: C.border }]}>
                   <GlowDot color={C.success} size={4} pulse />
-                  <Text style={[styles.checkedText, { color: C.textSecondary }]}>Since 09:02 AM · Main Office</Text>
+                  <Text style={[styles.checkedText, { color: C.textSecondary }]}>{checkedOut ? `${today.checkIn} – ${today.checkOut} · ${today.hours}` : `Since ${today?.checkIn}${today?.location ? ` · ${today.location}` : ''}`}</Text>
                 </View>
               )}
             </View>
@@ -161,12 +172,16 @@ export default function HomeScreen({ navigation }) {
         {/* CTA - Gradient Button */}
         <View style={styles.ctaWrap}>
           <Animated.View style={[styles.ctaGlowOrb, { opacity: glowAnim }]} />
-          <GradientButton
-            title={checkedIn ? 'Check Out' : 'Check In'}
-            icon={checkedIn ? '⏹' : '▶'}
-            variant={checkedIn ? 'danger' : 'primary'}
-            onPress={() => navigation.navigate('MarkAttendance', { type: checkedIn ? 'check-out' : 'check-in' })}
-          />
+          {checkedOut ? (
+            <Text style={[styles.checkedText, { color: C.textSecondary }]}>You're checked out for today.</Text>
+          ) : (
+            <GradientButton
+              title={checkedIn ? 'Check Out' : 'Check In'}
+              icon={checkedIn ? '⏹' : '▶'}
+              variant={checkedIn ? 'danger' : 'primary'}
+              onPress={() => navigation.navigate('MarkAttendance', { type: checkedIn ? 'check-out' : 'check-in' })}
+            />
+          )}
         </View>
 
         {/* Today Insights */}
