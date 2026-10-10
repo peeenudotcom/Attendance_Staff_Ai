@@ -18,7 +18,7 @@ export default function ChatBubble({ message }) {
         style={[
           styles.bubble,
           isUser
-            ? { backgroundColor: C.accentStart || '#7C3AED', borderBottomRightRadius: 4 }
+            ? { backgroundColor: C.accentStart || '#9A2E40', borderBottomRightRadius: 4 }
             : { backgroundColor: C.bgCard, borderColor: C.border, borderWidth: 1, borderBottomLeftRadius: 4 },
         ]}
       >
@@ -37,7 +37,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', marginBottom: 12, paddingHorizontal: SPACING.lg, alignItems: 'flex-end' },
   rowUser: { flexDirection: 'row-reverse' },
   avatar: { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginRight: 8 },
-  avatarText: { fontSize: 14, color: '#A78BFA' },
+  avatarText: { fontSize: 14, color: '#E39AA6' },
   bubble: { maxWidth: '78%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: RADIUS.lg },
   text: { ...FONTS.body, fontSize: 14, lineHeight: 20 },
   time: { fontSize: 10, marginTop: 4, textAlign: 'right' },

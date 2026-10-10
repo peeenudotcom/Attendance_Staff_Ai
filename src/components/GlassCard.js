@@ -22,7 +22,7 @@ export default function GlassCard({ children, style, intensity = 40, borderRadiu
   }
 
   return (
-    <View style={[{ borderRadius, backgroundColor: isDark ? 'rgba(17,24,39,0.85)' : 'rgba(255,255,255,0.9)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }, style]}>
+    <View style={[{ borderRadius, backgroundColor: isDark ? 'rgba(31,19,23,0.88)' : 'rgba(255,255,255,0.9)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }, style]}>
       {children}
     </View>
   );

@@ -50,7 +50,7 @@ function GlassTabBar({ children, isDark }) {
   const sizing = { height: TAB_CONTENT_HEIGHT + bottomInset, paddingBottom: bottomInset };
   const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
   const hlColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.04)';
-  const fallbackBg = isDark ? 'rgba(10,14,26,0.95)' : 'rgba(248,250,252,0.95)';
+  const fallbackBg = isDark ? 'rgba(21,12,15,0.95)' : 'rgba(247,243,236,0.95)';
 
   if (Platform.OS === 'ios') {
     return (

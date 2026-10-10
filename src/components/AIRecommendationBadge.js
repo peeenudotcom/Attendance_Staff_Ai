@@ -12,7 +12,7 @@ export default function AIRecommendationBadge({ evaluation, onAutoApprove }) {
   const isApprove = evaluation.recommendation === 'approve';
   const color = isApprove ? C.success : C.warning;
   const bgColor = isApprove
-    ? (C.successSoft || 'rgba(16,185,129,0.12)')
+    ? (C.successSoft || 'rgba(69, 167, 159,0.12)')
     : (C.warningSoft || 'rgba(245,158,11,0.12)');
 
   return (

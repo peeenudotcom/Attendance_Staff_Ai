@@ -23,7 +23,7 @@ export default function FloatingAssistantButton({ onPress }) {
     <Animated.View style={[styles.container, { bottom: 78 + bottomInset, transform: [{ scale: pulseAnim }] }]}>
       <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
         <LinearGradient
-          colors={[C.accentStart || '#7C3AED', C.accentEnd || '#3B82F6']}
+          colors={[C.accentStart || '#9A2E40', C.accentEnd || '#6E1F2D']}
           style={styles.button}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}

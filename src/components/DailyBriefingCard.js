@@ -21,11 +21,11 @@ export default function DailyBriefingCard() {
       <View style={styles.inner}>
         <View style={styles.header}>
           <View style={styles.labelRow}>
-            <GlowDot color={C.info || '#3B82F6'} size={8} />
+            <GlowDot color={C.info || '#6E1F2D'} size={8} />
             <Text style={[styles.label, { color: C.textMuted }]}>AI BRIEFING</Text>
           </View>
-          <View style={[styles.badge, { backgroundColor: C.infoSoft || 'rgba(59,130,246,0.12)' }]}>
-            <Text style={[styles.badgeText, { color: C.info || '#3B82F6' }]}>Live</Text>
+          <View style={[styles.badge, { backgroundColor: C.infoSoft || 'rgba(54, 138, 132,0.12)' }]}>
+            <Text style={[styles.badgeText, { color: C.info || '#6E1F2D' }]}>Live</Text>
           </View>
         </View>
 
@@ -35,10 +35,10 @@ export default function DailyBriefingCard() {
 
         {!briefing.isWeekend && (
           <View style={styles.statsRow}>
-            <StatChip label="Present" value={briefing.stats.present} color={C.success} bg={C.successSoft || 'rgba(16,185,129,0.12)'} />
+            <StatChip label="Present" value={briefing.stats.present} color={C.success} bg={C.successSoft || 'rgba(69, 167, 159,0.12)'} />
             <StatChip label="Late" value={briefing.stats.late} color={C.warning} bg={C.warningSoft || 'rgba(245,158,11,0.12)'} />
             <StatChip label="Absent" value={briefing.stats.absent} color={C.danger} bg={C.dangerSoft || 'rgba(239,68,68,0.12)'} />
-            <StatChip label="Leave" value={briefing.stats.onLeave} color={C.info || '#3B82F6'} bg={C.infoSoft || 'rgba(59,130,246,0.12)'} />
+            <StatChip label="Leave" value={briefing.stats.onLeave} color={C.info || '#6E1F2D'} bg={C.infoSoft || 'rgba(54, 138, 132,0.12)'} />
           </View>
         )}
 

@@ -7,12 +7,14 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS, GLASS } from '../utils/theme';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { authAPI } from '../services/api';
 import GlassCard from '../components/GlassCard';
 
 const { width, height } = Dimensions.get('window');
 
 export default function LoginScreen() {
+  const { colors: C } = useTheme();
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState('phone');
@@ -55,8 +57,8 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <View style={[styles.container, { backgroundColor: C.bg }]}>
+      <StatusBar barStyle={C.statusBar} />
       {/* Ambient orbs */}
       <View style={styles.orb1} />
       <View style={styles.orb2} />
@@ -67,28 +69,28 @@ export default function LoginScreen() {
           {/* Brand */}
           <View style={styles.brand}>
             <Image source={require('../../assets/logo.png')} style={styles.logoMark} accessibilityLabel="TARAhut Haazri logo" />
-            <Text style={styles.brandName}>TARAhut Haazri</Text>
-            <Text style={styles.brandSub}>Staff attendance, made simple</Text>
+            <Text style={[styles.brandName, { color: C.textPrimary }]}>TARAhut Haazri</Text>
+            <Text style={[styles.brandSub, { color: C.textSecondary }]}>Staff attendance, made simple</Text>
           </View>
 
           {/* Card */}
           <GlassCard style={styles.cardWrap} intensity={50} borderRadius={RADIUS.xxl}>
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>{step === 'phone' ? 'Sign In' : 'Verification'}</Text>
-            <Text style={styles.cardSub}>
+            <Text style={[styles.cardTitle, { color: C.textPrimary }]}>{step === 'phone' ? 'Sign In' : 'Verification'}</Text>
+            <Text style={[styles.cardSub, { color: C.textSecondary }]}>
               {step === 'phone' ? 'Enter your mobile number to continue' : `Code sent to ${sentTo || `+91 ${phone}`}`}
             </Text>
 
             {step === 'phone' ? (
               <>
-                <View style={styles.inputGroup}>
-                  <View style={styles.prefix}>
-                    <Text style={styles.prefixText}>+91</Text>
+                <View style={[styles.inputGroup, { backgroundColor: C.bgCard, borderColor: C.accentBorder }]}>
+                  <View style={[styles.prefix, { borderRightColor: C.border }]}>
+                    <Text style={[styles.prefixText, { color: C.textSecondary }]}>+91</Text>
                   </View>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, { color: C.textPrimary }]}
                     placeholder="Phone number"
-                    placeholderTextColor={COLORS.textMuted}
+                    placeholderTextColor={C.textMuted}
                     keyboardType="phone-pad"
                     maxLength={10}
                     value={phone}
@@ -102,7 +104,7 @@ export default function LoginScreen() {
                   disabled={loading || phone.length < 10}
                   activeOpacity={0.85}
                 >
-                  <LinearGradient colors={[COLORS.accentStart, COLORS.accentEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.ctaBtn}>
+                  <LinearGradient colors={[C.accentStart, C.accentEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.ctaBtn}>
                     {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaBtnText}>Continue →</Text>}
                   </LinearGradient>
                 </TouchableOpacity>
@@ -111,8 +113,8 @@ export default function LoginScreen() {
               <>
                 <View style={styles.otpRow}>
                   {[0, 1, 2, 3].map((i) => (
-                    <View key={i} style={[styles.otpBox, otp.length > i && styles.otpBoxFill]}>
-                      <Text style={styles.otpChar}>{otp[i] || '·'}</Text>
+                    <View key={i} style={[styles.otpBox, { backgroundColor: C.bgCard, borderColor: C.border }, otp.length > i && { borderColor: C.accentBorder, backgroundColor: C.accentSoft }]}>
+                      <Text style={[styles.otpChar, { color: C.textPrimary }]}>{otp[i] || '·'}</Text>
                     </View>
                   ))}
                 </View>
@@ -131,17 +133,17 @@ export default function LoginScreen() {
                   disabled={loading || otp.length < 4}
                   activeOpacity={0.85}
                 >
-                  <LinearGradient colors={[COLORS.accentStart, COLORS.accentEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.ctaBtn}>
+                  <LinearGradient colors={[C.accentStart, C.accentEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.ctaBtn}>
                     {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaBtnText}>Verify →</Text>}
                   </LinearGradient>
                 </TouchableOpacity>
 
                 <View style={styles.otpLinks}>
                   <TouchableOpacity onPress={() => { setStep('phone'); setOtp(''); }}>
-                    <Text style={styles.link}>Change Number</Text>
+                    <Text style={[styles.link, { color: C.textAccent }]}>Change Number</Text>
                   </TouchableOpacity>
                   <TouchableOpacity>
-                    <Text style={styles.link}>Resend</Text>
+                    <Text style={[styles.link, { color: C.textAccent }]}>Resend</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -150,7 +152,7 @@ export default function LoginScreen() {
 
           </GlassCard>
 
-          <Text style={styles.footer}>by TARAhut AI Builds</Text>
+          <Text style={[styles.footer, { color: C.textMuted }]}>by TARAhut AI Builds</Text>
         </Animated.View>
       </KeyboardAvoidingView>
     </View>
@@ -159,9 +161,9 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  orb1: { position: 'absolute', top: '15%', left: -50, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(124, 58, 237, 0.12)' },
-  orb2: { position: 'absolute', top: '40%', right: -60, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(59, 130, 246, 0.08)' },
-  orb3: { position: 'absolute', bottom: '10%', left: '30%', width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(124, 58, 237, 0.06)' },
+  orb1: { position: 'absolute', top: '15%', left: -50, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(154, 46, 64, 0.12)' },
+  orb2: { position: 'absolute', top: '40%', right: -60, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(54, 138, 132, 0.08)' },
+  orb3: { position: 'absolute', bottom: '10%', left: '30%', width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(154, 46, 64, 0.06)' },
   content: { flex: 1, justifyContent: 'center', paddingHorizontal: SPACING.xxl },
 
   brand: { alignItems: 'center', marginBottom: 36 },

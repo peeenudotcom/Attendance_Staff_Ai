@@ -314,8 +314,8 @@ const styles = StyleSheet.create({
   statusSection: { marginHorizontal: SPACING.xl, marginTop: 20 },
   statusGlass: {},
   statusContent: { padding: SPACING.xl, overflow: 'hidden' },
-  orbPurple: { position: 'absolute', top: -40, right: -30, width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(124, 58, 237, 0.12)' },
-  orbBlue: { position: 'absolute', bottom: -30, left: -20, width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(59, 130, 246, 0.08)' },
+  orbPurple: { position: 'absolute', top: -40, right: -30, width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(154, 46, 64, 0.12)' },
+  orbBlue: { position: 'absolute', bottom: -30, left: -20, width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(54, 138, 132, 0.08)' },
   statusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   statusLabel: { fontSize: 10, fontWeight: '600', color: COLORS.textAccent, letterSpacing: 2 },
   statusTime: { fontSize: 40, fontWeight: '800', color: COLORS.textPrimary, letterSpacing: -1, marginTop: 4 },
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
 
   // CTA
   ctaWrap: { alignItems: 'center', marginTop: 28, position: 'relative' },
-  ctaGlowOrb: { position: 'absolute', width: 220, height: 220, borderRadius: 110, backgroundColor: 'rgba(124, 58, 237, 0.15)' },
+  ctaGlowOrb: { position: 'absolute', width: 220, height: 220, borderRadius: 110, backgroundColor: 'rgba(154, 46, 64, 0.15)' },
 
   // Sections
   section: { marginTop: 32, paddingHorizontal: SPACING.xl },
