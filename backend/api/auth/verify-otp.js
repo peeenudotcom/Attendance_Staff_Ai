@@ -12,8 +12,9 @@ export default route({
 
     await checkCode(phone, String(otp).trim());
 
-    const staff = must(await db().from('staff').select('*').eq('phone', phone).maybeSingle());
+    const staff = must(await db().from('staff').select('*, org:organizations(*)').eq('phone', phone).maybeSingle());
     if (!staff || !staff.active) throw new HttpError(401, 'No active account for this number');
+    if (!staff.org?.active) throw new HttpError(403, 'Your company account is paused. Please contact your admin.');
     await db().from('staff').update({ last_login_at: new Date().toISOString() }).eq('id', staff.id);
 
     return { user: publicUser(staff), token: issueToken(staff.id) };

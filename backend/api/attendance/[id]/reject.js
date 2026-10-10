@@ -7,7 +7,7 @@ export default route({
     const reason = String(body(req).reason || '').trim().slice(0, 500) || null;
     const rows = must(await db().from('attendance')
       .update({ approval: 'rejected', reject_reason: reason, reviewed_by: staff.id })
-      .eq('id', req.query.id).select('id'));
+      .eq('id', req.query.id).eq('org_id', staff.org_id).select('id'));
     if (!rows.length) throw new HttpError(404, 'Attendance record not found');
     return { ok: true };
   },

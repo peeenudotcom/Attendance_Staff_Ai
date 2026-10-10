@@ -9,7 +9,9 @@ export class HttpError extends Error {
 
 /**
  * Wraps a route: method check, JSON errors in the { message } shape the app reads,
- * and (unless `public: true`) a signed-in staff member passed as `ctx.staff`.
+ * and (unless `public: true`) a signed-in staff member, with their company as `staff.org`,
+ * passed as `ctx.staff`. `admin: true` limits a route to company admins, `platform: true`
+ * to the platform admin.
  */
 export function route(methods, opts = {}) {
   return async (req, res) => {
@@ -24,6 +26,7 @@ export function route(methods, opts = {}) {
         ctx.staff = await currentStaff(req);
         if (!ctx.staff) return res.status(401).json({ message: 'Your session has expired. Please sign out and sign in again.' });
         if (opts.admin && ctx.staff.role !== 'admin') return res.status(403).json({ message: 'Only admins can do this' });
+        if (opts.platform && !ctx.staff.is_platform_admin) return res.status(403).json({ message: 'Only the platform admin can do this' });
       }
       const result = await handler(req, ctx);
       return res.status(200).json(result ?? {});

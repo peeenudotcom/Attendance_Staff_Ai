@@ -38,11 +38,11 @@ export async function currentStaff(req) {
   const header = req.headers.authorization || '';
   const staffId = verifyToken(header.startsWith('Bearer ') ? header.slice(7) : '');
   if (!staffId) return null;
-  const { data } = await db().from('staff').select('*').eq('id', staffId).maybeSingle();
-  return data && data.active ? data : null;
+  const { data } = await db().from('staff').select('*, org:organizations(*)').eq('id', staffId).maybeSingle();
+  return data && data.active && data.org?.active ? data : null;
 }
 
-/** The user object the app stores after sign-in. */
+/** The user object the app stores after sign-in (`s.org` included when loaded). */
 export function publicUser(s) {
   return {
     id: s.id,
@@ -52,5 +52,7 @@ export function publicUser(s) {
     role: s.role,
     department: s.department,
     designation: s.designation,
+    ...(s.org ? { company: { id: s.org.id, name: s.org.name, logoUrl: s.org.logo_url } } : {}),
+    ...(s.is_platform_admin ? { platformAdmin: true } : {}),
   };
 }

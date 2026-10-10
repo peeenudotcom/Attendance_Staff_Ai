@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "TARAhut Attendance",
+    "name": "Haazri",
     "slug": "tarahut-attendance",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -51,7 +51,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "TARAhut Attendance uses the camera to take a selfie when you check in or check out, and to capture site photos.",
+          "cameraPermission": "Haazri uses the camera to take a selfie when you check in or check out, and to capture site photos.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
@@ -59,7 +59,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "TARAhut Attendance records your location at the moment you check in or check out so your attendance can be verified against your work site. Location is not tracked in the background.",
+          "locationWhenInUsePermission": "Haazri records your location at the moment you check in or check out so your attendance can be verified against your work site. Location is not tracked in the background.",
           "locationAlwaysAndWhenInUsePermission": false,
           "locationAlwaysPermission": false,
           "isIosBackgroundLocationEnabled": false,
@@ -69,8 +69,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "TARAhut Attendance needs access to your photo library so you can upload proof-of-work and site photos.",
-          "cameraPermission": "TARAhut Attendance uses the camera to capture proof-of-work and site photos.",
+          "photosPermission": "Haazri needs access to your photo library so you can upload proof-of-work and site photos.",
+          "cameraPermission": "Haazri uses the camera to capture proof-of-work and site photos.",
           "microphonePermission": false
         }
       ]

@@ -12,6 +12,7 @@ export default route({
       if (!number || Number.isNaN(calledAt.getTime())) return [];
       return [{
         staff_id: staff.id,
+        org_id: staff.org_id,
         number,
         contact_name: l.name ? String(l.name).slice(0, 120) : null,
         type: l.type ? String(l.type).slice(0, 20) : null,

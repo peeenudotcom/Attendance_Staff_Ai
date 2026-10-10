@@ -64,9 +64,11 @@ export default function ProfileScreen() {
           <View style={[styles.metaPill, { backgroundColor: C.bgCard, borderColor: C.border }]}>
             <Text style={[styles.metaText, { color: C.textSecondary }]}>{user?.phone || 'No phone on file'}</Text>
           </View>
-          <View style={[styles.metaPill, { backgroundColor: C.bgCard, borderColor: C.border }]}>
-            <Text style={[styles.metaText, { color: C.textSecondary }]}>{user?.company || 'TARAhut AI Labs'}</Text>
-          </View>
+          {!!user?.company?.name && (
+            <View style={[styles.metaPill, { backgroundColor: C.bgCard, borderColor: C.border }]}>
+              <Text style={[styles.metaText, { color: C.textSecondary }]}>{user.company.name}</Text>
+            </View>
+          )}
         </View>
 
         {/* Stats */}
@@ -126,7 +128,7 @@ export default function ProfileScreen() {
         <Text style={[styles.logoutText, { color: C.danger }]}>Sign Out</Text>
       </TouchableOpacity>
 
-      <Text style={[styles.version, { color: C.textMuted }]}>TARAhut AI Labs · v1.0.0</Text>
+      <Text style={[styles.version, { color: C.textMuted }]}>TARAhut Haazri · by TARAhut AI Builds · v1.0.0</Text>
       <View style={{ height: 120 }} />
     </ScrollView>
   );

@@ -69,8 +69,8 @@ export default function LoginScreen() {
             <View style={styles.logoMark}>
               <Text style={styles.logoSymbol}>T</Text>
             </View>
-            <Text style={styles.brandName}>TARAhut</Text>
-            <Text style={styles.brandSub}>AI-Powered Workforce Suite</Text>
+            <Text style={styles.brandName}>TARAhut Haazri</Text>
+            <Text style={styles.brandSub}>Staff attendance, made simple</Text>
           </View>
 
           {/* Card */}
@@ -152,7 +152,7 @@ export default function LoginScreen() {
 
           </GlassCard>
 
-          <Text style={styles.footer}>TARAhut AI Labs · 25+ Years of Trust</Text>
+          <Text style={styles.footer}>by TARAhut AI Builds</Text>
         </Animated.View>
       </KeyboardAvoidingView>
     </View>

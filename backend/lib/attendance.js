@@ -5,7 +5,6 @@ import { HttpError } from './http.js';
 // Attendance is keyed by the IST calendar day, so a 9pm check-in stays on "today"
 // even though the server runs in UTC.
 const IST_OFFSET_MIN = 330;
-const LATE_AFTER_MIN = Number(process.env.LATE_AFTER_MINUTES_IST || 9 * 60 + 15); // 09:15 IST
 const BUCKET = 'selfies';
 const MAX_SELFIE_BYTES = 3 * 1024 * 1024;
 
@@ -14,9 +13,10 @@ const toIst = (d) => new Date(d.getTime() + IST_OFFSET_MIN * 60_000);
 /** "YYYY-MM-DD" of the IST day containing `d`. */
 export const istDay = (d) => toIst(d).toISOString().slice(0, 10);
 
-export const isLate = (d) => {
+/** Late if after the company's cut-off (minutes past midnight IST, default 09:15). */
+export const isLate = (d, lateAfterMinutes = 555) => {
   const ist = toIst(d);
-  return ist.getUTCHours() * 60 + ist.getUTCMinutes() > LATE_AFTER_MIN;
+  return ist.getUTCHours() * 60 + ist.getUTCMinutes() > lateAfterMinutes;
 };
 
 /** "HH:MM" in IST, or "—". */

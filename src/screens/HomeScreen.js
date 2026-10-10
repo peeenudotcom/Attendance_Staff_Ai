@@ -107,6 +107,7 @@ export default function HomeScreen({ navigation }) {
           <View>
             <Text style={[styles.greeting, { color: C.textMuted }]}>{getGreeting()}</Text>
             <Text style={[styles.userName, { color: C.textPrimary }]}>{user?.name || 'User'}</Text>
+            {!!user?.company?.name && <Text style={[styles.companyName, { color: C.textMuted }]}>{user.company.name}</Text>}
           </View>
           <View style={styles.headerRight}>
             {/* Notifications */}
@@ -300,6 +301,7 @@ const styles = StyleSheet.create({
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   greeting: { fontSize: 13 },
   userName: { fontSize: 24, fontWeight: '800', letterSpacing: -0.8, marginTop: 2 },
+  companyName: { fontSize: 13, fontWeight: '600', marginTop: 2 },
   themeToggle: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
   themeIcon: { fontSize: 16 },
   avatar: { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },

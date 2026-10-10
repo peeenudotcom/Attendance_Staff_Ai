@@ -1,4 +1,4 @@
-const PRODUCT = 'TARAhut Attendance';
+const PRODUCT = 'TARAhut Haazri';
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

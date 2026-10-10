@@ -12,9 +12,10 @@ export default route({
     const existing = must(await db().from('attendance').select('id, check_in_at').eq('staff_id', staff.id).eq('date', date).maybeSingle());
     if (existing?.check_in_at) throw new HttpError(409, 'You have already checked in today');
 
-    const status = isLate(at) ? 'late' : 'present';
+    const status = isLate(at, staff.org.late_after_minutes) ? 'late' : 'present';
     const record = must(await db().from('attendance').insert({
       staff_id: staff.id,
+      org_id: staff.org_id,
       date,
       status,
       check_in_at: at.toISOString(),

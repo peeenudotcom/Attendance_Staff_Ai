@@ -7,10 +7,11 @@ const SALARY_TYPES = ['monthly', 'daily', 'hourly', 'weekly'];
 const text = (v, max = 120) => (v == null || String(v).trim() === '' ? null : String(v).trim().slice(0, max));
 
 export default route({
-  // GET /api/staff (Bearer, admin) -> everyone with today's status
-  async GET() {
-    const staff = must(await db().from('staff').select('*').eq('active', true).order('name'));
-    const today = must(await db().from('attendance').select('staff_id, status, check_in_at, check_out_at').eq('date', istDay(new Date())));
+  // GET /api/staff (Bearer, admin) -> everyone in the admin's company with today's status
+  async GET(req, { staff: admin }) {
+    const staff = must(await db().from('staff').select('*').eq('org_id', admin.org_id).eq('active', true).order('name'));
+    const today = must(await db().from('attendance').select('staff_id, status, check_in_at, check_out_at')
+      .eq('org_id', admin.org_id).eq('date', istDay(new Date())));
     const byStaff = new Map(today.map((t) => [t.staff_id, t]));
     return {
       staff: staff.map((s) => {
@@ -40,6 +41,7 @@ export default route({
     if (salary != null && (!Number.isFinite(salary) || salary < 0)) throw new HttpError(400, 'Enter a valid salary amount');
 
     const { data, error } = await db().from('staff').insert({
+      org_id: admin.org_id,
       name,
       phone,
       email,
@@ -50,7 +52,7 @@ export default route({
       salary,
       created_by: admin.id,
     }).select('*').single();
-    if (error?.code === '23505') throw new HttpError(409, 'Someone with this phone number already exists');
+    if (error?.code === '23505') throw new HttpError(409, 'This phone number is already registered');
     if (error) throw new Error(error.message);
     return { ok: true, staff: publicUser(data) };
   },

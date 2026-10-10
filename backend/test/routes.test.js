@@ -4,13 +4,14 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 const B = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
-const tables = { staff: [], otp_codes: [], attendance: [], call_logs: [] };
+const tables = { organizations: [], staff: [], otp_codes: [], attendance: [], call_logs: [] };
 const uploads = [];
 const sentEmails = [];
 
 class Q {
   constructor(t) { this.t = t; this.filters = []; this.op = 'select'; this.one = null; this.ret = false; }
-  select() { this.ret = true; return this; }
+  select(cols = '*') { this.ret = true; this.cols = cols; return this; }
+  delete() { this.op = 'delete'; return this; }
   eq(k, v) { this.filters.push((r) => r[k] === v); return this; }
   gte(k, v) { this.filters.push((r) => r[k] >= v); return this; }
   lt(k, v) { this.filters.push((r) => r[k] < v); return this; }
@@ -30,6 +31,8 @@ class Q {
       if (this.t === 'staff' && rows.some((x) => x.phone === r.phone)) return { data: null, error: { code: '23505', message: 'dup' } };
       if (this.t === 'attendance' && rows.some((x) => x.staff_id === r.staff_id && x.date === r.date)) return { data: null, error: { code: '23505', message: 'dup' } };
       rows.push(r); out = [r];
+    } else if (this.op === 'delete') {
+      out = match(); tables[this.t] = rows.filter((r) => !out.includes(r));
     } else if (this.op === 'update') {
       out = match(); out.forEach((r) => Object.assign(r, this.patch));
     } else if (this.op === 'upsert') {
@@ -45,6 +48,9 @@ class Q {
       if (this.sort) { const [k, asc] = this.sort; out = [...out].sort((a, b) => (a[k] > b[k] ? 1 : -1) * (asc ? 1 : -1)); }
     }
     out = out.map((r) => ({ ...r }));
+    // Embedded relations used by the routes: staff -> its company, company -> staff count.
+    if (this.cols?.includes('org:organizations')) out = out.map((r) => ({ ...r, org: tables.organizations.find((o) => o.id === r.org_id) ?? null }));
+    if (this.cols?.includes('staff(count)')) out = out.map((r) => ({ ...r, staff: [{ count: tables.staff.filter((x) => x.org_id === r.id).length }] }));
     if (this.one) {
       if (this.one === 'single' && out.length !== 1) return { data: null, error: { message: 'not single' } };
       return { data: out[0] ?? null, error: null };
@@ -72,8 +78,10 @@ process.env.REVIEW_CODE = '4826';
 
 globalThis.fetch = async (url, init) => { sentEmails.push(JSON.parse(init.body)); return { ok: true, text: async () => '' }; };
 
-tables.staff.push({ id: 'admin1', name: 'Parveen Sukhija', phone: '9915424411', email: 'owner@example.com', role: 'admin', active: true });
-tables.staff.push({ id: 'rev1', name: 'App Review', phone: '9000000001', email: null, role: 'staff', active: true });
+tables.organizations.push({ id: 'org1', name: 'TARAhut', late_after_minutes: 555, active: true });
+tables.organizations.push({ id: 'demo', name: 'Demo Company', late_after_minutes: 555, active: true });
+tables.staff.push({ id: 'admin1', org_id: 'org1', is_platform_admin: true, name: 'Parveen Sukhija', phone: '9915424411', email: 'owner@example.com', role: 'admin', active: true });
+tables.staff.push({ id: 'rev1', org_id: 'demo', name: 'App Review', phone: '9000000001', email: null, role: 'staff', active: true });
 
 async function call(path, { method = 'GET', body, token, query = {} } = {}) {
   const mod = await import(`${B}/api/${path}.js`);
@@ -105,6 +113,8 @@ test('full flow', async () => {
   r = await call('auth/verify-otp', { method: 'POST', body: { phone: '9915424411', otp: code } });
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.equal(r.json.user.role, 'admin');
+  assert.equal(r.json.user.company.name, 'TARAhut');
+  assert.equal(r.json.user.platformAdmin, true);
   const token = r.json.token;
   // code is single-use
   assert.equal((await call('auth/verify-otp', { method: 'POST', body: { phone: '9915424411', otp: code } })).status, 401);
@@ -152,7 +162,7 @@ test('full flow', async () => {
   // staff: admin-only
   assert.equal((await call('staff/index', { token: revToken })).status, 403);
   r = await call('staff/index', { token });
-  assert.equal(r.json.staff.length, 2);
+  assert.equal(r.json.staff.length, 1); // only the admin's own company
   assert.equal(r.json.staff.find((s) => s.id === 'admin1').today.checkIn !== '—', true);
 
   // add staff: validation, success, duplicate
@@ -200,4 +210,48 @@ test('full flow', async () => {
   // send limit: 5 per 15 minutes (owner has used 2)
   for (let i = 0; i < 3; i++) assert.equal((await call('auth/login', { method: 'POST', body: { phone: '9915424411' } })).status, 200);
   assert.equal((await call('auth/login', { method: 'POST', body: { phone: '9915424411' } })).status, 429);
+
+  // ---- companies ----
+  // only the platform admin manages companies
+  assert.equal((await call('companies/index', { token: revToken })).status, 403);
+  assert.equal((await call('companies/index', { method: 'POST', token, body: { name: 'Majaf Fabrics' } })).status, 400);
+  assert.equal((await call('companies/index', { method: 'POST', token, body: { name: 'X', adminName: 'Y', adminPhone: '9876543210', adminEmail: 'y@example.com' } })).status, 409);
+  const orgsBefore = tables.organizations.length;
+  r = await call('companies/index', { method: 'POST', token, body: { name: 'Majaf Fabrics', adminName: 'Majaf Owner', adminPhone: '9811111111', adminEmail: 'owner@majaf.example' } });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(tables.organizations.length, orgsBefore + 1);
+  assert.equal(r.json.admin.company.name, 'Majaf Fabrics');
+  r = await call('companies/index', { token });
+  assert.equal(r.json.companies.find((c) => c.name === 'Majaf Fabrics').staffCount, 1);
+
+  // the new company's admin signs in and sees only their own company
+  await call('auth/login', { method: 'POST', body: { phone: '9811111111' } });
+  const mCode = /(\d{4}) is your/.exec(sentEmails.at(-1).subject)[1];
+  r = await call('auth/verify-otp', { method: 'POST', body: { phone: '9811111111', otp: mCode } });
+  assert.equal(r.json.user.company.name, 'Majaf Fabrics');
+  assert.equal(r.json.user.platformAdmin, undefined);
+  const mToken = r.json.token;
+  assert.equal((await call('companies/index', { token: mToken })).status, 403);
+  r = await call('staff/index', { token: mToken });
+  assert.deepEqual(r.json.staff.map((x) => x.name), ['Majaf Owner']);
+  // cannot read or review another company's people or attendance
+  assert.equal((await call('staff/[id]/index', { token: mToken, query: { id: 'admin1' } })).status, 404);
+  assert.equal((await call('staff/[id]/attendance', { token: mToken, query: { id: 'admin1' } })).json.records.length, 0);
+  assert.equal((await call('attendance/[id]/approve', { method: 'PUT', token: mToken, query: { id: attId } })).status, 404);
+  // staff they add belong to their company
+  r = await call('staff/index', { method: 'POST', token: mToken, body: { name: 'Majaf Staff', phone: '9822222222', email: 'staff@majaf.example' } });
+  assert.equal(r.status, 200);
+  assert.equal(tables.staff.find((x) => x.phone === '9822222222').org_id, tables.staff.find((x) => x.phone === '9811111111').org_id);
+
+  // company settings: admin can set the late time; staff cannot
+  r = await call('company', { method: 'PATCH', token: mToken, body: { lateAfterMinutes: 600 } });
+  assert.equal(r.json.lateAfterMinutes, 600);
+  assert.equal((await call('company', { method: 'PATCH', token: revToken, body: { lateAfterMinutes: 1 } })).status, 403);
+  assert.equal((await call('company', { method: 'PATCH', token: mToken, body: { lateAfterMinutes: 2000 } })).status, 400);
+  assert.equal((await call('company', { token: revToken })).json.name, 'Demo Company');
+
+  // pausing a company locks its users out
+  const majafId = tables.organizations.find((o) => o.name === 'Majaf Fabrics').id;
+  assert.equal((await call('companies/[id]', { method: 'PATCH', token, query: { id: majafId }, body: { active: false } })).status, 200);
+  assert.equal((await call('attendance/today', { token: mToken })).status, 401);
 });

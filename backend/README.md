@@ -1,4 +1,4 @@
-# TARAhut Attendance backend
+# TARAhut Haazri backend
 
 Vercel functions (`api/`) + Supabase (Postgres and a private `selfies` bucket). Every route the app calls lives
 here; the app's base URL is `https://<deployment>/api`.
@@ -14,6 +14,9 @@ here; the app's base URL is `https://<deployment>/api`.
 | `GET /api/staff/:id`, `/api/staff/:id/attendance?month=` | admin | detail; month with selfie links |
 | `PUT /api/attendance/:id/approve`, `/reject` `{ reason }` | admin | review a day |
 | `POST /api/call-logs/sync` `{ logs }` | signed in | Android call history |
+| `GET /api/company`, `PATCH /api/company` `{ name?, lateAfterMinutes? }` | signed in / company admin | own company and its settings |
+| `GET /api/companies`, `POST /api/companies` `{ name, adminName, adminPhone, adminEmail }` | platform admin | client companies; add one with its first admin |
+| `PATCH /api/companies/:id` `{ name?, logoUrl?, lateAfterMinutes?, active? }` | platform admin | edit or pause a company |
 | `GET /api/health` | anyone | `{ ok: true }` |
 | `/privacy`, `/support` | anyone | pages for the App Store listing |
 
@@ -26,11 +29,17 @@ here; the app's base URL is `https://<deployment>/api`.
 | `AUTH_TOKEN_SECRET` | random, 32+ characters; changing it signs everyone out |
 | `RESEND_API_KEY`, `EMAIL_FROM` | same values as the CRM (sender must be a domain verified in Resend) |
 | `REVIEW_PHONE`, `REVIEW_CODE` | App Review account; unset both to disable it |
-| `LATE_AFTER_MINUTES_IST` | optional, default 555 (09:15 IST) |
+
+## Companies
+
+Every staff member, attendance day and call log belongs to one company (`organizations`); every
+query is limited to the caller's company. Company admins (`role = 'admin'`) manage their own staff and
+settings; the platform admin (`staff.is_platform_admin`, the owner) creates and pauses client companies.
+A phone number belongs to one person in one company.
 
 ## Database
 
-`supabase/migrations/001_init.sql` (already applied). Row level security is on with no policies, so only the
+`supabase/migrations/` (001 and 002 applied). Row level security is on with no policies, so only the
 service-role key used here can read or write; the app never talks to Supabase directly.
 
 Add or change people directly when needed:
