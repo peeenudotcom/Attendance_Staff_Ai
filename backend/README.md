@@ -40,6 +40,10 @@ mail claiming to be from its own domain, so codes sent from `@tarahutaibuilds.co
 `support@tarahutaibuilds.com` bounced. The sender has no mailbox; `EMAIL_REPLY_TO` sends replies to the
 support shared mailbox. Free plan: 100 emails/day; each person signs in about once a month.
 
+DNS: `haazri.tarahutaibuilds.com` has its own CNAME to `cname.vercel-dns.com`. It must stay: once
+Resend's records exist under `haazri.*`, the domain's `*` wildcard no longer covers `haazri` itself, and
+without the CNAME the app's API address stops resolving ("Network request failed" in the app).
+
 ## Companies
 
 Every staff member, attendance day and call log belongs to one company (`organizations`); every

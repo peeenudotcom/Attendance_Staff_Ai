@@ -169,9 +169,16 @@ test('full flow', async () => {
 
   // add staff: validation, success, duplicate
   assert.equal((await call('staff/index', { method: 'POST', token, body: { name: 'A', phone: '9876543210' } })).status, 400);
+  r = await call('staff/index', { method: 'POST', token, body: { name: 'Typo', phone: '9800000001', email: 'typo@gmail.con' } });
+  assert.equal(r.status, 400);
+  assert.match(r.json.message, /did you mean typo@gmail\.com/);
+  assert.equal((await call('staff/index', { method: 'POST', token, body: { name: 'Typo', phone: '9800000001', email: 'typo@gmial.com' } })).json.message, 'Check the email: did you mean typo@gmail.com?');
   r = await call('staff/index', { method: 'POST', token, body: { name: 'Asha Rani', phone: '98765 43210', email: 'Asha@Example.com', department: 'Sales', designation: 'Exec', salaryType: 'monthly', salary: 25000 } });
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.equal(r.json.staff.email, 'asha@example.com');
+  assert.equal(r.json.invited, true);
+  assert.match(sentEmails.at(-1).subject, /added to TARAhut on TARAhut Haazri/);
+  assert.equal(sentEmails.at(-1).to, 'asha@example.com');
   assert.equal((await call('staff/index', { method: 'POST', token, body: { name: 'Dup', phone: '9876543210', email: 'd@example.com' } })).status, 409);
   // new staff can sign in
   r = await call('auth/login', { method: 'POST', body: { phone: '9876543210' } });

@@ -1,9 +1,10 @@
 import { db, must } from '../../lib/db.js';
 import { route, body, cleanPhone, HttpError } from '../../lib/http.js';
 import { publicUser } from '../../lib/auth.js';
+import { sendWelcomeEmail } from '../../lib/email.js';
+import { emailProblem } from '../../lib/email-check.js';
 
 const text = (v, max = 120) => (v == null || String(v).trim() === '' ? null : String(v).trim().slice(0, max));
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default route({
   // GET /api/companies (platform admin) -> every client company with its staff count
@@ -33,7 +34,8 @@ export default route({
     if (!name) throw new HttpError(400, 'Company name is required');
     if (!adminName) throw new HttpError(400, "The admin's name is required");
     if (!adminPhone) throw new HttpError(400, "Enter the admin's 10-digit phone number");
-    if (!adminEmail || !EMAIL.test(adminEmail)) throw new HttpError(400, "Enter the admin's email. Sign-in codes are sent there.");
+    const badEmail = emailProblem(adminEmail);
+    if (badEmail) throw new HttpError(400, badEmail);
 
     const taken = must(await db().from('staff').select('id').eq('phone', adminPhone).maybeSingle());
     if (taken) throw new HttpError(409, 'This phone number is already registered');
@@ -47,6 +49,13 @@ export default route({
       if (error.code === '23505') throw new HttpError(409, 'This phone number is already registered');
       throw new Error(error.message);
     }
-    return { ok: true, company: { id: org.id, name: org.name }, admin: publicUser({ ...admin, org }) };
+    let invited = true;
+    try {
+      await sendWelcomeEmail({ to: adminEmail, name: adminName, phone: adminPhone, company: name });
+    } catch (err) {
+      invited = false;
+      console.error('[companies] welcome email failed:', err.message);
+    }
+    return { ok: true, invited, company: { id: org.id, name: org.name }, admin: publicUser({ ...admin, org }) };
   },
 }, { platform: true });

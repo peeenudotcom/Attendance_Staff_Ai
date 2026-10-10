@@ -2,6 +2,8 @@ import { db, must } from '../../lib/db.js';
 import { route, body, cleanPhone, HttpError } from '../../lib/http.js';
 import { publicUser } from '../../lib/auth.js';
 import { fmtTime, istDay } from '../../lib/attendance.js';
+import { sendWelcomeEmail } from '../../lib/email.js';
+import { emailProblem } from '../../lib/email-check.js';
 
 const SALARY_TYPES = ['monthly', 'daily', 'hourly', 'weekly'];
 const text = (v, max = 120) => (v == null || String(v).trim() === '' ? null : String(v).trim().slice(0, max));
@@ -34,9 +36,8 @@ export default route({
     const email = text(b.email, 200)?.toLowerCase() ?? null;
     if (!name) throw new HttpError(400, 'Name is required');
     if (!phone) throw new HttpError(400, 'Enter a valid 10-digit phone number');
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      throw new HttpError(400, 'Enter a valid email. Sign-in codes are sent there.');
-    }
+    const badEmail = emailProblem(email);
+    if (badEmail) throw new HttpError(400, badEmail);
     const salary = b.salary === '' || b.salary == null ? null : Number(b.salary);
     if (salary != null && (!Number.isFinite(salary) || salary < 0)) throw new HttpError(400, 'Enter a valid salary amount');
 
@@ -54,6 +55,15 @@ export default route({
     }).select('*').single();
     if (error?.code === '23505') throw new HttpError(409, 'This phone number is already registered');
     if (error) throw new Error(error.message);
-    return { ok: true, staff: publicUser(data) };
+
+    // The account exists either way; a failed welcome email shouldn't undo it.
+    let invited = true;
+    try {
+      await sendWelcomeEmail({ to: email, name, phone, company: admin.org.name, addedBy: admin.name });
+    } catch (err) {
+      invited = false;
+      console.error('[staff] welcome email failed:', err.message);
+    }
+    return { ok: true, invited, staff: publicUser(data) };
   },
 }, { admin: true });
