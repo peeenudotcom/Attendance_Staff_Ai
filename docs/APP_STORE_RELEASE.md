@@ -159,3 +159,15 @@ Proposed defaults, awaiting the owner's yes/override:
 5. OTP email: reuse the existing Resend key and sender, or a separate one.
 Also to include: the reviewer allowlist above, and the `OTP_CHANNEL` switch (email / whatsapp / sms) so the
 delivery method stays a config change.
+
+Update 10 Oct 2026, backend built (`backend/`, see `backend/README.md`):
+- Decisions: code in `backend/` of this repo; Supabase project `tarahut-attendance` (Mumbai, org Uplrn AI Labs,
+  ref `oilkvoexlvhkjthpvgfr`); Vercel project `tarahut-attendance` in the CRM's team, root directory `backend`,
+  builds only when `backend/` changes; staff start with the owner (admin) and the App Review account;
+  sign-in codes reuse the CRM's Resend key and sender.
+- App Review sign-in: phone 9000000001 with the fixed code in `REVIEW_CODE` (Vercel env). No email is sent for it.
+- Public pages for the listing: `/privacy` and `/support`. Listing copy, review notes and privacy labels are in
+  `docs/APP_STORE_LISTING.md`.
+- Switch-over: once the production deployment answers `/api/health` and the owner's sign-in works, point
+  `API_BASE_URL` in `src/services/api.js` at it and ship a build. Everyone signs in again once (old CRM tokens
+  are not valid on the new backend). After that, the mobile routes can be removed from the CRM.
