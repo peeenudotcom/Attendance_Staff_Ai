@@ -163,7 +163,7 @@ export default function NotificationsScreen({ navigation }) {
         <GlassCard style={styles.aiSummaryCard} borderRadius={RADIUS.xl}>
           <View style={styles.aiSummaryInner}>
             <View style={styles.aiSummaryHeader}>
-              <Text style={{ fontSize: 14, color: '#A78BFA' }}>✦</Text>
+              <Text style={{ fontSize: 14, color: '#E39AA6' }}>✦</Text>
               <Text style={[styles.aiSummaryLabel, { color: C.textMuted }]}>AI SUMMARY</Text>
             </View>
             <Text style={[styles.aiSummaryText, { color: C.textPrimary }]}>

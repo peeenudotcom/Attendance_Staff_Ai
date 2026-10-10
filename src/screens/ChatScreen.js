@@ -179,7 +179,7 @@ export default function ChatScreen({ navigation }) {
           typing ? (
             <View style={styles.typingRow}>
               <View style={[styles.typingAvatar, { backgroundColor: C.accentSoft }]}>
-                <Text style={{ fontSize: 12, color: '#A78BFA' }}>✦</Text>
+                <Text style={{ fontSize: 12, color: '#E39AA6' }}>✦</Text>
               </View>
               <View style={[styles.typingBubble, { backgroundColor: C.bgCard, borderColor: C.border }]}>
                 <Text style={[styles.typingText, { color: C.textMuted }]}>Thinking</Text>
@@ -230,7 +230,7 @@ export default function ChatScreen({ navigation }) {
           activeOpacity={0.7}
         >
           <LinearGradient
-            colors={[C.accentStart || '#7C3AED', C.accentEnd || '#3B82F6']}
+            colors={[C.accentStart || '#9A2E40', C.accentEnd || '#6E1F2D']}
             style={styles.sendGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}

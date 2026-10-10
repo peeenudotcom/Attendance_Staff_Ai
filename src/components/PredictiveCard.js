@@ -46,8 +46,8 @@ export default function PredictiveCard() {
             <Text style={styles.sparkle}>✦</Text>
             <Text style={[styles.label, { color: C.textMuted }]}>AI PREDICTION FOR {prediction.day.toUpperCase()}</Text>
           </View>
-          <View style={[styles.confBadge, { backgroundColor: C.accentSoft || 'rgba(124,58,237,0.12)' }]}>
-            <Text style={[styles.confText, { color: C.textAccent || '#A78BFA' }]}>{prediction.confidence}%</Text>
+          <View style={[styles.confBadge, { backgroundColor: C.accentSoft || 'rgba(154, 46, 64,0.12)' }]}>
+            <Text style={[styles.confText, { color: C.textAccent || '#E39AA6' }]}>{prediction.confidence}%</Text>
           </View>
         </View>
 
@@ -65,7 +65,7 @@ export default function PredictiveCard() {
 
         {/* At-risk staff */}
         {allClear ? (
-          <View style={[styles.clearBanner, { backgroundColor: C.successSoft || 'rgba(16,185,129,0.12)' }]}>
+          <View style={[styles.clearBanner, { backgroundColor: C.successSoft || 'rgba(69, 167, 159,0.12)' }]}>
             <Text style={[styles.clearText, { color: C.success }]}>All clear! No attendance risks detected for {prediction.day}.</Text>
           </View>
         ) : (
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   inner: { padding: SPACING.xl },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.lg },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sparkle: { fontSize: 14, color: '#A78BFA' },
+  sparkle: { fontSize: 14, color: '#E39AA6' },
   label: { fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
   confBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: RADIUS.full },
   confText: { fontSize: 12, fontWeight: '800' },
