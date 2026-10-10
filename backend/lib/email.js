@@ -14,6 +14,8 @@ export async function sendOtpEmail({ to, name, code }) {
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       from: process.env.EMAIL_FROM,
+      // The sender address has no mailbox; replies go to a real inbox.
+      ...(process.env.EMAIL_REPLY_TO ? { reply_to: process.env.EMAIL_REPLY_TO } : {}),
       to,
       subject: `${code} is your ${PRODUCT} sign-in code`,
       text: `Hi ${greeting},\n\nYour ${PRODUCT} sign-in code is ${code}. It expires in 5 minutes.\n\nIf you did not try to sign in, you can ignore this email.`,

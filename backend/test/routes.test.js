@@ -73,6 +73,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'x';
 process.env.AUTH_TOKEN_SECRET = 'a'.repeat(40);
 process.env.RESEND_API_KEY = 're_test';
 process.env.EMAIL_FROM = 'TARAhut <no-reply@example.com>';
+process.env.EMAIL_REPLY_TO = 'support@example.com';
 process.env.REVIEW_PHONE = '9000000001';
 process.env.REVIEW_CODE = '4826';
 
@@ -105,6 +106,7 @@ test('full flow', async () => {
   r = await call('auth/login', { method: 'POST', body: { phone: '+91 99154 24411' } });
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.equal(r.json.sentTo, 'ow***@example.com');
+  assert.equal(sentEmails.at(-1).reply_to, 'support@example.com');
   const code = /(\d{4}) is your/.exec(sentEmails.at(-1).subject)[1];
 
   // wrong code, then right code

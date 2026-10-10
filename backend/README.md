@@ -27,7 +27,8 @@ here; the app's base URL is `https://<deployment>/api`.
 | `SUPABASE_URL` | `https://oilkvoexlvhkjthpvgfr.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project settings → API keys → `service_role` (secret) |
 | `AUTH_TOKEN_SECRET` | random, 32+ characters; changing it signs everyone out |
-| `RESEND_API_KEY`, `EMAIL_FROM` | same values as the CRM (sender must be a domain verified in Resend) |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Resend key; sender `TARAhut Haazri <haazri@tarahutaibuilds.com>` (any name on a domain verified in Resend works; no mailbox needed) |
+| `EMAIL_REPLY_TO` | `support@tarahutaibuilds.com`, where replies to code emails go |
 | `REVIEW_PHONE`, `REVIEW_CODE` | App Review account; unset both to disable it |
 
 ## Companies
