@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, Switch, KeyboardAvoidingView, Platform,
+  ScrollView, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
@@ -13,11 +13,11 @@ export default function AddStaffScreen({ navigation }) {
   const headerTop = useHeaderInset(12);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [department, setDepartment] = useState('');
   const [designation, setDesignation] = useState('');
   const [salaryType, setSalaryType] = useState('monthly');
   const [salary, setSalary] = useState('');
-  const [sendInvite, setSendInvite] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const departments = ['Sales', 'Marketing', 'Development', 'Support', 'HR', 'Operations', 'Finance'];
@@ -31,12 +31,13 @@ export default function AddStaffScreen({ navigation }) {
   const handleSave = async () => {
     if (!name.trim()) return Alert.alert('Required', 'Please enter staff name');
     if (phone.length < 10) return Alert.alert('Required', 'Please enter valid phone number');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return Alert.alert('Required', 'Please enter a valid email. Sign-in codes are sent there.');
     if (!salary) return Alert.alert('Required', 'Please enter salary amount');
 
     setSaving(true);
     try {
-      await staffAPI.create({ name: name.trim(), phone, department, designation, salaryType, salary: Number(salary), sendInvite });
-      Alert.alert('Staff Added', `${name.trim()} has been added.`, [{ text: 'OK', onPress: () => navigation.goBack() }]);
+      await staffAPI.create({ name: name.trim(), phone, email: email.trim(), department, designation, salaryType, salary: Number(salary) });
+      Alert.alert('Staff Added', `${name.trim()} can now sign in with ${phone}. Their sign-in code will be emailed to ${email.trim()}.`, [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } catch (e) {
       Alert.alert('Could not add staff', e.message || 'Please try again.');
     } finally {
@@ -63,9 +64,6 @@ export default function AddStaffScreen({ navigation }) {
           <View style={[styles.avatarCircle, { backgroundColor: C.accentSoft, borderColor: C.accentBorder }]}>
             <Text style={styles.avatarIcon}>👤</Text>
           </View>
-          <TouchableOpacity style={styles.avatarButton}>
-            <Text style={[styles.avatarButtonText, { color: C.textAccent }]}>Add Photo</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Basic Info */}
@@ -96,6 +94,18 @@ export default function AddStaffScreen({ navigation }) {
               onChangeText={setPhone}
             />
           </View>
+
+          <Text style={[styles.label, { color: C.textMuted }]}>Email *</Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: C.bgElevated, borderColor: C.border, color: C.textPrimary }]}
+            placeholder="Sign-in codes are sent here"
+            placeholderTextColor={C.textMuted}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={email}
+            onChangeText={setEmail}
+          />
 
           <Text style={[styles.label, { color: C.textMuted }]}>Designation</Text>
           <TextInput
@@ -176,22 +186,6 @@ export default function AddStaffScreen({ navigation }) {
           />
         </View>
 
-        {/* Invite */}
-        <View style={[styles.card, { backgroundColor: C.bgCard, borderWidth: 1, borderColor: C.border }]}>
-          <View style={styles.switchRow}>
-            <View>
-              <Text style={[styles.switchLabel, { color: C.textPrimary }]}>Send App Invite</Text>
-              <Text style={[styles.switchDesc, { color: C.textMuted }]}>Send WhatsApp invite to download Staff App</Text>
-            </View>
-            <Switch
-              value={sendInvite}
-              onValueChange={setSendInvite}
-              trackColor={{ false: COLORS.gray300, true: COLORS.accent + '60' }}
-              thumbColor={sendInvite ? COLORS.accent : COLORS.gray400}
-            />
-          </View>
-        </View>
-
         {/* Save Button */}
         <TouchableOpacity style={[styles.saveButton, saving && { opacity: 0.6 }]} onPress={handleSave} activeOpacity={0.8} disabled={saving}>
           <Text style={[styles.saveButtonText, { color: '#ffffff' }]}>{saving ? 'Adding…' : 'Add Staff Member'}</Text>
@@ -216,8 +210,6 @@ const styles = StyleSheet.create({
   avatarSection: { alignItems: 'center', marginBottom: 20 },
   avatarCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: COLORS.accentSoft, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: COLORS.accentBorder, borderStyle: 'dashed' },
   avatarIcon: { fontSize: 32 },
-  avatarButton: { marginTop: 8 },
-  avatarButtonText: { ...FONTS.captionMedium, color: COLORS.accent },
 
   card: { backgroundColor: COLORS.white, borderRadius: RADIUS.lg, padding: SPACING.xl, marginBottom: 12, ...SHADOWS.sm },
   cardTitle: { ...FONTS.h3, fontSize: 16, marginBottom: 16 },
@@ -242,9 +234,6 @@ const styles = StyleSheet.create({
   salaryTypeText: { fontSize: 11, fontWeight: '600', color: COLORS.gray500 },
   salaryTypeTextActive: { color: COLORS.accent },
 
-  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  switchLabel: { fontSize: 15, fontWeight: '600', color: COLORS.text },
-  switchDesc: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
 
   saveButton: { backgroundColor: COLORS.accent, borderRadius: RADIUS.md, paddingVertical: 16, alignItems: 'center', marginTop: 8, ...SHADOWS.accent },
   saveButtonText: { ...FONTS.button, color: COLORS.white },

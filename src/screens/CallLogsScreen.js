@@ -56,6 +56,7 @@ export default function CallLogsScreen() {
                   duration: `${Math.floor(log.duration / 60)}:${String(log.duration % 60).padStart(2, '0')}`,
                   time: new Date(log.dateTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
                   date: new Date(log.dateTime).toISOString().split('T')[0], tagged: null,
+                  timestamp: Number(log.dateTime), seconds: Number(log.duration),
                 })));
               }
             });
