@@ -2,6 +2,7 @@ import { db, must } from '../../lib/db.js';
 import { route, body, cleanPhone, HttpError } from '../../lib/http.js';
 import { publicUser } from '../../lib/auth.js';
 import { fmtTime, istDay } from '../../lib/attendance.js';
+import { sendWelcomeEmail } from '../../lib/email.js';
 
 const SALARY_TYPES = ['monthly', 'daily', 'hourly', 'weekly'];
 const text = (v, max = 120) => (v == null || String(v).trim() === '' ? null : String(v).trim().slice(0, max));
@@ -54,6 +55,15 @@ export default route({
     }).select('*').single();
     if (error?.code === '23505') throw new HttpError(409, 'This phone number is already registered');
     if (error) throw new Error(error.message);
-    return { ok: true, staff: publicUser(data) };
+
+    // The account exists either way; a failed welcome email shouldn't undo it.
+    let invited = true;
+    try {
+      await sendWelcomeEmail({ to: email, name, phone, company: admin.org.name, addedBy: admin.name });
+    } catch (err) {
+      invited = false;
+      console.error('[staff] welcome email failed:', err.message);
+    }
+    return { ok: true, invited, staff: publicUser(data) };
   },
 }, { admin: true });
