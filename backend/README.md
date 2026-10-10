@@ -11,14 +11,20 @@ here; the app's base URL is `https://<deployment>/api`.
 | `POST /api/attendance/check-in`, `check-out` | signed in | `{ selfie (base64 JPEG), latitude, longitude, address, timestamp }` |
 | `GET /api/attendance/today`, `history?month=YYYY-MM` | signed in | own records |
 | `GET /api/staff`, `POST /api/staff` | admin | list with today's status; add a staff member (name, phone, email required) |
+| `GET /api/staff?include=inactive` | admin | also lists switched-off staff |
 | `GET /api/staff/:id`, `/api/staff/:id/attendance?month=` | admin | detail; month with selfie links |
+| `PATCH /api/staff/:id` `{ name?, phone?, email?, designation?, department?, role?, active? }` | admin | edit or switch off (can't remove the last admin or yourself) |
+| `POST /api/staff/:id/invite` | admin | resend the welcome email |
+| `GET /api/reports/day?date=YYYY-MM-DD` | admin | everyone's day: status, times, place, selfie links |
+| `GET /api/reports/month?month=YYYY-MM` | admin | attendance sheet with totals |
 | `PUT /api/attendance/:id/approve`, `/reject` `{ reason }` | admin | review a day |
 | `POST /api/call-logs/sync` `{ logs }` | signed in | Android call history |
-| `GET /api/company`, `PATCH /api/company` `{ name?, lateAfterMinutes? }` | signed in / company admin | own company and its settings |
+| `GET /api/company`, `PATCH /api/company` `{ name?, lateAfterMinutes?, weeklyOff? }` | signed in / company admin | own company and its settings |
 | `GET /api/companies`, `POST /api/companies` `{ name, adminName, adminPhone, adminEmail }` | platform admin | client companies; add one with its first admin |
 | `PATCH /api/companies/:id` `{ name?, logoUrl?, lateAfterMinutes?, active? }` | platform admin | edit or pause a company |
 | `GET /api/health` | anyone | `{ ok: true }` |
-| `/privacy`, `/support` | anyone | pages for the App Store listing |
+| `/privacy`, `/support`, `/get` | anyone | pages for the App Store listing; install page |
+| `/dashboard` | company admins | owner web dashboard (see below) |
 
 ## Environment (Vercel project `tarahut-attendance`)
 
@@ -51,9 +57,18 @@ query is limited to the caller's company. Company admins (`role = 'admin'`) mana
 settings; the platform admin (`staff.is_platform_admin`, the owner) creates and pauses client companies.
 A phone number belongs to one person in one company.
 
+## Dashboard
+
+`public/dashboard/` is a plain HTML/JS page (no build step) at `/dashboard`, using the same `/api` and sign-in
+codes as the app. Only `role = 'admin'` can use it. Tabs: Today (status, times, place, selfies), Monthly sheet
+(with a CSV download that opens in Excel), Staff (add, edit, switch off, resend invite), Settings (name, late
+time, weekly off) and, for the platform admin, Clients (add, pause or resume companies).
+
+The weekly off day is a single company setting, so changing it also changes how past months show.
+
 ## Database
 
-`supabase/migrations/` (001 and 002 applied). Row level security is on with no policies, so only the
+`supabase/migrations/` (001 to 003 applied). Row level security is on with no policies, so only the
 service-role key used here can read or write; the app never talks to Supabase directly.
 
 Add or change people directly when needed:

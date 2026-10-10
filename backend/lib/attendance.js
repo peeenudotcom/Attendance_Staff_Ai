@@ -59,6 +59,26 @@ export async function selfieUrl(path, expiresIn = 60 * 60) {
   return data?.signedUrl ?? null;
 }
 
+/** Short-lived links for many selfie paths at once: { path: url }. */
+export async function selfieUrls(paths, expiresIn = 60 * 60) {
+  const list = [...new Set(paths.filter(Boolean))];
+  if (!list.length) return {};
+  const { data } = await db().storage.from(BUCKET).createSignedUrls(list, expiresIn);
+  return Object.fromEntries((data || []).filter((d) => d.signedUrl).map((d) => [d.path, d.signedUrl]));
+}
+
+/** Validates "YYYY-MM" (default: current IST month) and returns its days as "YYYY-MM-DD". */
+export function monthDays(month) {
+  const m = String(month || istDay(new Date()).slice(0, 7));
+  const match = /^(\d{4})-(\d{2})$/.exec(m);
+  if (!match || +match[2] < 1 || +match[2] > 12) throw new HttpError(400, 'Invalid month, use YYYY-MM');
+  const count = new Date(Date.UTC(+match[1], +match[2], 0)).getUTCDate();
+  return { month: m, days: Array.from({ length: count }, (_, i) => `${m}-${String(i + 1).padStart(2, '0')}`) };
+}
+
+/** Day of the week (0 = Sunday) for a "YYYY-MM-DD" date. */
+export const weekday = (date) => new Date(`${date}T00:00:00Z`).getUTCDay();
+
 export function coord(value, limit) {
   const n = Number(value);
   return Number.isFinite(n) && Math.abs(n) <= limit ? n : null;
