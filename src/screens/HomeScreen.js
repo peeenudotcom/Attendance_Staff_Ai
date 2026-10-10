@@ -65,13 +65,23 @@ export default function HomeScreen({ navigation }) {
     { label: 'Leave', value: '1', color: C.info },
   ];
 
-  const adminActions = [
+  // Every Command Center action targets a screen held out of the store build (Add Staff's
+  // backend is not live; the rest show sample data), so the whole shortcut row is demo-only.
+  const adminActions = SHOW_SAMPLE_DATA ? [
     { icon: '➕', label: 'Add Staff', value: '12 members', screen: 'AddStaff' },
-    ...(SHOW_SAMPLE_DATA ? [
-      { icon: '📈', label: 'Analytics', value: '96% rate', screen: 'Reports' },
-      { icon: '💳', label: 'Payroll', value: '₹2.4L due', screen: 'Payroll' },
-      { icon: '📡', label: 'Live Track', value: '5 active', screen: 'LiveTrack' },
-    ] : []),
+    { icon: '📈', label: 'Analytics', value: '96% rate', screen: 'Reports' },
+    { icon: '💳', label: 'Payroll', value: '₹2.4L due', screen: 'Payroll' },
+    { icon: '📡', label: 'Live Track', value: '5 active', screen: 'LiveTrack' },
+  ] : [];
+
+  // On the iOS store build every optional destination is held back, so this can be empty;
+  // the section only renders when it has at least one chip.
+  const quickActions = [
+    ...(SHOW_SAMPLE_DATA ? [{ icon: '◷', label: 'History', screen: 'History' }] : []),
+    ...(Platform.OS === 'android' ? [{ icon: '◉', label: 'Calls', screen: 'CallLogs' }] : []),
+    ...(SHOW_SAMPLE_DATA ? [{ icon: '◫', label: 'Gallery', screen: 'Gallery' }] : []),
+    ...(SHOW_SAMPLE_DATA ? [{ icon: '◈', label: 'Reports', screen: 'Reports' }, { icon: '◇', label: 'Leave', screen: 'Leave' }] : []),
+    ...(SHOW_SAMPLE_DATA && isAdmin ? [{ icon: '◆', label: 'Salary', screen: 'Salary' }] : []),
   ];
 
   const team = [
@@ -201,16 +211,11 @@ export default function HomeScreen({ navigation }) {
         )}
 
         {/* Quick Access */}
+        {quickActions.length > 0 && (
         <View style={styles.section}>
           <Text style={[styles.sectionLabel, { color: C.textMuted }]}>QUICK ACCESS</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
-            {[
-              ...(SHOW_SAMPLE_DATA ? [{ icon: '◷', label: 'History', screen: 'History' }] : []),
-              ...(Platform.OS === 'android' ? [{ icon: '◉', label: 'Calls', screen: 'CallLogs' }] : []),
-              { icon: '◫', label: 'Gallery', screen: 'Gallery' },
-              ...(SHOW_SAMPLE_DATA ? [{ icon: '◈', label: 'Reports', screen: 'Reports' }, { icon: '◇', label: 'Leave', screen: 'Leave' }] : []),
-              ...(SHOW_SAMPLE_DATA && isAdmin ? [{ icon: '◆', label: 'Salary', screen: 'Salary' }] : []),
-            ].map((a) => (
+            {quickActions.map((a) => (
               <TouchableOpacity key={a.label} style={[styles.quickChip, { backgroundColor: C.bgCard, borderColor: C.border }]} onPress={() => navigation.navigate(a.screen)} activeOpacity={0.7}>
                 <Text style={[styles.quickIcon, { color: C.textMuted }]}>{a.icon}</Text>
                 <Text style={[styles.quickLabel, { color: C.textPrimary }]}>{a.label}</Text>
@@ -218,9 +223,10 @@ export default function HomeScreen({ navigation }) {
             ))}
           </ScrollView>
         </View>
+        )}
 
         {/* Command Center */}
-        {isAdmin && (
+        {isAdmin && adminActions.length > 0 && (
           <View style={styles.section}>
             <Text style={[styles.sectionLabel, { color: C.textMuted }]}>COMMAND CENTER</Text>
             <View style={styles.adminGrid}>
