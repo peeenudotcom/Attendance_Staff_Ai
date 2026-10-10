@@ -1,5 +1,7 @@
 # App Store Connect listing: copy to paste
 
+Product: **TARAhut Haazri** by TARAhut AI Builds. Home-screen label: **Haazri** (`expo.name` in `app.json`).
+
 Everything below matches what build 7+ actually does. Paste each block into the matching field in
 App Store Connect → TARAhut Attendance.
 
@@ -7,10 +9,10 @@ App Store Connect → TARAhut Attendance.
 
 | Field | Value |
 | --- | --- |
-| Name | TARAhut Attendance |
-| Subtitle (30 chars max) | Selfie & location check-in |
+| Name (30 max) | TARAhut Haazri |
+| Subtitle (30 max) | Selfie & location attendance |
 | Category | Business (secondary: Productivity) |
-| Privacy Policy URL | https://tarahut-attendance.vercel.app/privacy |
+| Privacy Policy URL | https://haazri.tarahutaibuilds.com/privacy |
 | Content rights | Does not contain third-party content |
 | Age rating | Answer "None" to every question → 4+ |
 
@@ -22,7 +24,7 @@ App Store Connect → TARAhut Attendance.
 
 **Description:**
 
-> TARAhut Attendance makes daily check-in simple and honest for teams that work in offices, shops and on site.
+> TARAhut Haazri makes daily check-in simple and honest for teams that work in offices, shops and on site.
 >
 > CHECK IN WITH A SELFIE
 > Tap Check In, take a quick selfie and the app records the time and your current location. At the end of the day, check out the same way and your hours are worked out for you.
@@ -39,15 +41,17 @@ App Store Connect → TARAhut Attendance.
 > PRIVATE BY DESIGN
 > Your location is read only at the moment you check in or out, never in the background. Selfies are stored privately and shown only to your organisation's admins. No ads, no tracking.
 >
-> TARAhut Attendance is for organisations that use TARAhut to manage their team. Ask your admin to add you before you sign in.
+> Each business gets its own private company space: staff see only their own company, and admins manage only their own team. Ask your admin to add you before you sign in.
+>
+> TARAhut Haazri is made by TARAhut AI Builds.
 
 **Keywords** (100 chars max, comma-separated, no spaces):
 
 > attendance,check in,selfie,staff,employee,timesheet,geo,location,workforce,team,hr,clock in,shift
 
-**Support URL:** https://tarahut-attendance.vercel.app/support
+**Support URL:** https://haazri.tarahutaibuilds.com/support
 **Marketing URL:** leave empty (optional)
-**Copyright:** 2026 TARAhut AI Labs
+**Copyright:** 2026 TARAhut AI Builds
 
 ## App Review Information
 
@@ -55,7 +59,7 @@ App Store Connect → TARAhut Attendance.
 | --- | --- |
 | Sign-in required | Yes |
 | User name | 9000000001 |
-| Password | the REVIEW_CODE value (set in the tarahut-attendance Vercel project; given to the owner in chat, not stored in the repo) |
+| Password | the REVIEW_CODE value (`REVIEW_CODE` in the tarahut-attendance Vercel project; given to the owner in chat, not stored in the repo) |
 | Contact | the owner's name, phone and email |
 
 **Notes** (paste, then put the code where it says CODE):
@@ -64,7 +68,7 @@ App Store Connect → TARAhut Attendance.
 >
 > After signing in, tap Check In. The app asks for camera permission (to take the check-in selfie) and location permission "while using the app" (to record where attendance was marked). Take the selfie, confirm, and you are checked in; the home screen then offers Check Out.
 >
-> Accounts are created by each organisation's admin, so there is no public sign-up and no in-app account deletion; staff ask their admin, or email privacy@tarahut.com, to have their data deleted.
+> Accounts are created by each organisation's admin, so there is no public sign-up and no in-app account deletion; staff ask their admin, or email privacy@tarahutaibuilds.com, to have their data deleted.
 
 ## App Privacy ("nutrition labels")
 
