@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
 import { useModalHeaderInset } from '../utils/safeArea';
@@ -11,6 +12,13 @@ import { attendanceAPI } from '../services/api';
 import SelfieGuide from '../components/SelfieGuide';
 
 const { width } = Dimensions.get('window');
+
+// "Railway Road, Kotkapura": the geocoder often repeats the street as the place name.
+function formatAddress(a) {
+  const parts = [a.name, a.street, a.district, a.city].map((p) => (p || '').trim()).filter(Boolean);
+  const unique = parts.filter((p, i) => !parts.slice(0, i).some((q) => q.toLowerCase() === p.toLowerCase()));
+  return unique.join(', ');
+}
 
 export default function MarkAttendanceScreen({ route, navigation }) {
   const { colors: C } = useTheme();
@@ -36,9 +44,7 @@ export default function MarkAttendanceScreen({ route, navigation }) {
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       setLocation(loc.coords);
       const [addr] = await Location.reverseGeocodeAsync(loc.coords);
-      if (addr) {
-        setAddress(`${addr.name || ''} ${addr.street || ''}, ${addr.city || ''}`);
-      }
+      if (addr) setAddress(formatAddress(addr));
     } catch (e) {
       Alert.alert('Error', 'Could not get location');
     } finally {
@@ -49,8 +55,13 @@ export default function MarkAttendanceScreen({ route, navigation }) {
   const takeSelfie = async () => {
     if (!cameraRef.current) return;
     try {
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.7, base64: true });
-      setSelfie(photo);
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
+      // Full-resolution photos are several MB; 1000 px wide is plenty for a selfie and uploads
+      // quickly on mobile data (and stays well under the server's upload limit).
+      const small = await manipulateAsync(photo.uri, [{ resize: { width: 1000 } }], {
+        compress: 0.6, format: SaveFormat.JPEG, base64: true,
+      });
+      setSelfie(small);
     } catch (e) {
       Alert.alert('Error', 'Failed to take photo');
     }

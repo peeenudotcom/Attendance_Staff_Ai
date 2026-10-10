@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
-  Dimensions, StatusBar, Animated,
+  Dimensions, StatusBar, Animated, Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS, GLASS } from '../utils/theme';
@@ -66,9 +66,7 @@ export default function LoginScreen() {
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
           {/* Brand */}
           <View style={styles.brand}>
-            <View style={styles.logoMark}>
-              <Text style={styles.logoSymbol}>T</Text>
-            </View>
+            <Image source={require('../../assets/logo.png')} style={styles.logoMark} accessibilityLabel="TARAhut Haazri logo" />
             <Text style={styles.brandName}>TARAhut Haazri</Text>
             <Text style={styles.brandSub}>Staff attendance, made simple</Text>
           </View>
@@ -167,8 +165,7 @@ const styles = StyleSheet.create({
   content: { flex: 1, justifyContent: 'center', paddingHorizontal: SPACING.xxl },
 
   brand: { alignItems: 'center', marginBottom: 36 },
-  logoMark: { width: 56, height: 56, borderRadius: 16, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', marginBottom: 16, ...SHADOWS.accent },
-  logoSymbol: { fontSize: 26, fontWeight: '900', color: '#fff' },
+  logoMark: { width: 64, height: 64, marginBottom: 16 },
   brandName: { fontSize: 28, fontWeight: '800', color: COLORS.textPrimary, letterSpacing: 2 },
   brandSub: { ...FONTS.small, color: COLORS.textMuted, marginTop: 6, letterSpacing: 1.5, fontSize: 10 },
 
