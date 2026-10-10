@@ -27,9 +27,18 @@ here; the app's base URL is `https://<deployment>/api`.
 | `SUPABASE_URL` | `https://oilkvoexlvhkjthpvgfr.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project settings → API keys → `service_role` (secret) |
 | `AUTH_TOKEN_SECRET` | random, 32+ characters; changing it signs everyone out |
-| `RESEND_API_KEY`, `EMAIL_FROM` | Resend key; sender `TARAhut Haazri <haazri@tarahutaibuilds.com>` (any name on a domain verified in Resend works; no mailbox needed) |
+| `RESEND_API_KEY`, `EMAIL_FROM` | key from the Haazri Resend account (sending access, domain-limited); sender `TARAhut Haazri <codes@haazri.tarahutaibuilds.com>` |
 | `EMAIL_REPLY_TO` | `support@tarahutaibuilds.com`, where replies to code emails go |
 | `REVIEW_PHONE`, `REVIEW_CODE` | App Review account; unset both to disable it |
+
+## Email
+
+Sign-in codes are sent by a Resend account used only for Haazri, from the subdomain
+`haazri.tarahutaibuilds.com` (its DKIM/SPF records live in the tarahutaibuilds.com DNS on Vercel).
+A subdomain is used on purpose: Microsoft 365 hosts mail for tarahutaibuilds.com and rejects outside
+mail claiming to be from its own domain, so codes sent from `@tarahutaibuilds.com` to
+`support@tarahutaibuilds.com` bounced. The sender has no mailbox; `EMAIL_REPLY_TO` sends replies to the
+support shared mailbox. Free plan: 100 emails/day; each person signs in about once a month.
 
 ## Companies
 
