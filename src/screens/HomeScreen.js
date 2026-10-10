@@ -65,14 +65,15 @@ export default function HomeScreen({ navigation }) {
     { label: 'Leave', value: '1', color: C.info },
   ];
 
-  // Every Command Center action targets a screen held out of the store build (Add Staff's
-  // backend is not live; the rest show sample data), so the whole shortcut row is demo-only.
-  const adminActions = SHOW_SAMPLE_DATA ? [
+  // Add Staff is live; the other Command Center actions still show sample data, so they are demo-only.
+  const adminActions = [
     { icon: '➕', label: 'Add Staff', value: '12 members', screen: 'AddStaff' },
-    { icon: '📈', label: 'Analytics', value: '96% rate', screen: 'Reports' },
-    { icon: '💳', label: 'Payroll', value: '₹2.4L due', screen: 'Payroll' },
-    { icon: '📡', label: 'Live Track', value: '5 active', screen: 'LiveTrack' },
-  ] : [];
+    ...(SHOW_SAMPLE_DATA ? [
+      { icon: '📈', label: 'Analytics', value: '96% rate', screen: 'Reports' },
+      { icon: '💳', label: 'Payroll', value: '₹2.4L due', screen: 'Payroll' },
+      { icon: '📡', label: 'Live Track', value: '5 active', screen: 'LiveTrack' },
+    ] : []),
+  ];
 
   // On the iOS store build every optional destination is held back, so this can be empty;
   // the section only renders when it has at least one chip.

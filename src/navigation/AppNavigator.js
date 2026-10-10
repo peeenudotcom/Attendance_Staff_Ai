@@ -135,10 +135,8 @@ export default function AppNavigator() {
           <>
             <Stack.Screen name="Main" component={TabNavigator} />
             <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-            {/* Admin-only screens are not registered for staff, so no shortcut or chat action can open them.
-                Add Staff posts to the backend, which is not live yet, so it is held out of the store build
-                until POST /staff is confirmed (see docs/APP_STORE_RELEASE.md section 9). */}
-            {SHOW_SAMPLE_DATA && isAdmin && <Stack.Screen name="AddStaff" component={AddStaffScreen} />}
+            {/* Admin-only screens are not registered for staff, so no shortcut or chat action can open them. */}
+            {isAdmin && <Stack.Screen name="AddStaff" component={AddStaffScreen} />}
             {/* Screens that still show sample data are left out of the store build (see src/config/features.js). */}
             {SHOW_SAMPLE_DATA && (
               <Stack.Group>

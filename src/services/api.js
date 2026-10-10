@@ -1,12 +1,18 @@
-const API_BASE_URL = 'https://tarahut-ams.vercel.app/api';
+const API_BASE_URL = 'https://haazri.tarahutaibuilds.com/api';
 
 const headers = {
   'Content-Type': 'application/json',
 };
 
 export const setAuthToken = (token) => {
-  headers['Authorization'] = `Bearer ${token}`;
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  else delete headers['Authorization'];
 };
+
+// Called when the backend rejects the saved sign-in (expired, account removed, company paused),
+// so the app returns to the sign-in screen instead of failing on every request.
+let onUnauthorized = null;
+export const setUnauthorizedHandler = (fn) => { onUnauthorized = fn; };
 
 const request = async (endpoint, options = {}) => {
   try {
@@ -20,6 +26,9 @@ const request = async (endpoint, options = {}) => {
       data = JSON.parse(text);
     } catch {
       throw new Error(`Server returned non-JSON response`);
+    }
+    if (response.status === 401 && headers['Authorization'] && !endpoint.startsWith('/auth/login') && !endpoint.startsWith('/auth/verify-otp')) {
+      onUnauthorized?.();
     }
     if (!response.ok) throw new Error(data.message || 'Request failed');
     return data;

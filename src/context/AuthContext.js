@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { Platform } from 'react-native';
-import { setAuthToken } from '../services/api';
+import { setAuthToken, setUnauthorizedHandler } from '../services/api';
 
 const AuthContext = createContext({});
 
@@ -74,8 +74,14 @@ export const AuthProvider = ({ children }) => {
     } catch (e) {
       // ignore storage errors
     }
+    setAuthToken(null);
     setUser(null);
   };
+
+  useEffect(() => {
+    setUnauthorizedHandler(logout);
+    return () => setUnauthorizedHandler(null);
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, isLoading, login, logout }}>

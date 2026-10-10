@@ -32,11 +32,10 @@ export default function AddStaffScreen({ navigation }) {
     if (!name.trim()) return Alert.alert('Required', 'Please enter staff name');
     if (phone.length < 10) return Alert.alert('Required', 'Please enter valid phone number');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return Alert.alert('Required', 'Please enter a valid email. Sign-in codes are sent there.');
-    if (!salary) return Alert.alert('Required', 'Please enter salary amount');
 
     setSaving(true);
     try {
-      await staffAPI.create({ name: name.trim(), phone, email: email.trim(), department, designation, salaryType, salary: Number(salary) });
+      await staffAPI.create({ name: name.trim(), phone, email: email.trim(), department, designation, salaryType, salary: salary.trim() ? Number(salary) : null });
       Alert.alert('Staff Added', `${name.trim()} can now sign in with ${phone}. Their sign-in code will be emailed to ${email.trim()}.`, [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } catch (e) {
       Alert.alert('Could not add staff', e.message || 'Please try again.');
@@ -175,7 +174,7 @@ export default function AddStaffScreen({ navigation }) {
             ))}
           </View>
 
-          <Text style={[styles.label, { color: C.textMuted }]}>Amount (₹) *</Text>
+          <Text style={[styles.label, { color: C.textMuted }]}>Amount (₹)</Text>
           <TextInput
             style={[styles.input, { backgroundColor: C.bgElevated, borderColor: C.border, color: C.textPrimary }]}
             placeholder={salaryType === 'monthly' ? 'e.g. 25000' : salaryType === 'daily' ? 'e.g. 800' : 'e.g. 150'}
