@@ -59,7 +59,7 @@ export default function ProfileScreen() {
           <Text style={[styles.avatarText, { color: C.textPrimary }]}>{(user?.name || 'U')[0]}</Text>
         </View>
         <Text style={[styles.name, { color: C.textPrimary }]}>{user?.name || 'User'}</Text>
-        <Text style={[styles.role, { color: C.textSecondary }]}>{user?.designation || 'Staff'}</Text>
+        <Text style={[styles.role, { color: C.textSecondary }]}>{user?.designation || (isAdmin ? 'Admin' : 'Staff')}</Text>
         <View style={styles.metaRow}>
           <View style={[styles.metaPill, { backgroundColor: C.bgCard, borderColor: C.border }]}>
             <Text style={[styles.metaText, { color: C.textSecondary }]}>{user?.phone || 'No phone on file'}</Text>
@@ -91,7 +91,9 @@ export default function ProfileScreen() {
 
       {/* Menu */}
       {menuSections.map((section) => {
-        const items = section.items.filter(i => !i.admin || isAdmin);
+        // Items without an action are placeholders for features not built yet; they only
+        // appear in demo builds (src/config/features.js) so the store build has no dead taps.
+        const items = section.items.filter(i => (!i.admin || isAdmin) && (SHOW_SAMPLE_DATA || i.onPress));
         if (!items.length) return null;
         return (
           <View key={section.title} style={styles.section}>

@@ -56,7 +56,7 @@ eas submit --platform ios --latest
 
 EAS can create the App Store Connect record for you when asked (name: TARAhut Attendance, SKU: tarahut-attendance,
 primary language: English (India) or English (US)). The build appears under TestFlight within 10 to 30 minutes.
-Install it on a real iPhone from TestFlight and run through check-in, check-out, gallery upload and sign-out
+Install it on a real iPhone from TestFlight and run through check-in, check-out and sign-out
 before submitting for review.
 
 To hand out test builds without TestFlight: `eas build --platform ios --profile preview` and register tester
@@ -86,10 +86,12 @@ likely they are to cause a rejection under Guideline 2.1 (completeness) and 2.3 
    selfie is stored with the attendance record. Describe it as a selfie check-in in the listing.
 3. **Sample data and inert controls.** Hidden from the store build behind `SHOW_SAMPLE_DATA` in
    `src/config/features.js` (false by default): the History tab, Reports, Leave, Payroll/Salary, Live Track, the
-   chat assistant, Notifications, and the sample sections on Home (score, insights, briefing, predictions, team
-   activity, Command Center values) and Profile (stats). What ships is sign-in, selfie check-in/out, Gallery,
-   Add Staff (admin), Calls (Android, real device logs) and Profile. Flip the flag for demos; when a screen is
-   wired to the API, remove its gate rather than keeping it behind the flag.
+   chat assistant, Notifications, Gallery (it captures photos but does not yet upload or persist them), Add Staff
+   (its `POST /staff` backend is not live yet), the Command Center and Quick Access shortcut rows on Home, the
+   placeholder menu rows on the You tab (every item without a working action), and the sample sections on Home
+   (score, insights, briefing, predictions, team activity, Command Center values) and Profile (stats). What ships
+   is sign-in, selfie check-in/out, Calls (Android, real device logs) and Profile (You). Flip the flag for demos;
+   when a screen is wired to the API, remove its gate rather than keeping it behind the flag.
 4. **Status bar and keyboard on current iPhones.** Fixed in this branch: every screen now pads its header
    from the device safe-area inset (via the hooks in `src/utils/safeArea.js`), the tab bar and floating assistant
    button follow the home-indicator inset, the Leave and Add Staff forms avoid the keyboard, and Reports has a back
@@ -132,6 +134,11 @@ Status on 5 Oct 2026:
 - Pending on this app's branch: "Show where the sign-in code was sent" (commit `40c227c`), not yet merged to `main`.
 - Reviewer access for App Review is still unsolved: reviewers cannot read the owner's inbox, so a
   production-safe allowlist (one phone number accepts one fixed code) is needed wherever the backend ends up.
+
+Update 10 Oct 2026 (before the next TestFlight build): with the standalone backend not built yet, `POST /staff`
+is not live, so **Add Staff is hidden** from the store build alongside **Gallery** (which captures photos but
+does not upload or persist them). Both are now gated by `SHOW_SAMPLE_DATA`, so the store build ships only
+sign-in, selfie check-in/out, Calls (Android) and You. Remove each gate once the feature is wired and verified.
 
 Decision taken: the attendance app should not depend on the CRM codebase. Build it its own backend, then
 point `src/services/api.js` at it and remove the mobile routes from the CRM.
