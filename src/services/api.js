@@ -67,6 +67,14 @@ export const leaveAPI = {
   decide: (id, data) => request(`/leave/${id}/decide`, { method: 'POST', body: JSON.stringify(data) }),
 };
 
+export const correctionsAPI = {
+  mine: () => request('/corrections'),
+  ask: (data) => request('/corrections', { method: 'POST', body: JSON.stringify(data) }),
+  cancel: (id) => request(`/corrections/${id}/cancel`, { method: 'POST' }),
+  company: () => request('/corrections/company'),
+  decide: (id, data) => request(`/corrections/${id}/decide`, { method: 'POST', body: JSON.stringify(data) }),
+};
+
 export const holidaysAPI = {
   list: () => request('/holidays'),
 };

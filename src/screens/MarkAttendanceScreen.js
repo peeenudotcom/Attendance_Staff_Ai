@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Image, Dimensions,
+  View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Image, Dimensions, Linking,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
@@ -33,6 +33,10 @@ export default function MarkAttendanceScreen({ route, navigation }) {
   const [loading, setLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(true);
   const [company, setCompany] = useState(null);
+  // Why there is no location: 'denied' (permission), 'off' (location services off) or 'unavailable' (no GPS fix).
+  const [locError, setLocError] = useState(null);
+  // After submitting: { ok: true, time } or { ok: false, network, message }. Staff must always know whether it was recorded.
+  const [result, setResult] = useState(null);
 
   useEffect(() => {
     getLocation();
@@ -47,18 +51,24 @@ export default function MarkAttendanceScreen({ route, navigation }) {
 
   const getLocation = async () => {
     setLocationLoading(true);
+    setLocError(null);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Location access is needed to mark attendance');
-        return;
-      }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      if (status !== 'granted') { setLocError('denied'); return; }
+      if (!(await Location.hasServicesEnabledAsync())) { setLocError('off'); return; }
+      // A weak GPS signal indoors can take a long time; give up after 20 seconds so staff aren't left waiting.
+      const loc = await Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 20_000)),
+      ]);
       setLocation(loc.coords);
-      const [addr] = await Location.reverseGeocodeAsync(loc.coords);
-      if (addr) setAddress(formatAddress(addr));
+      // The street address needs the internet; without it attendance still works with the coordinates.
+      try {
+        const [addr] = await Location.reverseGeocodeAsync(loc.coords);
+        if (addr) setAddress(formatAddress(addr));
+      } catch { /* address is optional */ }
     } catch (e) {
-      Alert.alert('Error', 'Could not get location');
+      setLocError('unavailable');
     } finally {
       setLocationLoading(false);
     }
@@ -90,15 +100,20 @@ export default function MarkAttendanceScreen({ route, navigation }) {
     };
     try {
       type === 'check-in' ? await attendanceAPI.checkIn(data) : await attendanceAPI.checkOut(data);
-      Alert.alert('Success!', `${type === 'check-in' ? 'Checked In' : 'Checked Out'} successfully`, [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
+      setResult({ ok: true, time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) });
     } catch (e) {
-      Alert.alert(`${type === 'check-in' ? 'Check In' : 'Check Out'} failed`, e.message || 'Could not reach the server. Please try again.');
+      // fetch fails with a TypeError when there is no connection; a captive Wi-Fi page returns HTML, not our JSON.
+      const network = e instanceof TypeError || /network|non-JSON|timed? ?out|failed to fetch/i.test(e.message || '');
+      setResult({ ok: false, network, message: network ? 'No internet connection, so nothing was saved.' : (e.message || 'Something went wrong.') });
     } finally {
       setLoading(false);
     }
   };
+
+  const askCorrection = () => navigation.replace('Corrections', {
+    date: new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10),
+    kind: type === 'check-in' ? 'missed_check_in' : 'missed_check_out',
+  });
 
   if (!permission) return <View style={[styles.center, { backgroundColor: C.bg }]}><ActivityIndicator size="large" color={C.accent} /></View>;
 
@@ -149,7 +164,8 @@ export default function MarkAttendanceScreen({ route, navigation }) {
       </Text>
 
       {/* Camera / Selfie */}
-      <View style={styles.cameraWrapper}>
+      {/* Smaller preview while a message is showing, so its buttons fit on small phones. */}
+      <View style={[styles.cameraWrapper, (result || (locError && !locationLoading)) && { height: width * 0.5 }]}>
         {selfie ? (
           <Image source={{ uri: selfie.uri }} style={styles.cameraView} />
         ) : (
@@ -174,7 +190,7 @@ export default function MarkAttendanceScreen({ route, navigation }) {
           <View style={{ flex: 1 }}>
             <Text style={[styles.infoLabel, { color: C.textMuted }]}>Location</Text>
             <Text style={[styles.infoValue, { color: C.textPrimary }]} numberOfLines={1}>
-              {locationLoading ? 'Detecting...' : address || 'Captured'}
+              {locationLoading ? 'Detecting...' : locError ? 'Not found' : address || 'Captured'}
             </Text>
             {distance != null && !locationLoading && (
               <Text style={[styles.infoSub, { color: blocked ? COLORS.danger : C.textMuted }]} numberOfLines={1}>
@@ -196,7 +212,59 @@ export default function MarkAttendanceScreen({ route, navigation }) {
 
       {/* Bottom Action */}
       <View style={styles.bottom}>
-        {blocked && !locationLoading ? (
+        {result ? (
+          result.ok ? (
+            <View style={[styles.resultCard, { backgroundColor: C.bgCard, borderColor: C.success }]}>
+              <Text style={[styles.resultTitle, { color: C.success }]}>✓ Attendance recorded</Text>
+              <Text style={[styles.blockedText, { color: C.textSecondary }]}>
+                {type === 'check-in' ? 'Checked in' : 'Checked out'} at {result.time}. Your admin can see it now.
+              </Text>
+              <TouchableOpacity style={styles.refreshBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+                <Text style={styles.refreshText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={[styles.resultCard, { backgroundColor: C.bgCard, borderColor: COLORS.danger }]}>
+              <Text style={[styles.resultTitle, { color: COLORS.danger }]}>Attendance NOT recorded</Text>
+              <Text style={[styles.blockedText, { color: C.textSecondary }]}>{result.message}</Text>
+              {result.network && (
+                <Text style={[styles.blockedText, { color: C.textMuted }]}>
+                  Check your mobile data or Wi-Fi and try again. Not sure if it went through? Home shows whether you are checked in.
+                </Text>
+              )}
+              <View style={styles.resultActions}>
+                <TouchableOpacity style={[styles.refreshBtn, { flex: 1 }]} onPress={() => setResult(null)} activeOpacity={0.8}>
+                  <Text style={styles.refreshText}>Try again</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.ghostBtn, { borderColor: C.border, flex: 1 }]} onPress={askCorrection} activeOpacity={0.8}>
+                  <Text style={[styles.ghostText, { color: C.textAccent }]}>Ask for a correction</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )
+        ) : locError && !locationLoading ? (
+          <View style={[styles.blockedCard, { backgroundColor: C.bgCard, borderColor: COLORS.danger + '55' }]}>
+            <Text style={[styles.blockedTitle, { color: C.textPrimary }]}>Location not found: not recorded yet</Text>
+            <Text style={[styles.blockedText, { color: C.textSecondary }]}>
+              {locError === 'denied' ? 'Haazri needs your location to mark attendance. Allow location for Haazri in your phone settings ("While using the app").'
+                : locError === 'off' ? 'Location is switched off on this phone. Turn it on in settings, then try again.'
+                  : 'Your phone could not find its location. Move near a window or outside, then try again.'}
+            </Text>
+            <View style={styles.resultActions}>
+              <TouchableOpacity style={[styles.refreshBtn, { flex: 1 }]} onPress={getLocation} activeOpacity={0.8}>
+                <Text style={styles.refreshText}>Try again</Text>
+              </TouchableOpacity>
+              {locError !== 'unavailable' && (
+                <TouchableOpacity style={[styles.ghostBtn, { borderColor: C.border, flex: 1 }]} onPress={() => Linking.openSettings()} activeOpacity={0.8}>
+                  <Text style={[styles.ghostText, { color: C.textAccent }]}>Open settings</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <TouchableOpacity onPress={askCorrection} style={{ marginTop: 10 }}>
+              <Text style={[styles.ghostText, { color: C.textAccent }]}>Still not working? Ask for a correction</Text>
+            </TouchableOpacity>
+          </View>
+        ) : blocked && !locationLoading ? (
           <View style={[styles.blockedCard, { backgroundColor: C.bgCard, borderColor: COLORS.danger + '55' }]}>
             <Text style={[styles.blockedTitle, { color: C.textPrimary }]}>You're not at the office</Text>
             <Text style={[styles.blockedText, { color: C.textSecondary }]}>
@@ -210,7 +278,7 @@ export default function MarkAttendanceScreen({ route, navigation }) {
           <TouchableOpacity
             style={[styles.submitBtn, type === 'check-out' && { backgroundColor: COLORS.danger }]}
             onPress={submitAttendance}
-            disabled={loading}
+            disabled={loading || !location}
             activeOpacity={0.8}
           >
             {loading ? (
@@ -277,7 +345,12 @@ const styles = StyleSheet.create({
   blockedTitle: { fontSize: 16, fontWeight: '700' },
   blockedText: { fontSize: 13, textAlign: 'center', marginTop: 6, lineHeight: 19 },
   refreshBtn: { marginTop: 12, backgroundColor: COLORS.accent, borderRadius: RADIUS.md, paddingVertical: 12, paddingHorizontal: 20 },
-  refreshText: { ...FONTS.button, color: '#fff' },
+  refreshText: { ...FONTS.button, color: '#fff', textAlign: 'center' },
+  resultCard: { width: '100%', borderRadius: RADIUS.md, borderWidth: 1.5, padding: 16, alignItems: 'center' },
+  resultTitle: { fontSize: 18, fontWeight: '800' },
+  resultActions: { flexDirection: 'row', gap: 10, width: '100%' },
+  ghostBtn: { marginTop: 12, borderWidth: 1, borderRadius: RADIUS.md, paddingVertical: 12, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
+  ghostText: { fontSize: 14, fontWeight: '700', textAlign: 'center' },
 
   bottom: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: SPACING.xl },
   captureBtn: { alignItems: 'center' },

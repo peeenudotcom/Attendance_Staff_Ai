@@ -60,6 +60,7 @@ export function adminView(s) {
     shiftId: s.shift_id ?? null,
     lastLoginAt: s.last_login_at,
     deletedAt: s.deletion_requested_at ?? null,
+    leftOn: s.left_on ?? null,
     createdAt: s.created_at,
   };
 }

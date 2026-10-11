@@ -27,6 +27,17 @@ export async function eraseStaff(staff) {
     check_out_lat: null, check_out_lng: null, check_out_address: null, check_out_distance_m: null,
   }).eq('staff_id', staff.id));
   must(await db().from('leave_requests').update({ reason: null }).eq('staff_id', staff.id));
+  must(await db().from('pay_adjustments').update({ note: null }).eq('staff_id', staff.id));
+  must(await db().from('correction_requests').update({ reason: '(erased)', decision_note: null }).eq('staff_id', staff.id));
+  // Closed months keep a saved salary sheet; take the name out of those too.
+  if (staff.org_id) {
+    const closes = must(await db().from('month_closes').select('month, snapshot').eq('org_id', staff.org_id));
+    for (const c of closes) {
+      if (!c.snapshot?.staff?.some((p) => p.id === staff.id)) continue;
+      const snapshot = { ...c.snapshot, staff: c.snapshot.staff.map((p) => (p.id === staff.id ? { ...p, name: 'Deleted user', designation: null } : p)) };
+      must(await db().from('month_closes').update({ snapshot }).eq('org_id', staff.org_id).eq('month', c.month));
+    }
+  }
   must(await db().from('call_logs').delete().eq('staff_id', staff.id));
   must(await db().from('push_tokens').delete().eq('staff_id', staff.id));
   if (staff.phone) must(await db().from('otp_codes').delete().eq('phone', staff.phone));

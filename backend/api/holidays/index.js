@@ -1,5 +1,6 @@
 import { db, must } from '../../lib/db.js';
 import { route, body, HttpError } from '../../lib/http.js';
+import { assertMonthsOpen } from '../../lib/month-close.js';
 
 const view = (h) => ({ id: h.id, date: h.date, name: h.name });
 
@@ -22,6 +23,7 @@ export default route({
     const b = body(req);
     const date = String(b.date || '');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) throw new HttpError(400, 'Choose a date');
+    await assertMonthsOpen(staff.org_id, [date]);
     const name = String(b.name || '').trim().slice(0, 60);
     if (!name) throw new HttpError(400, 'Give the holiday a name');
     const { data, error } = await db().from('holidays').insert({ org_id: staff.org_id, date, name }).select('*').single();

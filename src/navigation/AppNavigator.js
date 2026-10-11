@@ -21,6 +21,7 @@ import MarkAttendanceScreen from '../screens/MarkAttendanceScreen';
 import AddStaffScreen from '../screens/AddStaffScreen';
 import PayrollScreen from '../screens/PayrollScreen';
 import LeaveScreen from '../screens/LeaveScreen';
+import CorrectionsScreen from '../screens/CorrectionsScreen';
 import LiveTrackScreen from '../screens/LiveTrackScreen';
 import ChatScreen from '../screens/ChatScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
@@ -154,6 +155,7 @@ export default function AppNavigator() {
             <Stack.Screen name="Main" component={TabNavigator} />
             <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="Leave" component={LeaveScreen} />
+            <Stack.Screen name="Corrections" component={CorrectionsScreen} />
             {/* Admin-only screens are not registered for staff, so no shortcut or chat action can open them. */}
             {isAdmin && <Stack.Screen name="AddStaff" component={AddStaffScreen} />}
             {isAdmin && <Stack.Screen name="StaffList" component={StaffListScreen} />}

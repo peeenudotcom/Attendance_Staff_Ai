@@ -28,7 +28,7 @@ export function toneColor(C, tone) {
   return { success: C.success, warning: C.warning, danger: C.danger, info: C.info, half: '#7A3E8A', holiday: '#8A6D1F', muted: C.textMuted }[tone] || C.textMuted;
 }
 
-export default function HistoryScreen() {
+export default function HistoryScreen({ navigation }) {
   const { colors: C } = useTheme();
   const headerTop = useHeaderInset(12);
   const [month, setMonth] = useState(istMonth());
@@ -131,6 +131,11 @@ export default function HistoryScreen() {
           {sel.checkIn && <Text style={[styles.detailLine, { color: C.textSecondary }]}>In {sel.checkIn}{sel.checkOut ? `  ·  Out ${sel.checkOut}` : '  ·  No check-out'}{sel.hours ? `  ·  ${sel.hours}` : ''}</Text>}
           {sel.edited && <Text style={[styles.detailLine, { color: C.textMuted }]}>Added or changed by your admin{sel.note ? `: ${sel.note}` : ''}</Text>}
           {sel.leaveType && <Text style={[styles.detailLine, { color: C.textMuted }]}>{sel.leaveType === 'unpaid' ? 'Unpaid leave' : 'Paid leave'}</Text>}
+          {['present', 'late', 'half', 'absent'].includes(sel.status) && (
+            <TouchableOpacity onPress={() => navigation.navigate('Corrections', { date: sel.date, kind: sel.checkIn && !sel.checkOut ? 'missed_check_out' : sel.checkIn ? 'wrong_time' : 'missed_check_in' })} style={{ marginTop: 10 }}>
+              <Text style={[styles.fixLink, { color: C.textAccent }]}>Something wrong? Ask for a correction</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
       {data && !sel && <Text style={[styles.hint, { color: C.textMuted }]}>Tap a day to see its times.</Text>}
@@ -163,4 +168,5 @@ const styles = StyleSheet.create({
   detailStatus: { fontSize: 14, fontWeight: '700', marginTop: 4 },
   detailLine: { fontSize: 13, marginTop: 4 },
   hint: { textAlign: 'center', fontSize: 12, marginTop: 12 },
+  fixLink: { fontSize: 13, fontWeight: '700' },
 });

@@ -2,6 +2,7 @@ import { db, must } from '../../../lib/db.js';
 import { route, body, HttpError } from '../../../lib/http.js';
 import { staffFields, adminView } from '../../../lib/staff-fields.js';
 import { assertShiftInOrg } from '../../../lib/shifts.js';
+import { istDay } from '../../../lib/attendance.js';
 
 async function findInCompany(id, orgId) {
   const s = must(await db().from('staff').select('*').eq('id', id).eq('org_id', orgId).maybeSingle());
@@ -23,7 +24,12 @@ export default route({
     const b = body(req);
     const patch = staffFields(b, { partial: true });
     await assertShiftInOrg(db(), patch.shift_id, admin.org_id);
-    if (b.active !== undefined) patch.active = !!b.active;
+    if (b.active !== undefined) {
+      patch.active = !!b.active;
+      // The day they left keeps them on this month's sheet and salary up to that day.
+      if (target.active && !patch.active) patch.left_on = istDay(new Date());
+      if (patch.active) patch.left_on = null;
+    }
     if (!Object.keys(patch).length) throw new HttpError(400, 'Nothing to update');
 
     const losingAdmin = target.role === 'admin' && (patch.role === 'staff' || patch.active === false);
