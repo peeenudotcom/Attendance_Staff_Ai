@@ -2,10 +2,12 @@ import { db, must } from '../../../lib/db.js';
 import { route, body, HttpError } from '../../../lib/http.js';
 import { fmtTime } from '../../../lib/attendance.js';
 import { dayTimes, memberWithShift, noteText } from '../../../lib/admin-attendance.js';
+import { assertMonthsOpen } from '../../../lib/month-close.js';
 
 async function findRecord(id, orgId) {
   const r = must(await db().from('attendance').select('*').eq('id', id).eq('org_id', orgId).maybeSingle());
   if (!r) throw new HttpError(404, 'Attendance record not found');
+  await assertMonthsOpen(orgId, [r.date]);
   return r;
 }
 

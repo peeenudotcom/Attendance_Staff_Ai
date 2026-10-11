@@ -4,6 +4,7 @@ import { route, body } from '../../lib/http.js';
 import { sendLeaveRequestEmail } from '../../lib/email.js';
 import { notify } from '../../lib/push.js';
 import { assertNoOverlap, fmtLeaveDates, leaveDays, leaveFields, leaveView, LEAVE_TYPES } from '../../lib/leave.js';
+import { assertMonthsOpen, monthsBetween } from '../../lib/month-close.js';
 
 export default route({
   // GET /api/leave (Bearer) -> the signed-in person's own leave requests, newest first
@@ -18,6 +19,7 @@ export default route({
   async POST(req, { staff }) {
     const holidays = await holidayMap(staff.org_id);
     const fields = leaveFields(body(req));
+    await assertMonthsOpen(staff.org_id, monthsBetween(fields.from_date, fields.to_date));
     const mine = must(await db().from('leave_requests').select('*').eq('staff_id', staff.id).gte('to_date', fields.from_date));
     assertNoOverlap(mine, fields);
     const row = must(await db().from('leave_requests').insert({ ...fields, org_id: staff.org_id, staff_id: staff.id }).select('*').single());

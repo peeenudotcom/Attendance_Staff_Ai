@@ -116,6 +116,18 @@ after midnight closes yesterday's shift, and a new check-in is refused until it'
 Half days: with "less than N hours worked = half day" set, a checked-out day under N hours is a half day ("H" on the
 sheet, half pay). Missed check-outs show as "No check-out" on past days; an admin can set the out time on Today.
 
+## Month close, advances and adjustments
+
+Admins record an **advance** already paid, a **bonus**, a **deduction** or an **other addition** against a person's
+month (`POST /api/pay-adjustments`, `DELETE /api/pay-adjustments/:id`). The salary sheet shows *earned from attendance*,
+*adjustments* and *balance payable* (= earned + bonuses/additions − advances/deductions) per person (`lib/month-close.js`).
+
+After a month ends it can be **closed** (`GET /api/month-close?month=` lists missing check-outs, leave still waiting and
+people with no pay; `POST /api/month-close`). Closing saves the whole salary sheet as a snapshot in `month_closes`, so
+later changes to salary, shift, weekly off or holidays can't alter it, and blocks changes to that month's attendance,
+leave decisions, holidays and adjustments (409 "… is closed"). **Reopen** (`POST /api/month-close/reopen`) needs a reason;
+every close and reopen is kept in `month_close_log` and shown as the month's history on the Salary page.
+
 ## Holidays
 
 Admins add company holidays in Settings (with quick-add for 26 Jan, 15 Aug, 2 Oct and 25 Dec; festivals that move
@@ -159,7 +171,7 @@ never switched off. To erase someone sooner, set their `deletion_requested_at` b
 
 ## Database
 
-`supabase/migrations/` (001 to 010 applied; 011 account deletion to apply). Row level security is on with no policies, so only the
+`supabase/migrations/` (001 to 011 applied; 012 month close to apply). Row level security is on with no policies, so only the
 service-role key used here can read or write; the app never talks to Supabase directly.
 
 Add or change people directly when needed:

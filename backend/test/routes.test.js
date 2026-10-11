@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 const B = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
-const tables = { organizations: [], staff: [], otp_codes: [], attendance: [], call_logs: [], leave_requests: [], shifts: [], push_tokens: [], holidays: [] };
+const tables = { organizations: [], staff: [], otp_codes: [], attendance: [], call_logs: [], leave_requests: [], shifts: [], push_tokens: [], holidays: [], pay_adjustments: [], month_closes: [], month_close_log: [] };
 const uploads = [];
 const sentEmails = [];
 const sentPushes = [];
@@ -18,6 +18,7 @@ class Q {
   gte(k, v) { this.filters.push((r) => r[k] >= v); return this; }
   lte(k, v) { this.filters.push((r) => r[k] <= v); return this; }
   lt(k, v) { this.filters.push((r) => r[k] < v); return this; }
+  in(k, vs) { this.filters.push((r) => vs.includes(r[k])); return this; }
   is(k, v) { this.filters.push((r) => (r[k] ?? null) === v); return this; }
   order(k, o = {}) { this.sort = [k, o.ascending !== false]; return this; }
   insert(row) { this.op = 'insert'; this.row = row; return this; }
@@ -671,4 +672,77 @@ test('account deletion', async () => {
   assert.deepEqual(removed.filter((p) => p.startsWith('del1/')).sort(), ['del1/a.jpg', 'del1/b.jpg']);
   assert.equal(tables.leave_requests.find((x) => x.id === 'lv-del').reason, null);
   assert.equal((await cron()).json.due, 0); // not erased twice
+});
+
+test('salary adjustments and closing a month', async () => {
+  const { issueToken } = await import(`${B}/lib/auth.js`);
+  tables.organizations.push({ id: 'mc', name: 'Month Close Co', late_after_minutes: 600, weekly_off: 0, active: true });
+  tables.staff.push({ id: 'mcA', org_id: 'mc', name: 'Asha', phone: '9777700001', role: 'admin', active: true, created_at: '2026-08-01T00:00:00Z', salary_type: 'monthly', salary: 30000 });
+  tables.staff.push({ id: 'mcB', org_id: 'mc', name: 'Bilal', phone: '9777700002', role: 'staff', active: true, created_at: '2026-08-01T00:00:00Z', salary_type: 'daily', salary: 700 });
+  const token = issueToken('mcA');
+  // September 2026: 30 days, Sundays 6, 13, 20, 27. Asha is in every working day except the 15th.
+  for (let d = 1; d <= 30; d++) {
+    const date = `2026-09-${String(d).padStart(2, '0')}`;
+    if (new Date(`${date}T00:00:00Z`).getUTCDay() === 0) continue;
+    if (d !== 15) tables.attendance.push({ id: `mcA-${d}`, org_id: 'mc', staff_id: 'mcA', date, status: 'present', check_in_at: `${date}T03:30:00Z`, check_out_at: `${date}T11:30:00Z`, worked_minutes: 480 });
+    if (d <= 10) tables.attendance.push({ id: `mcB-${d}`, org_id: 'mc', staff_id: 'mcB', date, status: 'present', check_in_at: `${date}T03:30:00Z`, check_out_at: d === 10 ? null : `${date}T11:30:00Z`, worked_minutes: d === 10 ? null : 480 });
+  }
+
+  // Hand-checked: Asha 25 worked + 4 Sundays = 29 paid days × 30000/30 = ₹29,000; advance ₹5,000, bonus ₹1,000 -> ₹25,000.
+  // Bilal: 9 days (1st-10th less Sunday the 6th) × ₹700 = ₹6,300.
+  let r = await call('pay-adjustments/index', { method: 'POST', token, body: { staffId: 'mcA', month: '2026-09', kind: 'advance', amount: 5000, note: 'Diwali shopping' } });
+  assert.equal(r.status, 200);
+  await call('pay-adjustments/index', { method: 'POST', token, body: { staffId: 'mcA', month: '2026-09', kind: 'bonus', amount: 1000 } });
+  const wrongId = (await call('pay-adjustments/index', { method: 'POST', token, body: { staffId: 'mcA', month: '2026-09', kind: 'deduction', amount: 50 } })).json.id;
+  assert.equal((await call('pay-adjustments/[id]', { method: 'DELETE', token, query: { id: wrongId } })).status, 200);
+  assert.equal((await call('pay-adjustments/index', { method: 'POST', token, body: { staffId: 'mcA', month: '2026-09', kind: 'tip', amount: 5 } })).status, 400);
+  assert.equal((await call('pay-adjustments/index', { method: 'POST', token, body: { staffId: 'mcA', month: '2026-09', kind: 'bonus', amount: -5 } })).status, 400);
+  assert.equal((await call('pay-adjustments/index', { method: 'POST', token, body: { staffId: 'admin1', month: '2026-09', kind: 'bonus', amount: 5 } })).status, 404); // other company
+
+  r = await call('reports/salary', { token, query: { month: '2026-09' } });
+  let asha = r.json.staff.find((p) => p.id === 'mcA'); const bilal = r.json.staff.find((p) => p.id === 'mcB');
+  assert.equal(asha.pay, 29000); assert.equal(asha.adjustmentTotal, -4000); assert.equal(asha.payable, 25000);
+  assert.deepEqual(asha.adjustments.map((a) => [a.kind, a.signed]), [['advance', -5000], ['bonus', 1000]]);
+  assert.equal(bilal.pay, 6300); assert.equal(bilal.payable, 6300);
+  assert.equal(r.json.payableTotal, 31300); assert.equal(r.json.closed, null);
+
+  // before closing: Bilal's 10th has no check-out
+  r = await call('month-close/index', { token, query: { month: '2026-09' } });
+  assert.equal(r.json.ended, true); assert.equal(r.json.closed, false);
+  assert.deepEqual(r.json.missingCheckOuts.map((x) => [x.name, x.date]), [['Bilal', '2026-09-10']]);
+  assert.equal((await call('month-close/index', { method: 'POST', token, body: { month: '2026-10' } })).status, 400); // not over yet
+
+  r = await call('month-close/index', { method: 'POST', token, body: { month: '2026-09' } });
+  assert.equal(r.status, 200); assert.equal(r.json.payableTotal, 31300);
+  assert.equal((await call('month-close/index', { method: 'POST', token, body: { month: '2026-09' } })).status, 409);
+
+  // later changes don't touch the closed sheet...
+  tables.staff.find((x) => x.id === 'mcA').salary = 60000;
+  tables.organizations.find((o) => o.id === 'mc').weekly_off = 1;
+  r = await call('reports/salary', { token, query: { month: '2026-09' } });
+  asha = r.json.staff.find((p) => p.id === 'mcA');
+  assert.equal(asha.pay, 29000); assert.equal(asha.salary, 30000); assert.equal(asha.payable, 25000);
+  assert.equal(r.json.closed.by, 'Asha'); assert.equal(r.json.log.length, 1);
+  // ...and the month can't be changed while closed
+  const locked = [
+    await call('attendance/index', { method: 'POST', token, body: { staffId: 'mcA', date: '2026-09-15', checkIn: '09:00' } }),
+    await call('attendance/[id]/index', { method: 'PATCH', token, query: { id: 'mcB-10' }, body: { checkOut: '18:00' } }),
+    await call('attendance/[id]/index', { method: 'DELETE', token, query: { id: 'mcA-1' } }),
+    await call('pay-adjustments/index', { method: 'POST', token, body: { staffId: 'mcA', month: '2026-09', kind: 'bonus', amount: 1 } }),
+    await call('holidays/index', { method: 'POST', token, body: { date: '2026-09-21', name: 'Late add' } }),
+  ];
+  for (const x of locked) { assert.equal(x.status, 409); assert.match(x.json.message, /September 2026 is closed/); }
+
+  // reopening needs a reason, is logged, and goes back to live numbers
+  assert.equal((await call('month-close/reopen', { method: 'POST', token, body: { month: '2026-09' } })).status, 400);
+  assert.equal((await call('month-close/reopen', { method: 'POST', token, body: { month: '2026-09', reason: 'Missed check-out for Bilal' } })).status, 200);
+  assert.equal((await call('attendance/[id]/index', { method: 'PATCH', token, query: { id: 'mcB-10' }, body: { checkOut: '18:00' } })).status, 200);
+  r = await call('reports/salary', { token, query: { month: '2026-09' } });
+  assert.equal(r.json.closed, null);
+  assert.deepEqual(r.json.log.map((l) => [l.action, l.by, l.reason ?? null]), [['closed', 'Asha', null], ['reopened', 'Asha', 'Missed check-out for Bilal']]);
+  assert.equal(r.json.staff.find((p) => p.id === 'mcA').salary, 60000); // live again
+  assert.equal((await call('month-close/reopen', { method: 'POST', token, body: { month: '2026-09', reason: 'again' } })).status, 409);
+  // staff can't see salaries or close months
+  assert.equal((await call('reports/salary', { token: issueToken('mcB'), query: { month: '2026-09' } })).status, 403);
+  assert.equal((await call('month-close/index', { method: 'POST', token: issueToken('mcB'), body: { month: '2026-09' } })).status, 403);
 });

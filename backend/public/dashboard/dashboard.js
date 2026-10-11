@@ -364,37 +364,64 @@ const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 // 0.5 -> "½ day", 1 -> "1 day", 1.5 -> "1½ days"
 const halfDays = (n) => `${Math.floor(n) || ''}${n % 1 ? '½' : ''} day${n > 1 ? 's' : ''}`;
 
+const signedRupees = (n) => (n > 0 ? `+${rupees(n)}` : n < 0 ? `−${rupees(-n)}` : '—');
+const monthLabel = (m) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+const whenText = (iso) => new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' });
+const ADJ_KINDS = { advance: 'Advance paid', bonus: 'Bonus', deduction: 'Deduction', addition: 'Other addition' };
+
 async function viewSalary(root, month = istMonth()) {
+  const reload = () => viewSalary(root, month);
   const picker = h('input', { type: 'month', value: month, max: istMonth(), onchange: (e) => viewSalary(root, e.target.value || istMonth()) });
   const dl = h('button', { class: 'btn small', disabled: true }, 'Download for Excel');
+  const status = h('span');
   const body = h('div');
-  root.replaceChildren(h('div', { class: 'view-head' }, h('h2', {}, 'Salary'), h('div', { class: 'spacer' }), picker, dl), body);
+  root.replaceChildren(h('div', { class: 'view-head' }, h('h2', {}, 'Salary'), status, h('div', { class: 'spacer' }), picker, dl), body);
   loading(body);
   let data;
   try { data = await api(`/reports/salary?month=${month}`); } catch (err) { return failed(body, err); }
+  const closed = !!data.closed;
+  status.replaceWith(closed ? h('span', { class: 'pill closed' }, 'Closed') : data.inProgress ? h('span', { class: 'pill pending' }, 'In progress') : h('span', { class: 'pill open' }, 'Open'));
   if (!data.staff.length) return body.replaceChildren(h('div', { class: 'card empty' }, 'No staff yet.'));
+
+  // Close / reopen bar
+  const bar = closed
+    ? h('div', { class: 'close-bar closed' },
+      h('div', {}, h('b', {}, `${monthLabel(data.month)} is closed`),
+        h('span', {}, `Closed${data.closed.by ? ` by ${data.closed.by}` : ''} on ${whenText(data.closed.at)}. These figures are saved and won't change, even if pay, shifts or settings change later.`)),
+      h('button', { class: 'btn ghost small', onclick: () => reopenForm(data.month, reload) }, 'Reopen month'))
+    : data.inProgress
+      ? h('div', { class: 'close-bar' }, h('div', {}, h('b', {}, 'This month is not over'), h('span', {}, 'Amounts are up to today. You can close the month once it has ended.')))
+      : h('div', { class: 'close-bar' },
+        h('div', {}, h('b', {}, `Ready to close ${monthLabel(data.month)}?`),
+          h('span', {}, 'Closing saves this salary sheet and locks the month’s attendance, leave, holidays and adjustments.')),
+        h('button', { class: 'btn small', onclick: () => closeMonthForm(data.month, reload) }, `Close ${monthLabel(data.month)}`));
 
   const chip = (n, label, cls = '') => h('div', { class: `chip ${cls}` }, h('b', {}, n), h('span', {}, label));
   const chips = h('div', { class: 'chips' },
-    chip(rupees(data.total), data.inProgress ? 'Payable so far' : 'Total payable', 'ok'),
-    chip(data.staff.length - data.missing, 'Staff with pay set'),
+    chip(rupees(data.total), data.inProgress ? 'Earned so far' : 'Earned from attendance'),
+    chip(signedRupees(data.adjustmentTotal ?? 0), 'Advances & adjustments', (data.adjustmentTotal ?? 0) < 0 ? 'abs' : ''),
+    chip(rupees(data.payableTotal ?? data.total), 'Balance payable', 'ok'),
     data.missing ? chip(data.missing, 'Pay not set', 'abs') : null);
 
   const rows = data.staff.map((p) => {
-    const setPay = h('button', { class: 'btn ghost small', onclick: async () => {
+    const setPay = closed ? null : h('button', { class: 'btn ghost small', onclick: async () => {
       const full = await api(`/staff/${p.id}`).catch(() => null);
-      if (full) staffForm(full, () => viewSalary(root, month));
+      if (full) staffForm(full, reload);
     } }, p.missing ? 'Set pay' : 'Edit pay');
+    const adjust = h('button', { class: 'btn ghost small', onclick: () => adjustmentsForm(p, data, reload) }, closed ? 'Details' : 'Adjust');
     const cut = [p.half ? `${plural(p.half, 'half day')}` : null, p.absent ? `${plural(p.absent, 'absent day')}` : null, p.unpaidLeave ? `${p.unpaidLeave} unpaid leave` : null,
       p.lateCutDays ? `${halfDays(p.lateCutDays)} for ${p.late} late marks` : null].filter(Boolean).join(', ');
+    const adjTotal = p.adjustmentTotal ?? 0;
     return h('tr', {},
       h('td', { class: 'person' }, h('b', {}, p.name), h('small', {}, p.designation || '')),
       h('td', {}, p.missing ? h('span', { class: 'muted' }, 'Not set') : [h('b', {}, `${rupees(p.salary)}${PER[p.salaryType]}`), h('small', { class: 'dist' }, PAY_TYPES[p.salaryType])]),
-      h('td', { class: 'num' }, p.worked), h('td', { class: 'num hide-sm', title: p.holiday ? `${p.off} weekly off + ${p.holiday} holiday` : null }, p.off + (p.holiday || 0)), h('td', { class: 'num hide-sm' }, p.paidLeave),
+      h('td', { class: 'num hide-sm' }, p.worked), h('td', { class: 'num hide-sm', title: p.holiday ? `${p.off} weekly off + ${p.holiday} holiday` : null }, p.off + (p.holiday || 0)), h('td', { class: 'num hide-sm' }, p.paidLeave),
       h('td', { class: 'num hide-sm' }, p.salaryType === 'hourly' ? `${p.hours} h` : (p.payDays ?? '—')),
       h('td', { class: 'place hide-sm' }, cut || '—'),
-      h('td', { class: 'num' }, p.pay == null ? '—' : h('b', {}, rupees(p.pay))),
-      h('td', {}, h('div', { class: 'actions' }, setPay)));
+      h('td', { class: 'num hide-sm' }, p.pay == null ? '—' : rupees(p.pay)),
+      h('td', { class: `num ${adjTotal < 0 ? 'neg' : ''}`, title: (p.adjustments || []).map((a) => `${a.label} ${rupees(a.amount)}${a.note ? ` (${a.note})` : ''}`).join('\n') || null }, signedRupees(adjTotal)),
+      h('td', { class: 'num' }, p.payable == null ? '—' : h('b', {}, rupees(p.payable))),
+      h('td', {}, h('div', { class: 'actions' }, adjust, setPay)));
   });
 
   const rules = h('div', { class: 'legend rules' },
@@ -404,26 +431,111 @@ async function viewSalary(root, month = istMonth()) {
     h('span', {}, h('b', {}, 'Hourly:'), ' rate × hours between check-in and check-out.'),
     h('span', {}, 'Half days pay half. Absent days and unpaid leave are not paid. ',
       data.lateCutEvery ? `Every ${data.lateCutEvery} late marks cut half a day (Settings).` : 'Late marks do not cut pay (change in Settings).'),
-    data.inProgress ? h('span', {}, h('b', {}, 'This month is not over:'), ' amounts are up to today.') : null);
+    h('span', {}, h('b', {}, 'Balance payable:'), ' earned + bonuses and additions − advances and deductions.'));
 
-  body.replaceChildren(chips, h('div', { class: 'card scroll' }, h('table', {},
-    h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Pay'), h('th', { class: 'num' }, 'Worked'), h('th', { class: 'num hide-sm' }, 'Off'),
+  const history = (data.log || []).length
+    ? h('div', { class: 'history' }, h('h3', { class: 'sub' }, 'History'), h('ul', {}, data.log.map((l) => h('li', {},
+      h('b', {}, l.action === 'closed' ? 'Closed' : 'Reopened'), ` by ${l.by || 'an admin'} · ${whenText(l.at)}`, l.reason ? h('span', { class: 'muted' }, ` · ${l.reason}`) : null))))
+    : null;
+
+  body.replaceChildren(bar, chips, h('div', { class: 'card scroll' }, h('table', {},
+    h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Pay'), h('th', { class: 'num hide-sm' }, 'Worked'), h('th', { class: 'num hide-sm' }, 'Off'),
       h('th', { class: 'num hide-sm' }, 'Paid leave'), h('th', { class: 'num hide-sm' }, 'Pay days'), h('th', { class: 'hide-sm' }, 'Cut for'),
-      h('th', { class: 'num' }, 'Salary'), h('th', {}))),
-    h('tbody', {}, rows))), rules);
+      h('th', { class: 'num hide-sm' }, 'Earned'), h('th', { class: 'num' }, 'Adjustments'), h('th', { class: 'num' }, 'Payable'), h('th', {}))),
+    h('tbody', {}, rows))), rules, history);
   dl.disabled = false;
   dl.onclick = () => downloadSalaryCsv(data);
+}
+
+// Advances, bonuses and other adjustments for one person's month.
+function adjustmentsForm(p, data, onDone) {
+  const closed = !!data.closed;
+  const msg = h('p', { class: 'msg' });
+  const list = (p.adjustments || []).length
+    ? h('table', { class: 'mini' }, h('tbody', {}, p.adjustments.map((a) => h('tr', {},
+      h('td', {}, h('b', {}, a.label), a.note ? h('small', { class: 'dist' }, a.note) : null),
+      h('td', { class: `num ${a.signed < 0 ? 'neg' : ''}` }, signedRupees(a.signed)),
+      h('td', {}, closed ? null : h('button', { class: 'btn ghost small danger', onclick: () => remove(a) }, 'Remove'))))))
+    : h('p', { class: 'muted', style: 'margin:0 0 12px' }, 'No advances or adjustments this month.');
+  const summary = h('div', { class: 'adj-sum' },
+    h('span', {}, 'Earned', h('b', {}, p.pay == null ? '—' : rupees(p.pay))),
+    h('span', {}, 'Adjustments', h('b', {}, signedRupees(p.adjustmentTotal ?? 0))),
+    h('span', {}, 'Payable', h('b', {}, p.payable == null ? '—' : rupees(p.payable))));
+  const form = closed ? h('p', { class: 'muted' }, 'This month is closed. Reopen it to change adjustments.') : h('form', {},
+    h('div', { class: 'row2' },
+      h('label', { class: 'field' }, h('span', {}, 'Type'), h('select', { name: 'kind' }, Object.entries(ADJ_KINDS).map(([k, v]) => h('option', { value: k }, v)))),
+      h('label', { class: 'field' }, h('span', {}, 'Amount (₹)'), h('input', { name: 'amount', type: 'number', min: 1, step: 'any', inputmode: 'decimal', required: true, placeholder: 'e.g. 2000' }))),
+    h('label', { class: 'field' }, h('span', {}, 'Note (optional)'), h('input', { name: 'note', maxlength: 200, placeholder: 'e.g. Advance given on 12 Sept' })),
+    msg,
+    h('div', { class: 'foot' }, h('button', { class: 'btn ghost', type: 'button', onclick: closeModal }, 'Close'), h('button', { class: 'btn', type: 'submit' }, 'Add')));
+  async function remove(a) {
+    if (!confirm(`Remove ${a.label.toLowerCase()} of ${rupees(a.amount)} for ${p.name}?`)) return;
+    try { await api(`/pay-adjustments/${a.id}`, { method: 'DELETE' }); closeModal(); toast('Removed'); onDone(); } catch (err) { msg.textContent = err.message; }
+  }
+  if (!closed) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = e.submitter; btn.disabled = true; msg.textContent = '';
+      const v = Object.fromEntries(new FormData(form));
+      try {
+        await api('/pay-adjustments', { method: 'POST', body: { staffId: p.id, month: data.month, kind: v.kind, amount: Number(v.amount), note: v.note } });
+        closeModal(); toast(`${ADJ_KINDS[v.kind]} added for ${p.name}`); onDone();
+      } catch (err) { msg.textContent = err.message; btn.disabled = false; }
+    });
+  }
+  openModal([h('h3', {}, `${p.name} · ${monthLabel(data.month)}`), summary, list, form,
+    closed ? h('div', { class: 'foot' }, h('button', { class: 'btn ghost', onclick: closeModal }, 'Close')) : null]);
+}
+
+async function closeMonthForm(month, onDone) {
+  openModal([h('h3', {}, `Close ${monthLabel(month)}`), h('div', { class: 'empty' }, 'Checking the month…')]);
+  let c;
+  try { c = await api(`/month-close?month=${month}`); } catch (err) { return openModal([h('h3', {}, `Close ${monthLabel(month)}`), h('p', { class: 'msg' }, err.message)]); }
+  const msg = h('p', { class: 'msg' });
+  const section = (title, items, render, fix) => h('div', { class: 'check-block' },
+    h('b', {}, `${title} (${items.length})`), h('ul', {}, items.slice(0, 12).map(render)), items.length > 12 ? h('small', { class: 'muted' }, `and ${items.length - 12} more`) : null,
+    fix ? h('small', { class: 'muted' }, fix) : null);
+  const issues = [
+    c.missingCheckOuts.length ? section('No check-out', c.missingCheckOuts, (x) => h('li', {}, `${x.name} · ${niceDate(x.date)}`), 'Fill these in on the Monthly sheet (click the day), or close anyway to pay them as recorded.') : null,
+    c.pendingLeave.length ? section('Leave still waiting', c.pendingLeave, (x) => h('li', {}, `${x.name} · ${x.from === x.to ? niceDate(x.from) : `${niceDate(x.from)} – ${niceDate(x.to)}`}`), 'Approve or reject these on the Leave page first; waiting leave counts as absent.') : null,
+    c.payNotSet.length ? section('Pay not set', c.payNotSet, (n) => h('li', {}, n), 'They will show no salary for this month.') : null,
+  ].filter(Boolean);
+  const go = h('button', { class: 'btn', onclick: async () => {
+    go.disabled = true; msg.textContent = '';
+    try { const r = await api('/month-close', { method: 'POST', body: { month } }); closeModal(); toast(`${monthLabel(month)} closed · ${rupees(r.payableTotal)} payable`); onDone(); } catch (err) { msg.textContent = err.message; go.disabled = false; }
+  } }, issues.length ? 'Close anyway' : `Close ${monthLabel(month)}`);
+  openModal([h('h3', {}, `Close ${monthLabel(month)}`),
+    issues.length ? h('p', { class: 'muted', style: 'margin:-6px 0 12px' }, 'Check these before closing:') : h('p', { class: 'ok-line' }, 'Everything looks complete: no missing check-outs, no leave waiting, pay set for everyone.'),
+    ...issues,
+    h('p', { class: 'muted' }, 'Closing saves this salary sheet as it is now. Attendance, leave, holidays and adjustments for the month are locked until someone reopens it with a reason.'),
+    msg, h('div', { class: 'foot' }, h('button', { class: 'btn ghost', onclick: closeModal }, 'Cancel'), go)]);
+}
+
+function reopenForm(month, onDone) {
+  const msg = h('p', { class: 'msg' });
+  const form = h('form', {},
+    h('label', { class: 'field' }, h('span', {}, 'Why are you reopening it?'), h('input', { name: 'reason', required: true, minlength: 3, maxlength: 300, placeholder: 'e.g. Missed check-out for Bilal on 10 Sept' })),
+    h('p', { class: 'muted' }, 'The reason and your name are kept in the month’s history. The salary sheet goes back to live figures until you close the month again.'),
+    msg, h('div', { class: 'foot' }, h('button', { class: 'btn ghost', type: 'button', onclick: closeModal }, 'Cancel'), h('button', { class: 'btn', type: 'submit' }, 'Reopen month')));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.submitter; btn.disabled = true; msg.textContent = '';
+    try { await api('/month-close/reopen', { method: 'POST', body: { month, reason: new FormData(form).get('reason') } }); closeModal(); toast(`${monthLabel(month)} reopened`); onDone(); } catch (err) { msg.textContent = err.message; btn.disabled = false; }
+  });
+  openModal([h('h3', {}, `Reopen ${monthLabel(month)}`), form]);
 }
 
 function downloadSalaryCsv(data) {
   const esc = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
   const lines = [['Name', 'Designation', 'Pay type', 'Rate', 'Days worked', 'Weekly off', 'Paid leave', 'Unpaid leave', 'Absent',
-    'Late marks', 'Late cut (days)', 'Hours', 'Pay days', 'Salary'].map(esc).join(',')];
+    'Late marks', 'Late cut (days)', 'Hours', 'Pay days', 'Earned', 'Adjustments', 'Balance payable', 'Adjustment details'].map(esc).join(',')];
   for (const p of data.staff) {
+    const details = (p.adjustments || []).map((a) => `${a.label} ${a.signed < 0 ? '-' : '+'}${a.amount}${a.note ? ` (${a.note})` : ''}`).join('; ');
     lines.push([p.name, p.designation || '', PAY_TYPES[p.salaryType] || 'Not set', p.salary ?? '', p.worked, p.off, p.paidLeave, p.unpaidLeave,
-      p.absent, p.late, p.lateCutDays, p.hours, p.payDays ?? '', p.pay ?? ''].map(esc).join(','));
+      p.absent, p.late, p.lateCutDays, p.hours, p.payDays ?? '', p.pay ?? '', p.adjustmentTotal ?? 0, p.payable ?? '', details].map(esc).join(','));
   }
-  lines.push(['Total', '', '', '', '', '', '', '', '', '', '', '', '', data.total].map(esc).join(','));
+  lines.push(['Total', '', '', '', '', '', '', '', '', '', '', '', '', data.total, data.adjustmentTotal ?? 0, data.payableTotal ?? data.total, ''].map(esc).join(','));
+  if (data.closed) lines.push(esc(`Closed${data.closed.by ? ` by ${data.closed.by}` : ''} on ${whenText(data.closed.at)}`));
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = h('a', { href: URL.createObjectURL(blob), download: `haazri-salary-${state.company.name.replace(/[^\w]+/g, '-').toLowerCase()}-${data.month}.csv` });
   document.body.append(a); a.click(); a.remove();
