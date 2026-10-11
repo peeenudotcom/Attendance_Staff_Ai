@@ -75,3 +75,48 @@ export function sendWelcomeEmail({ to, name, phone, company, addedBy }) {
   <p>Questions? Just reply to this email.</p>`),
   });
 }
+
+/** Tells a company admin someone has asked for leave. */
+export function sendLeaveRequestEmail({ to, adminName, staffName, dates, days, typeLabel, reason }) {
+  const url = `${SITE}/dashboard#leave`;
+  const dayWord = `${days} day${days === 1 ? '' : 's'}`;
+  return send({
+    to,
+    subject: `${staffName} asked for leave: ${dates}`,
+    text: [
+      `Hi ${firstName(adminName)},`,
+      '',
+      `${staffName} asked for ${typeLabel.toLowerCase()}: ${dates} (${dayWord}).`,
+      reason ? `Reason: ${reason}` : '',
+      '',
+      `Approve or reject it in the Haazri app (Leave) or on the dashboard: ${url}`,
+    ].filter((l, i, a) => l || a[i - 1]).join('\n'),
+    html: wrap(`
+  <p>Hi ${escapeHtml(firstName(adminName))},</p>
+  <p><strong>${escapeHtml(staffName)}</strong> asked for ${escapeHtml(typeLabel.toLowerCase())}: <strong>${escapeHtml(dates)}</strong> (${dayWord}).</p>
+  ${reason ? `<p>Reason: ${escapeHtml(reason)}</p>` : ''}
+  <p>Approve or reject it in the Haazri app (Leave) or on the <a href="${url}">dashboard</a>.</p>`),
+  });
+}
+
+/** Tells a staff member their leave was approved or rejected. */
+export function sendLeaveDecisionEmail({ to, name, approved, dates, typeLabel, note, by }) {
+  const word = approved ? 'approved' : 'not approved';
+  return send({
+    to,
+    subject: `Your leave for ${dates} was ${word}`,
+    text: [
+      `Hi ${firstName(name)},`,
+      '',
+      `${by} has ${approved ? 'approved' : 'not approved'} your ${typeLabel.toLowerCase()} for ${dates}.`,
+      note ? `Note: ${note}` : '',
+      '',
+      'You can see all your leave in the Haazri app under Leave.',
+    ].filter((l, i, a) => l || a[i - 1]).join('\n'),
+    html: wrap(`
+  <p>Hi ${escapeHtml(firstName(name))},</p>
+  <p>${escapeHtml(by)} has <strong>${word}</strong> your ${escapeHtml(typeLabel.toLowerCase())} for <strong>${escapeHtml(dates)}</strong>.</p>
+  ${note ? `<p>Note: ${escapeHtml(note)}</p>` : ''}
+  <p>You can see all your leave in the Haazri app under Leave.</p>`),
+  });
+}

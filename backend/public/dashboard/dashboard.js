@@ -3,8 +3,8 @@
 
 const TOKEN_KEY = 'haazri_dashboard_token';
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const STATUS_LABEL = { present: 'Present', late: 'Late', absent: 'Absent', pending: 'Not in yet', off: 'Weekly off', before: '' };
-const CELL = { present: 'P', late: 'L', absent: 'A', off: '·', pending: '', before: '' };
+const STATUS_LABEL = { present: 'Present', late: 'Late', absent: 'Absent', pending: 'Not in yet', off: 'Weekly off', leave: 'On leave', before: '' };
+const CELL = { present: 'P', late: 'L', absent: 'A', off: '·', leave: 'LV', pending: '', before: '' };
 
 const $ = (id) => document.getElementById(id);
 const state = { user: null, company: null, view: 'today', phone: '' };
@@ -171,6 +171,7 @@ async function start() {
   $('clients-tab').classList.toggle('hidden', !state.user.platformAdmin);
   const fromHash = location.hash.slice(1);
   show(VIEWS[fromHash] && (fromHash !== 'clients' || state.user.platformAdmin) ? fromHash : 'today');
+  refreshLeaveBadge();
 }
 
 function show(view) {
@@ -179,7 +180,7 @@ function show(view) {
   for (const t of document.querySelectorAll('.tab')) t.classList.toggle('active', t.dataset.view === view);
   VIEWS[view]($('view'));
 }
-$('tabs').addEventListener('click', (e) => { const v = e.target.dataset?.view; if (v) show(v); });
+$('tabs').addEventListener('click', (e) => { const v = e.target.closest('[data-view]')?.dataset.view; if (v) show(v); });
 
 // ---------- Today ----------
 
@@ -199,12 +200,13 @@ async function viewToday(root, date = istToday()) {
   const chip = (n, label, cls = '') => h('div', { class: `chip ${cls}` }, h('b', {}, n), h('span', {}, label));
   const chips = h('div', { class: 'chips' },
     chip(s.present + s.late, 'In', 'ok'), chip(s.late, 'Late', 'late'), chip(s.absent, 'Absent', 'abs'),
+    s.leave ? chip(s.leave, 'On leave', 'lv') : null,
     date === istToday() ? chip(s.notYet, 'Not in yet') : null, chip(s.checkedOut, 'Checked out'), chip(s.total, 'Staff'));
 
   if (!data.staff.length) {
     return body.replaceChildren(chips, h('div', { class: 'card empty' }, s.off ? 'Weekly off.' : 'No staff yet. Add people in the Staff tab.'));
   }
-  const order = { late: 0, present: 1, pending: 2, absent: 3, off: 4 };
+  const order = { late: 0, present: 1, pending: 2, absent: 3, leave: 4, off: 5 };
   const rows = [...data.staff].sort((a, b) => (order[a.status] - order[b.status]) || a.name.localeCompare(b.name)).map((p) => {
     const place = p.checkInAddress || '';
     const mapLink = p.checkInLocation ? h('a', { href: mapUrl(p.checkInLocation.lat, p.checkInLocation.lng), target: '_blank', rel: 'noopener' }, 'Map') : null;
@@ -244,7 +246,7 @@ async function viewMonth(root, month = istMonth()) {
   const dow = (d) => new Date(`${d}T00:00:00Z`).getUTCDay();
   const head = h('tr', {}, h('th', {}, 'Name'),
     data.days.map((d) => h('th', { class: `dow ${dow(d) === data.weeklyOff ? 'weekend' : ''}`, title: niceDate(d) }, dayNum(d), h('br'), DAYS[dow(d)][0])),
-    h('th', { class: 'num' }, 'P'), h('th', { class: 'num' }, 'L'), h('th', { class: 'num' }, 'A'), h('th', { class: 'num' }, 'Hours'));
+    h('th', { class: 'num' }, 'P'), h('th', { class: 'num' }, 'L'), h('th', { class: 'num' }, 'A'), h('th', { class: 'num' }, 'LV'), h('th', { class: 'num' }, 'Hours'));
   const rows = data.staff.map((s) => h('tr', {},
     h('td', { class: 'person' }, h('b', {}, s.name), h('small', {}, s.designation || '')),
     data.days.map((d) => {
@@ -252,14 +254,15 @@ async function viewMonth(root, month = istMonth()) {
       const tip = c.in ? `${STATUS_LABEL[c.status]} · in ${c.in}${c.out && c.out !== '—' ? `, out ${c.out}` : ''}` : STATUS_LABEL[c.status];
       return h('td', { title: tip ? `${niceDate(d)}: ${tip}` : null }, h('span', { class: `cell ${c.status}` }, CELL[c.status]));
     }),
-    h('td', { class: 'num' }, s.totals.present), h('td', { class: 'num' }, s.totals.late), h('td', { class: 'num' }, s.totals.absent),
+    h('td', { class: 'num' }, s.totals.present), h('td', { class: 'num' }, s.totals.late), h('td', { class: 'num' }, s.totals.absent), h('td', { class: 'num' }, s.totals.leave),
     h('td', { class: 'num' }, fmtHours(s.totals.minutes))));
 
   body.replaceChildren(
     h('div', { class: 'card scroll' }, h('table', { class: 'grid' }, h('thead', {}, head), h('tbody', {}, rows))),
     h('div', { class: 'legend' },
       h('span', {}, h('span', { class: 'cell present' }, 'P'), 'Present'), h('span', {}, h('span', { class: 'cell late' }, 'L'), 'Late (still counts as present)'),
-      h('span', {}, h('span', { class: 'cell absent' }, 'A'), 'Absent'), h('span', {}, h('span', { class: 'cell off' }, '·'), 'Weekly off'),
+      h('span', {}, h('span', { class: 'cell absent' }, 'A'), 'Absent'), h('span', {}, h('span', { class: 'cell leave' }, 'LV'), 'Approved leave'),
+      h('span', {}, h('span', { class: 'cell off' }, '·'), 'Weekly off'),
       h('span', {}, 'Hover a day to see check-in and check-out times')),
   );
   dl.disabled = false;
@@ -268,16 +271,73 @@ async function viewMonth(root, month = istMonth()) {
 
 function downloadCsv(data) {
   const esc = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  const word = { present: 'P', late: 'L', absent: 'A', off: 'Off', pending: '', before: '' };
-  const lines = [['Name', 'Designation', ...data.days.map((d) => d.slice(8)), 'Present', 'Late', 'Absent', 'Days worked', 'Hours'].map(esc).join(',')];
+  const word = { present: 'P', late: 'L', absent: 'A', off: 'Off', leave: 'Leave', pending: '', before: '' };
+  const lines = [['Name', 'Designation', ...data.days.map((d) => d.slice(8)), 'Present', 'Late', 'Absent', 'Leave', 'Days worked', 'Hours'].map(esc).join(',')];
   for (const s of data.staff) {
     const t = s.totals;
-    lines.push([s.name, s.designation || '', ...data.days.map((d) => word[s.days[d].status]), t.present, t.late, t.absent,
+    lines.push([s.name, s.designation || '', ...data.days.map((d) => word[s.days[d].status]), t.present, t.late, t.absent, t.leave,
       t.present + t.late, (t.minutes / 60).toFixed(1)].map(esc).join(','));
   }
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = h('a', { href: URL.createObjectURL(blob), download: `haazri-${state.company.name.replace(/[^\w]+/g, '-').toLowerCase()}-${data.month}.csv` });
   document.body.append(a); a.click(); a.remove();
+}
+
+// ---------- Leave ----------
+
+const LEAVE_PILL = { pending: 'pending', approved: 'present', rejected: 'absent', cancelled: 'inactive' };
+const LEAVE_WORD = { pending: 'Waiting', approved: 'Approved', rejected: 'Not approved', cancelled: 'Cancelled' };
+const shortDate = (d) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+const leaveDates = (r) => (r.from === r.to ? shortDate(r.from) : `${shortDate(r.from)} – ${shortDate(r.to)}`);
+
+async function refreshLeaveBadge(count) {
+  try {
+    const n = count ?? (await api('/leave/company')).pending.length;
+    $('leave-badge').textContent = n;
+    $('leave-badge').classList.toggle('hidden', !n);
+  } catch { /* the badge is a convenience */ }
+}
+
+async function viewLeave(root) {
+  const body = h('div');
+  root.replaceChildren(h('div', { class: 'view-head' }, h('h2', {}, 'Leave'), h('div', { class: 'spacer' }),
+    h('span', { class: 'muted' }, 'Staff ask for leave in the Haazri app')), body);
+  loading(body);
+  let data;
+  try { data = await api('/leave/company'); } catch (err) { return failed(body, err); }
+  refreshLeaveBadge(data.pending.length);
+
+  const decide = async (r, approve) => {
+    let note = null;
+    if (!approve) {
+      note = prompt(`Not approving ${r.staffName}'s leave. Add a note for them (optional):`, '');
+      if (note === null) return;
+    }
+    try {
+      await api(`/leave/${r.id}/decide`, { method: 'POST', body: { approve, note } });
+      toast(approve ? `Approved ${r.staffName}'s leave` : `${r.staffName}'s leave not approved`);
+      viewLeave(root);
+    } catch (err) { toast(err.message); }
+  };
+  const row = (r, actions) => h('tr', {},
+    h('td', { class: 'person' }, h('b', {}, r.staffName), h('small', {}, `Asked ${new Date(r.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`)),
+    h('td', {}, h('b', {}, leaveDates(r)), h('small', { class: 'dist' }, `${r.days} day${r.days === 1 ? '' : 's'} · ${r.typeLabel}`)),
+    h('td', { class: 'place hide-sm' }, r.reason || '—', r.note ? h('small', { class: 'dist' }, `Note: ${r.note}`) : null),
+    h('td', {}, h('span', { class: `pill ${LEAVE_PILL[r.status]}` }, LEAVE_WORD[r.status])),
+    h('td', {}, h('div', { class: 'actions' }, actions)));
+
+  const pending = data.pending.length
+    ? h('div', { class: 'card scroll' }, h('table', {}, h('tbody', {}, data.pending.map((r) => row(r, [
+      h('button', { class: 'btn small', onclick: () => decide(r, true) }, 'Approve'),
+      h('button', { class: 'btn ghost small', onclick: () => decide(r, false) }, 'Reject')])))))
+    : h('div', { class: 'card empty' }, 'No leave requests waiting.');
+  const recent = data.recent.length
+    ? h('div', { class: 'card scroll' }, h('table', {}, h('tbody', {}, data.recent.map((r) => row(r,
+      r.status === 'approved' ? h('button', { class: 'btn ghost small', onclick: () => confirm(`Withdraw approval for ${r.staffName}'s leave (${leaveDates(r)})?`) && decide(r, false) }, 'Withdraw')
+        : r.status === 'rejected' ? h('button', { class: 'btn ghost small', onclick: () => decide(r, true) }, 'Approve') : null)))))
+    : h('div', { class: 'card empty' }, 'Nothing yet.');
+
+  body.replaceChildren(h('h3', { class: 'sub' }, `Waiting for you (${data.pending.length})`), pending, h('h3', { class: 'sub' }, 'Earlier'), recent);
 }
 
 // ---------- Staff ----------
@@ -505,7 +565,7 @@ async function pauseCompany(c, onDone) {
   try { await api(`/companies/${c.id}`, { method: 'PATCH', body: { active: !c.active } }); toast(c.active ? `${c.name} paused` : `${c.name} resumed`); onDone(); } catch (err) { toast(err.message); }
 }
 
-const VIEWS = { today: viewToday, month: viewMonth, staff: viewStaff, settings: viewSettings, clients: viewClients };
+const VIEWS = { today: viewToday, month: viewMonth, leave: viewLeave, staff: viewStaff, settings: viewSettings, clients: viewClients };
 
 // ---------- boot ----------
 if (localStorage.getItem(TOKEN_KEY)) start(); else showAuth();

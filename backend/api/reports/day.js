@@ -3,6 +3,7 @@ import { route, HttpError } from '../../lib/http.js';
 import { fmtHours, fmtTime, istDay, selfieUrls } from '../../lib/attendance.js';
 import { dayStatus, joinedOn } from '../../lib/report.js';
 import { officeOf } from '../../lib/geo.js';
+import { approvedLeave } from '../../lib/leave.js';
 
 // GET /api/reports/day?date=YYYY-MM-DD (Bearer, admin) -> everyone's attendance for one day (default: today, IST)
 export default route({
@@ -13,6 +14,7 @@ export default route({
     const staff = must(await db().from('staff').select('*').eq('org_id', admin.org_id).eq('active', true).order('name'));
     const rows = must(await db().from('attendance').select('*').eq('org_id', admin.org_id).eq('date', date));
     const byStaff = new Map(rows.map((r) => [r.staff_id, r]));
+    const leave = await approvedLeave(db(), admin.org_id, date, date);
     const urls = await selfieUrls(rows.flatMap((r) => [r.check_in_selfie, r.check_out_selfie]));
 
     const people = staff.map((s) => {
@@ -22,7 +24,7 @@ export default route({
         name: s.name,
         designation: s.designation,
         department: s.department,
-        status: dayStatus({ row: r, date, joinedOn: joinedOn(s), weeklyOff: admin.org.weekly_off }),
+        status: dayStatus({ row: r, date, joinedOn: joinedOn(s), weeklyOff: admin.org.weekly_off, onLeave: !!leave.get(s.id)?.has(date) }),
         attendanceId: r?.id ?? null,
         approval: r?.approval ?? null,
         checkIn: fmtTime(r?.check_in_at),
@@ -50,6 +52,7 @@ export default route({
         absent: count('absent'),
         notYet: count('pending'),
         off: count('off'),
+        leave: count('leave'),
         checkedOut: people.filter((p) => p.checkOut !== '—').length,
       },
       staff: people,
