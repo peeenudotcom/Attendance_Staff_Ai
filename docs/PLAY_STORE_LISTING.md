@@ -22,11 +22,14 @@ Play Console: <https://play.google.com/console/signup> · one-time fee **$25**.
 | Account type | What you need | What it means |
 | --- | --- | --- |
 | **Personal** | Your ID, phone, a card | Quick to open. New personal accounts must run a **closed test with at least 12 testers for 14 days** before the app can go public. Your own staff and a pilot client's staff can be those testers |
-| **Organisation** | A free **D-U-N-S number** for TARAhut AI Builds (proprietorships can get one; takes 1–2 weeks) | Shows "TARAhut AI Builds" as the developer; no 12-tester rule |
+| **Organisation** (chosen) | A free **D-U-N-S number** in the legal name **Sukhija Technoaid** (proprietorship; trade name TARAhut AI Builds; takes 1–2 weeks) | Public developer name can be "TARAhut AI Builds"; Google may show the legal name and address under "About the developer"; no 12-tester rule |
 
 Google shows the current rules when you sign up; follow what Play Console says if they differ from the above.
 
 ## 3. Create the app
+
+Use the legal name **Sukhija Technoaid** and its registered address and phone exactly as on the D-U-N-S record when signing up;
+set the public **Developer name** to *TARAhut AI Builds* in Play Console → Settings → Developer account.
 
 Play Console → **Create app** → name *TARAhut Haazri*, default language *English (India)*, **App**, **Free**, accept
 the declarations. Then fill in each section under **Dashboard → Set up your app**:
