@@ -53,6 +53,10 @@ export const attendanceAPI = {
   reject: (id, reason) => request(`/attendance/${id}/reject`, { method: 'PUT', body: JSON.stringify({ reason }) }),
 };
 
+export const companyAPI = {
+  get: () => request('/company'),
+};
+
 export const staffAPI = {
   getAll: () => request('/staff'),
   create: (data) => request('/staff', { method: 'POST', body: JSON.stringify(data) }),

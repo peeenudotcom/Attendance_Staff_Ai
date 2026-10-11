@@ -2,6 +2,7 @@ import { db, must } from '../../lib/db.js';
 import { route, HttpError } from '../../lib/http.js';
 import { fmtHours, fmtTime, istDay, selfieUrls } from '../../lib/attendance.js';
 import { dayStatus, joinedOn } from '../../lib/report.js';
+import { officeOf } from '../../lib/geo.js';
 
 // GET /api/reports/day?date=YYYY-MM-DD (Bearer, admin) -> everyone's attendance for one day (default: today, IST)
 export default route({
@@ -29,6 +30,9 @@ export default route({
         hours: fmtHours(r?.worked_minutes),
         checkInAddress: r?.check_in_address ?? null,
         checkOutAddress: r?.check_out_address ?? null,
+        checkInDistance: r?.check_in_distance_m ?? null,
+        checkOutDistance: r?.check_out_distance_m ?? null,
+        locationFree: !!s.location_free,
         checkInLocation: r?.check_in_lat != null ? { lat: r.check_in_lat, lng: r.check_in_lng } : null,
         checkInSelfie: urls[r?.check_in_selfie] ?? null,
         checkOutSelfie: urls[r?.check_out_selfie] ?? null,
@@ -38,6 +42,7 @@ export default route({
     const count = (st) => people.filter((p) => p.status === st).length;
     return {
       date,
+      office: officeOf(admin.org),
       summary: {
         total: people.length,
         present: count('present'),

@@ -1,13 +1,19 @@
 import { db, must } from '../lib/db.js';
 import { route, body, HttpError } from '../lib/http.js';
+import { coord } from '../lib/attendance.js';
+import { officeOf } from '../lib/geo.js';
 
-const view = (o) => ({ id: o.id, name: o.name, logoUrl: o.logo_url, lateAfterMinutes: o.late_after_minutes, weeklyOff: o.weekly_off });
+const view = (o) => ({
+  id: o.id, name: o.name, logoUrl: o.logo_url, lateAfterMinutes: o.late_after_minutes, weeklyOff: o.weekly_off, office: officeOf(o),
+});
 
 export default route({
-  // GET /api/company (Bearer) -> the signed-in user's company
-  GET: (req, { staff }) => view(staff.org),
+  // GET /api/company (Bearer) -> the signed-in user's company; `lockApplies` says whether their check-in
+  // must be at the office (so the app can warn before the selfie).
+  GET: (req, { staff }) => ({ ...view(staff.org), lockApplies: !!officeOf(staff.org) && !staff.location_free }),
 
-  // PATCH /api/company { name?, lateAfterMinutes?, weeklyOff? (0 = Sunday … 6, or null) } (company admin) -> their own company's settings
+  // PATCH /api/company { name?, lateAfterMinutes?, weeklyOff? (0 = Sunday … 6, or null),
+  //   office? ({ lat, lng, radiusM } to turn location lock on, null to turn it off) } (company admin) -> their own company's settings
   async PATCH(req, { staff }) {
     if (staff.role !== 'admin') throw new HttpError(403, 'Only admins can do this');
     const b = body(req);
@@ -26,6 +32,18 @@ export default route({
       const d = b.weeklyOff === null || b.weeklyOff === '' ? null : Number(b.weeklyOff);
       if (d !== null && (!Number.isInteger(d) || d < 0 || d > 6)) throw new HttpError(400, 'Weekly off must be a day of the week');
       patch.weekly_off = d;
+    }
+    if (b.office !== undefined) {
+      if (b.office === null) {
+        Object.assign(patch, { office_lat: null, office_lng: null, office_radius_m: null });
+      } else {
+        const lat = coord(b.office.lat, 90);
+        const lng = coord(b.office.lng, 180);
+        const r = Number(b.office.radiusM);
+        if (lat == null || lng == null || (lat === 0 && lng === 0)) throw new HttpError(400, 'Enter a valid office location');
+        if (!Number.isInteger(r) || r < 25 || r > 5000) throw new HttpError(400, 'Distance must be between 25 m and 5 km');
+        Object.assign(patch, { office_lat: lat, office_lng: lng, office_radius_m: r });
+      }
     }
     if (!Object.keys(patch).length) throw new HttpError(400, 'Nothing to update');
     const org = must(await db().from('organizations').update(patch).eq('id', staff.org_id).select('*').single());

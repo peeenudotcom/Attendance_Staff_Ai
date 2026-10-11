@@ -8,7 +8,8 @@ import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS } from '../utils/theme';
 import { useTheme } from '../context/ThemeContext';
 import { useModalHeaderInset } from '../utils/safeArea';
-import { attendanceAPI } from '../services/api';
+import { attendanceAPI, companyAPI } from '../services/api';
+import { distanceM, fmtDistance, outsideOffice } from '../utils/geo';
 import SelfieGuide from '../components/SelfieGuide';
 
 const { width } = Dimensions.get('window');
@@ -31,10 +32,21 @@ export default function MarkAttendanceScreen({ route, navigation }) {
   const [selfie, setSelfie] = useState(null);
   const [loading, setLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(true);
+  const [company, setCompany] = useState(null);
 
-  useEffect(() => { getLocation(); }, []);
+  useEffect(() => {
+    getLocation();
+    // Only to warn early; if this fails the server still checks the location on submit.
+    companyAPI.get().then(setCompany).catch(() => {});
+  }, []);
+
+  const office = company?.office;
+  const distance = office && location ? distanceM(office, { lat: location.latitude, lng: location.longitude }) : null;
+  const blocked = type === 'check-in' && company?.lockApplies && distance != null
+    && outsideOffice(distance, location.accuracy, office.radiusM);
 
   const getLocation = async () => {
+    setLocationLoading(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
@@ -73,7 +85,7 @@ export default function MarkAttendanceScreen({ route, navigation }) {
     setLoading(true);
     const data = {
       type, selfie: selfie.base64,
-      latitude: location.latitude, longitude: location.longitude,
+      latitude: location.latitude, longitude: location.longitude, accuracy: location.accuracy,
       address, timestamp: new Date().toISOString(),
     };
     try {
@@ -164,6 +176,11 @@ export default function MarkAttendanceScreen({ route, navigation }) {
             <Text style={[styles.infoValue, { color: C.textPrimary }]} numberOfLines={1}>
               {locationLoading ? 'Detecting...' : address || 'Captured'}
             </Text>
+            {distance != null && !locationLoading && (
+              <Text style={[styles.infoSub, { color: blocked ? COLORS.danger : C.textMuted }]} numberOfLines={1}>
+                {fmtDistance(distance)} from office
+              </Text>
+            )}
           </View>
         </View>
         <View style={[styles.infoCard, { backgroundColor: C.bgCard, borderColor: C.border }, styles.infoCardDone]}>
@@ -179,7 +196,17 @@ export default function MarkAttendanceScreen({ route, navigation }) {
 
       {/* Bottom Action */}
       <View style={styles.bottom}>
-        {selfie ? (
+        {blocked && !locationLoading ? (
+          <View style={[styles.blockedCard, { backgroundColor: C.bgCard, borderColor: COLORS.danger + '55' }]}>
+            <Text style={[styles.blockedTitle, { color: C.textPrimary }]}>You're not at the office</Text>
+            <Text style={[styles.blockedText, { color: C.textSecondary }]}>
+              You are {fmtDistance(distance)} away. You can check in when you are within {fmtDistance(office.radiusM)} of the office.
+            </Text>
+            <TouchableOpacity style={styles.refreshBtn} onPress={getLocation} activeOpacity={0.8}>
+              <Text style={styles.refreshText}>Check my location again</Text>
+            </TouchableOpacity>
+          </View>
+        ) : selfie ? (
           <TouchableOpacity
             style={[styles.submitBtn, type === 'check-out' && { backgroundColor: COLORS.danger }]}
             onPress={submitAttendance}
@@ -244,6 +271,13 @@ const styles = StyleSheet.create({
   infoIcon: { fontSize: 20 },
   infoLabel: { fontSize: 11, color: COLORS.textMuted },
   infoValue: { fontSize: 13, fontWeight: '600', color: COLORS.textPrimary, marginTop: 1 },
+  infoSub: { fontSize: 11, fontWeight: '600', marginTop: 2 },
+
+  blockedCard: { width: '100%', borderRadius: RADIUS.md, borderWidth: 1, padding: 16, alignItems: 'center' },
+  blockedTitle: { fontSize: 16, fontWeight: '700' },
+  blockedText: { fontSize: 13, textAlign: 'center', marginTop: 6, lineHeight: 19 },
+  refreshBtn: { marginTop: 12, backgroundColor: COLORS.accent, borderRadius: RADIUS.md, paddingVertical: 12, paddingHorizontal: 20 },
+  refreshText: { ...FONTS.button, color: '#fff' },
 
   bottom: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: SPACING.xl },
   captureBtn: { alignItems: 'center' },

@@ -32,6 +32,20 @@ const istMonth = () => istToday().slice(0, 7);
 const minutesToHHMM = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 const hhmmToMinutes = (s) => { const [a, b] = String(s).split(':').map(Number); return a * 60 + b; };
 const fmtHours = (min) => (min ? `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}m` : '—');
+const fmtDistance = (m) => (m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1)} km`);
+const mapUrl = (lat, lng) => `https://maps.google.com/?q=${lat},${lng}`;
+
+// Coordinates from "30.2110, 74.9455" or a Google Maps link (the place pin !3d…!4d… wins over the
+// map centre @lat,lng). Short maps.app.goo.gl links can't be read here.
+function parseLocation(text) {
+  const t = String(text || '').trim();
+  const pin = /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/.exec(t);
+  const any = pin || /(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/.exec(t);
+  if (!any) return null;
+  const lat = Number(any[1]); const lng = Number(any[2]);
+  return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat: +lat.toFixed(6), lng: +lng.toFixed(6) } : null;
+}
+
 const niceDate = (d) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
 
 function toast(text) {
@@ -193,12 +207,16 @@ async function viewToday(root, date = istToday()) {
   const order = { late: 0, present: 1, pending: 2, absent: 3, off: 4 };
   const rows = [...data.staff].sort((a, b) => (order[a.status] - order[b.status]) || a.name.localeCompare(b.name)).map((p) => {
     const place = p.checkInAddress || '';
-    const mapLink = p.checkInLocation ? h('a', { href: `https://maps.google.com/?q=${p.checkInLocation.lat},${p.checkInLocation.lng}`, target: '_blank', rel: 'noopener' }, 'Map') : null;
+    const mapLink = p.checkInLocation ? h('a', { href: mapUrl(p.checkInLocation.lat, p.checkInLocation.lng), target: '_blank', rel: 'noopener' }, 'Map') : null;
+    const away = data.office && p.checkInDistance != null && p.checkInDistance > data.office.radiusM;
+    const dist = p.checkInDistance != null
+      ? h('small', { class: away ? 'dist away' : 'dist' }, `${fmtDistance(p.checkInDistance)} from office${away && p.locationFree ? ' (can check in anywhere)' : ''}`)
+      : null;
     return h('tr', {},
       h('td', { class: 'person' }, h('b', {}, p.name), h('small', {}, p.designation || p.department || '')),
       h('td', {}, h('span', { class: `pill ${p.status}` }, STATUS_LABEL[p.status])),
       h('td', { class: 'num' }, p.checkIn), h('td', { class: 'num' }, p.checkOut), h('td', { class: 'num hide-sm' }, p.hours),
-      h('td', { class: 'place hide-sm' }, place, place && mapLink ? ' · ' : '', mapLink),
+      h('td', { class: 'place hide-sm' }, place, place && mapLink ? ' · ' : '', mapLink, dist),
       h('td', {}, h('div', { class: 'selfies' },
         p.checkInSelfie ? h('img', { src: p.checkInSelfie, alt: 'Check-in selfie', title: 'Check-in selfie', onclick: () => showPhoto(p.checkInSelfie, `${p.name} · check-in ${p.checkIn}`) }) : null,
         p.checkOutSelfie ? h('img', { src: p.checkOutSelfie, alt: 'Check-out selfie', title: 'Check-out selfie', onclick: () => showPhoto(p.checkOutSelfie, `${p.name} · check-out ${p.checkOut}`) }) : null)),
@@ -278,7 +296,8 @@ async function viewStaff(root, showOff = false) {
     h('td', { class: 'person' }, h('b', {}, s.name), h('small', {}, [s.designation, s.department].filter(Boolean).join(' · '))),
     h('td', { class: 'num' }, s.phone),
     h('td', { class: 'hide-sm' }, s.email || '—'),
-    h('td', {}, !s.active ? h('span', { class: 'pill inactive' }, 'Switched off') : s.role === 'admin' ? h('span', { class: 'pill admin' }, 'Admin') : h('span', { class: 'pill present' }, 'Staff')),
+    h('td', {}, !s.active ? h('span', { class: 'pill inactive' }, 'Switched off') : s.role === 'admin' ? h('span', { class: 'pill admin' }, 'Admin') : h('span', { class: 'pill present' }, 'Staff'),
+      s.locationFree && state.company.office ? h('small', { class: 'tag', title: 'Can check in away from the office' }, 'Anywhere') : null),
     h('td', { class: 'hide-sm' }, s.lastLoginAt ? new Date(s.lastLoginAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Never'),
     h('td', {}, h('div', { class: 'actions' },
       h('button', { class: 'btn ghost small', onclick: () => staffForm(s, () => viewStaff(root, showOff)) }, 'Edit'),
@@ -303,6 +322,8 @@ function staffForm(s, onDone) {
     h('label', { class: 'field' }, h('span', {}, 'Role'),
       h('select', { name: 'role' }, h('option', { value: 'staff', selected: s?.role !== 'admin' }, 'Staff (uses the app)'),
         h('option', { value: 'admin', selected: s?.role === 'admin' }, 'Admin (app + this dashboard)'))),
+    h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'locationFree', checked: !!s?.locationFree }),
+      h('span', {}, h('b', {}, 'Can check in from anywhere'), h('small', {}, 'For field or sales staff. Others must be at the office when location lock is on.'))),
     msg,
     h('div', { class: 'foot' }, h('button', { class: 'btn ghost', type: 'button', onclick: closeModal }, 'Cancel'),
       h('button', { class: 'btn', type: 'submit' }, isNew ? 'Add and send invite' : 'Save')),
@@ -310,7 +331,7 @@ function staffForm(s, onDone) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = e.submitter; btn.disabled = true; msg.textContent = '';
-    const body = Object.fromEntries(new FormData(form));
+    const body = { ...Object.fromEntries(new FormData(form)), locationFree: form.elements.locationFree.checked };
     try {
       const res = isNew ? await api('/staff', { method: 'POST', body }) : await api(`/staff/${s.id}`, { method: 'PATCH', body });
       closeModal();
@@ -358,7 +379,80 @@ function viewSettings(root) {
       msg.className = 'msg ok'; msg.textContent = 'Saved.';
     } catch (err) { msg.textContent = err.message; } finally { btn.disabled = false; }
   });
-  root.replaceChildren(h('div', { class: 'view-head' }, h('h2', {}, 'Settings')), form);
+  root.replaceChildren(h('div', { class: 'view-head' }, h('h2', {}, 'Settings')), h('div', { class: 'settings' }, form, officeCard()));
+}
+
+function officeCard(note = '') {
+  const o = state.company.office;
+  const msg = h('p', { class: note ? 'msg ok' : 'msg' }, note);
+  const where = h('input', { name: 'where', placeholder: 'e.g. 30.2110, 74.9455 or a Google Maps link', value: o ? `${o.lat}, ${o.lng}` : '' });
+  const radius = h('select', { name: 'radius' },
+    [100, 200, 300, 500, 1000, 2000].map((m) => h('option', { value: m, selected: (o?.radiusM ?? 200) === m }, `Within ${fmtDistance(m)}`)));
+  const status = h('p', { class: 'hint' });
+  const showStatus = () => {
+    const c = state.company.office;
+    status.replaceChildren(c
+      ? h('span', {}, h('span', { class: 'pill present' }, 'On'), ` Staff must be within ${fmtDistance(c.radiusM)} of `,
+        h('a', { href: mapUrl(c.lat, c.lng), target: '_blank', rel: 'noopener' }, 'this spot'), ' to check in.')
+      : h('span', {}, h('span', { class: 'pill inactive' }, 'Off'), ' Staff can check in from anywhere.'));
+  };
+  showStatus();
+  const setWhere = (lat, lng, note) => { where.value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`; msg.className = 'msg ok'; msg.textContent = note; };
+
+  const useMyCheckIn = async () => {
+    msg.className = 'msg'; msg.textContent = '';
+    try {
+      const day = await api('/reports/day');
+      const me = day.staff.find((p) => p.id === state.user.id);
+      if (!me?.checkInLocation) { msg.textContent = 'You have not checked in from the app today. Check in at the office first, then try again.'; return; }
+      setWhere(me.checkInLocation.lat, me.checkInLocation.lng, `Using where you checked in at ${me.checkIn}. Click "Turn on" to save.`);
+    } catch (err) { msg.textContent = err.message; }
+  };
+  const useThisDevice = () => {
+    msg.className = 'msg'; msg.textContent = '';
+    if (!navigator.geolocation) { msg.textContent = 'This browser cannot share its location.'; return; }
+    navigator.geolocation.getCurrentPosition(
+      (p) => setWhere(p.coords.latitude, p.coords.longitude,
+        `Location found (accurate to about ${Math.round(p.coords.accuracy)} m). Check it on the map, then click "Turn on".`),
+      () => { msg.textContent = 'Could not get this device\'s location. Allow location for this site, or paste the location instead.'; },
+      { enableHighAccuracy: true, timeout: 15000 });
+  };
+
+  const save = async (office) => {
+    msg.className = 'msg'; msg.textContent = '';
+    try {
+      state.company = await api('/company', { method: 'PATCH', body: { office } });
+      card.replaceWith(officeCard(office ? 'Location lock is on.' : 'Location lock is off.'));
+    } catch (err) { msg.textContent = err.message; }
+  };
+  const turnOn = (e) => {
+    e.preventDefault();
+    const pos = parseLocation(where.value);
+    if (!pos) {
+      msg.className = 'msg';
+      msg.textContent = /goo\.gl|maps\.app/.test(where.value)
+        ? 'Short Google Maps links can\'t be read. Open the link, then copy the numbers shown when you tap the red pin (like 30.2110, 74.9455).'
+        : 'Enter the location as two numbers, like 30.2110, 74.9455, or paste a full Google Maps link.';
+      return;
+    }
+    save({ ...pos, radiusM: Number(radius.value) });
+  };
+
+  const card = h('form', { class: 'card form-card', onsubmit: turnOn },
+    h('h3', {}, 'Location lock'),
+    h('p', { class: 'hint' }, 'Only allow check-in at your office. Check-out is never blocked, and the distance is shown on the Today page.'),
+    status,
+    h('label', { class: 'field' }, h('span', {}, 'Office location'), where),
+    h('div', { class: 'loc-actions' },
+      h('button', { class: 'btn ghost small', type: 'button', onclick: useMyCheckIn }, 'Use where I checked in today'),
+      h('button', { class: 'btn ghost small', type: 'button', onclick: useThisDevice }, "Use this device's location")),
+    h('label', { class: 'field' }, h('span', {}, 'Allowed distance'), radius),
+    msg,
+    h('div', { class: 'loc-actions' },
+      h('button', { class: 'btn', type: 'submit' }, state.company.office ? 'Save' : 'Turn on'),
+      state.company.office ? h('button', { class: 'btn ghost', type: 'button', onclick: () => confirm('Turn off location lock? Staff will be able to check in from anywhere.') && save(null) }, 'Turn off') : null),
+  );
+  return card;
 }
 
 // ---------- Clients (platform admin) ----------
