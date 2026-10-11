@@ -15,7 +15,15 @@ const istToday = () => new Date(Date.now() + 330 * 60_000).toISOString().slice(0
 const addDays = (d, n) => new Date(Date.parse(`${d}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
 const nice = (d) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 const fmtDist = (m) => (m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1)} km`);
-const ORDER = { late: 0, half: 1, present: 2, pending: 3, absent: 4, leave: 5, off: 6 };
+// "930", "0930", "9.30", "9:30" -> "09:30" (Android's number keyboard has no colon).
+export function normalizeTime(v) {
+  const t = String(v || '').trim().replace(/[.\s]/g, ':');
+  if (!t) return '';
+  const m = /^(\d{1,2}):?(\d{2})$/.exec(t);
+  return m ? `${m[1].padStart(2, '0')}:${m[2]}` : t;
+}
+const TIME_KEYBOARD = Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'numeric';
+const ORDER = { late: 0, half: 1, present: 2, pending: 3, absent: 4, leave: 5, holiday: 6, off: 7 };
 
 function TimeForm({ visible, person, date, record, onClose, onSaved, C }) {
   const [checkIn, setCheckIn] = useState('');
@@ -32,8 +40,9 @@ function TimeForm({ visible, person, date, record, onClose, onSaved, C }) {
   const save = async () => {
     setBusy(true);
     try {
-      if (record) await attendanceAPI.edit(record.id, { checkIn, checkOut: checkOut || '', note });
-      else await attendanceAPI.add({ staffId: person.id, date, checkIn, checkOut: checkOut || null, note });
+      const inT = normalizeTime(checkIn); const outT = normalizeTime(checkOut);
+      if (record) await attendanceAPI.edit(record.id, { checkIn: inT, checkOut: outT || '', note });
+      else await attendanceAPI.add({ staffId: person.id, date, checkIn: inT, checkOut: outT || null, note });
       onSaved();
     } catch (e) {
       Alert.alert('Could not save', e.message);
@@ -58,11 +67,11 @@ function TimeForm({ visible, person, date, record, onClose, onSaved, C }) {
           <View style={styles.row2}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.label, { color: C.textMuted }]}>Check-in (HH:MM)</Text>
-              <TextInput style={input} value={checkIn} onChangeText={setCheckIn} placeholder="09:30" placeholderTextColor={C.textMuted} keyboardType="numbers-and-punctuation" maxLength={5} />
+              <TextInput style={input} value={checkIn} onChangeText={setCheckIn} placeholder="09:30" placeholderTextColor={C.textMuted} keyboardType={TIME_KEYBOARD} maxLength={5} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.label, { color: C.textMuted }]}>Check-out (optional)</Text>
-              <TextInput style={input} value={checkOut} onChangeText={setCheckOut} placeholder="18:00" placeholderTextColor={C.textMuted} keyboardType="numbers-and-punctuation" maxLength={5} />
+              <TextInput style={input} value={checkOut} onChangeText={setCheckOut} placeholder="18:00" placeholderTextColor={C.textMuted} keyboardType={TIME_KEYBOARD} maxLength={5} />
             </View>
           </View>
           <Text style={[styles.label, { color: C.textMuted }]}>Note (optional)</Text>
@@ -140,13 +149,14 @@ export default function TeamScreen({ navigation }) {
           </View>
         )}
 
+        {!!data?.holiday && <Text style={[styles.holiday, { color: '#8A6D1F' }]}>Holiday: {data.holiday}</Text>}
         {data && !people.length && <Text style={[styles.error, { color: C.textMuted }]}>{s?.off ? 'Weekly off.' : 'No staff yet.'}</Text>}
 
         {people.map((p) => {
           const st = DAY_STYLE[p.status] || DAY_STYLE.pending;
           const color = toneColor(C, st.tone);
           const away = data.office && p.checkInDistance != null && p.checkInDistance > data.office.radiusM;
-          const canAdd = !p.attendanceId && (p.status === 'absent' || p.status === 'pending' || p.status === 'off' || p.status === 'leave');
+          const canAdd = !p.attendanceId && (p.status === 'absent' || p.status === 'pending' || p.status === 'off' || p.status === 'leave' || p.status === 'holiday');
           return (
             <View key={p.id} style={[styles.card, { backgroundColor: C.bgCard, borderColor: C.border }]}>
               <View style={styles.cardTop}>
@@ -226,6 +236,7 @@ const styles = StyleSheet.create({
   arrowText: { fontSize: 22, fontWeight: '600', marginTop: -2 },
   dateText: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700' },
   error: { textAlign: 'center', marginTop: 30, paddingHorizontal: SPACING.xl },
+  holiday: { textAlign: 'center', fontSize: 14, fontWeight: '700', marginTop: 10 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: SPACING.xl, marginTop: 14, marginBottom: 6 },
   chip: { flexGrow: 1, minWidth: 64, borderWidth: 1, borderRadius: RADIUS.md, paddingVertical: 8, alignItems: 'center' },
   chipNum: { fontSize: 18, fontWeight: '800' },

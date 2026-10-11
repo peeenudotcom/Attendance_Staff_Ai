@@ -3,8 +3,8 @@
 
 const TOKEN_KEY = 'haazri_dashboard_token';
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const STATUS_LABEL = { present: 'Present', late: 'Late', half: 'Half day', absent: 'Absent', pending: 'Not in yet', off: 'Weekly off', leave: 'On leave', before: '' };
-const CELL = { present: 'P', late: 'L', half: 'H', absent: 'A', off: '·', leave: 'LV', pending: '', before: '' };
+const STATUS_LABEL = { present: 'Present', late: 'Late', half: 'Half day', absent: 'Absent', pending: 'Not in yet', off: 'Weekly off', leave: 'On leave', holiday: 'Holiday', before: '' };
+const CELL = { present: 'P', late: 'L', half: 'H', absent: 'A', off: '·', leave: 'LV', holiday: 'HO', pending: '', before: '' };
 
 const $ = (id) => document.getElementById(id);
 const state = { user: null, company: null, view: 'today', phone: '', shifts: [] };
@@ -190,7 +190,7 @@ async function viewToday(root, date = istToday()) {
   const picker = h('input', { type: 'date', value: date, max: istToday(), onchange: (e) => viewToday(root, e.target.value || istToday()) });
   const body = h('div');
   root.replaceChildren(
-    h('div', { class: 'view-head' }, h('h2', {}, date === istToday() ? 'Today' : niceDate(date)), h('div', { class: 'spacer' }), picker,
+    h('div', { class: 'view-head' }, h('h2', {}, date === istToday() ? 'Today' : niceDate(date)), h('span', { class: 'holiday-tag hidden', id: 'day-holiday' }), h('div', { class: 'spacer' }), picker,
       h('button', { class: 'btn ghost small', onclick: () => viewToday(root, date) }, 'Refresh')),
     body,
   );
@@ -198,6 +198,7 @@ async function viewToday(root, date = istToday()) {
   let data;
   try { data = await api(`/reports/day?date=${date}`); } catch (err) { return failed(body, err); }
 
+  if (data.holiday) { const tag = root.querySelector('#day-holiday'); tag.textContent = `Holiday: ${data.holiday}`; tag.classList.remove('hidden'); }
   const s = data.summary;
   const chip = (n, label, cls = '') => h('div', { class: `chip ${cls}` }, h('b', {}, n), h('span', {}, label));
   const chips = h('div', { class: 'chips' },
@@ -208,7 +209,7 @@ async function viewToday(root, date = istToday()) {
   if (!data.staff.length) {
     return body.replaceChildren(chips, h('div', { class: 'card empty' }, s.off ? 'Weekly off.' : 'No staff yet. Add people in the Staff tab.'));
   }
-  const order = { late: 0, half: 1, present: 2, pending: 3, absent: 4, leave: 5, off: 6 };
+  const order = { late: 0, half: 1, present: 2, pending: 3, absent: 4, leave: 5, holiday: 6, off: 7 };
   const rows = [...data.staff].sort((a, b) => (order[a.status] - order[b.status]) || a.name.localeCompare(b.name)).map((p) => {
     const place = p.checkInAddress || '';
     const mapLink = p.checkInLocation ? h('a', { href: mapUrl(p.checkInLocation.lat, p.checkInLocation.lng), target: '_blank', rel: 'noopener' }, 'Map') : null;
@@ -257,7 +258,7 @@ async function viewMonth(root, month = istMonth()) {
     h('td', { class: 'person' }, h('b', {}, s.name), h('small', {}, s.designation || '')),
     data.days.map((d) => {
       const c = s.days[d];
-      const tip = c.in ? `${STATUS_LABEL[c.status]} · in ${c.in}${c.out && c.out !== '—' ? `, out ${c.out}` : ''}` : STATUS_LABEL[c.status];
+      const tip = c.in ? `${STATUS_LABEL[c.status]} · in ${c.in}${c.out && c.out !== '—' ? `, out ${c.out}` : ''}` : c.holiday ? `Holiday: ${c.holiday}` : STATUS_LABEL[c.status];
       const editable = c.status !== 'before' && d <= istToday();
       return h('td', {
         title: `${niceDate(d)}${tip ? `: ${tip}` : ''}${c.note ? ` (${c.note})` : ''}${editable ? ' · click to add or change' : ''}`,
@@ -275,7 +276,7 @@ async function viewMonth(root, month = istMonth()) {
       h('span', {}, h('span', { class: 'cell present' }, 'P'), 'Present'), h('span', {}, h('span', { class: 'cell late' }, 'L'), 'Late (still counts as present)'),
       h('span', {}, h('span', { class: 'cell half' }, 'H'), 'Half day'),
       h('span', {}, h('span', { class: 'cell absent' }, 'A'), 'Absent'), h('span', {}, h('span', { class: 'cell leave' }, 'LV'), 'Approved leave'),
-      h('span', {}, h('span', { class: 'cell off' }, '·'), 'Weekly off'),
+      h('span', {}, h('span', { class: 'cell holiday' }, 'HO'), 'Holiday'), h('span', {}, h('span', { class: 'cell off' }, '·'), 'Weekly off'),
       h('span', {}, h('span', { class: 'cell present edited' }, 'P'), 'Added or changed by an admin'),
       h('span', {}, 'Hover a day for times; click a day to add or change attendance')),
   );
@@ -285,11 +286,11 @@ async function viewMonth(root, month = istMonth()) {
 
 function downloadCsv(data) {
   const esc = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  const word = { present: 'P', late: 'L', half: 'H', absent: 'A', off: 'Off', leave: 'Leave', pending: '', before: '' };
-  const lines = [['Name', 'Designation', ...data.days.map((d) => d.slice(8)), 'Present', 'Late', 'Half days', 'Absent', 'Leave', 'Days worked', 'Hours'].map(esc).join(',')];
+  const word = { present: 'P', late: 'L', half: 'H', absent: 'A', off: 'Off', leave: 'Leave', holiday: 'Holiday', pending: '', before: '' };
+  const lines = [['Name', 'Designation', ...data.days.map((d) => d.slice(8)), 'Present', 'Late', 'Half days', 'Absent', 'Leave', 'Holidays', 'Days worked', 'Hours'].map(esc).join(',')];
   for (const s of data.staff) {
     const t = s.totals;
-    lines.push([s.name, s.designation || '', ...data.days.map((d) => word[s.days[d].status]), t.present, t.late, t.half, t.absent, t.leave,
+    lines.push([s.name, s.designation || '', ...data.days.map((d) => word[s.days[d].status]), t.present, t.late, t.half, t.absent, t.leave, t.holiday,
       t.present + t.late + t.half / 2, (t.minutes / 60).toFixed(1)].map(esc).join(','));
   }
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
@@ -389,7 +390,7 @@ async function viewSalary(root, month = istMonth()) {
     return h('tr', {},
       h('td', { class: 'person' }, h('b', {}, p.name), h('small', {}, p.designation || '')),
       h('td', {}, p.missing ? h('span', { class: 'muted' }, 'Not set') : [h('b', {}, `${rupees(p.salary)}${PER[p.salaryType]}`), h('small', { class: 'dist' }, PAY_TYPES[p.salaryType])]),
-      h('td', { class: 'num' }, p.worked), h('td', { class: 'num hide-sm' }, p.off), h('td', { class: 'num hide-sm' }, p.paidLeave),
+      h('td', { class: 'num' }, p.worked), h('td', { class: 'num hide-sm', title: p.holiday ? `${p.off} weekly off + ${p.holiday} holiday` : null }, p.off + (p.holiday || 0)), h('td', { class: 'num hide-sm' }, p.paidLeave),
       h('td', { class: 'num hide-sm' }, p.salaryType === 'hourly' ? `${p.hours} h` : (p.payDays ?? '—')),
       h('td', { class: 'place hide-sm' }, cut || '—'),
       h('td', { class: 'num' }, p.pay == null ? '—' : h('b', {}, rupees(p.pay))),
@@ -397,7 +398,7 @@ async function viewSalary(root, month = istMonth()) {
   });
 
   const rules = h('div', { class: 'legend rules' },
-    h('span', {}, h('b', {}, 'Monthly:'), ` salary ÷ ${data.daysInMonth} days × paid days (worked, weekly off and paid leave).`),
+    h('span', {}, h('b', {}, 'Monthly:'), ` salary ÷ ${data.daysInMonth} days × paid days (worked, weekly off, holidays and paid leave).`),
     h('span', {}, h('b', {}, 'Weekly:'), ' the same at salary ÷ 7 a day.'),
     h('span', {}, h('b', {}, 'Daily:'), ' rate × days worked.'),
     h('span', {}, h('b', {}, 'Hourly:'), ' rate × hours between check-in and check-out.'),
@@ -543,7 +544,7 @@ function viewSettings(root) {
       msg.className = 'msg ok'; msg.textContent = 'Saved.';
     } catch (err) { msg.textContent = err.message; } finally { btn.disabled = false; }
   });
-  root.replaceChildren(h('div', { class: 'view-head' }, h('h2', {}, 'Settings')), h('div', { class: 'settings' }, form, officeCard(), shiftsCard()));
+  root.replaceChildren(h('div', { class: 'view-head' }, h('h2', {}, 'Settings')), h('div', { class: 'settings' }, form, holidaysCard(), officeCard(), shiftsCard()));
 }
 
 function officeCard(note = '') {
@@ -651,6 +652,62 @@ function attendanceForm(person, date, record, onDone) {
     } catch (err) { msg.textContent = err.message; btn.disabled = false; }
   });
   openModal([h('h3', {}, `${record ? 'Edit' : 'Add'} attendance · ${person.name}`), h('p', { class: 'muted', style: 'margin:-6px 0 14px' }, niceDate(date)), form]);
+}
+
+// ---------- Holidays ----------
+
+// Fixed-date national holidays offered as one-click adds. Festivals that move each year (Diwali, Gurpurab,
+// Holi, Eid...) are added by hand, so a wrong date is never guessed for the admin.
+const FIXED_HOLIDAYS = [['01-26', 'Republic Day'], ['08-15', 'Independence Day'], ['10-02', 'Gandhi Jayanti'], ['12-25', 'Christmas']];
+
+function holidaysCard() {
+  const list = h('div');
+  const msg = h('p', { class: 'msg' });
+  const date = h('input', { type: 'date', name: 'date', required: true, min: `${istToday().slice(0, 4)}-01-01` });
+  const name = h('input', { name: 'name', placeholder: 'e.g. Diwali', maxlength: 60, required: true });
+  const suggest = h('div', { class: 'loc-actions' });
+  let holidays = [];
+
+  const draw = () => {
+    const today = istToday();
+    const upcoming = holidays.filter((x) => x.date >= today);
+    const past = holidays.filter((x) => x.date < today && x.date.slice(0, 4) === today.slice(0, 4));
+    const row = (x) => h('tr', { class: x.date < today ? 'past' : null },
+      h('td', {}, h('b', {}, x.name), h('small', { class: 'dist' }, niceDate(x.date))),
+      h('td', {}, h('div', { class: 'actions' }, h('button', { class: 'btn ghost small', type: 'button', onclick: () => remove(x) }, 'Remove'))));
+    list.replaceChildren(holidays.length
+      ? h('table', { class: 'mini' }, h('tbody', {}, upcoming.map(row), past.map(row)))
+      : h('p', { class: 'muted' }, 'No holidays yet.'));
+    // Next occurrence of each fixed holiday that isn't added yet
+    const have = new Set(holidays.map((x) => x.date));
+    const year = Number(today.slice(0, 4));
+    const next = FIXED_HOLIDAYS.map(([md, n]) => [`${`${year}-${md}` >= today ? year : year + 1}-${md}`, n]).filter(([d]) => !have.has(d));
+    suggest.replaceChildren(...(next.length ? [h('span', { class: 'muted' }, 'Quick add:'),
+      ...next.map(([d, n]) => h('button', { class: 'btn ghost small', type: 'button', onclick: () => add(d, n) }, `${n} (${d.slice(8)}/${d.slice(5, 7)})`))] : []));
+  };
+  const load = async () => {
+    try { holidays = (await api('/holidays')).holidays; draw(); } catch (err) { list.replaceChildren(h('p', { class: 'msg' }, err.message)); }
+  };
+  const add = async (d, n) => {
+    msg.className = 'msg'; msg.textContent = '';
+    try {
+      await api('/holidays', { method: 'POST', body: { date: d, name: n } });
+      toast(`${n} added`); date.value = ''; name.value = ''; load();
+    } catch (err) { msg.textContent = err.message; }
+  };
+  const remove = async (x) => {
+    if (!confirm(`Remove ${x.name} (${niceDate(x.date)})? That day will count as a normal working day again.`)) return;
+    try { await api(`/holidays/${x.id}`, { method: 'DELETE' }); toast(`${x.name} removed`); load(); } catch (err) { toast(err.message); }
+  };
+  load();
+  return h('form', { class: 'card form-card', onsubmit: (e) => { e.preventDefault(); add(date.value, name.value.trim()); } },
+    h('h3', {}, 'Holidays'),
+    h('p', { class: 'hint' }, 'Paid days off for everyone: not marked absent, paid for monthly and weekly salaries, not counted as leave, and no check-in reminder.'),
+    list,
+    h('div', { class: 'row2', style: 'margin-top:14px' }, h('label', { class: 'field' }, h('span', {}, 'Date'), date), h('label', { class: 'field' }, h('span', {}, 'Name'), name)),
+    msg,
+    h('div', { class: 'loc-actions' }, h('button', { class: 'btn small', type: 'submit' }, 'Add holiday')),
+    suggest);
 }
 
 // ---------- Shifts ----------

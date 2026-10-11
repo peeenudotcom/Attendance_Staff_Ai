@@ -87,7 +87,7 @@ Answer **Yes, we collect data**. For every type below choose: **Linked to the us
 
 Do **not** declare: Browsing History, Search History, Purchases, Financial Info (the salary field is entered by
 admins about staff and isn't collected from the device user), Health, Contacts, Usage Data, Diagnostics or Advertising
-Data. Call history is read only by the Android app, so it is not declared for iOS.
+Data. The app does not read call history on any platform.
 
 ## Screenshots (iPhone 6.9", 1320 × 2868)
 

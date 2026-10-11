@@ -1,4 +1,5 @@
 import { db, must } from '../../../lib/db.js';
+import { holidayMap } from '../../../lib/holidays.js';
 import { route, body, HttpError } from '../../../lib/http.js';
 import { sendLeaveDecisionEmail } from '../../../lib/email.js';
 import { notify } from '../../../lib/push.js';
@@ -8,6 +9,7 @@ import { fmtLeaveDates, leaveView, LEAVE_TYPES } from '../../../lib/leave.js';
 // in the admin's company (an earlier decision can be changed; a cancelled request can't). The person is emailed.
 export default route({
   async POST(req, { staff: admin }) {
+    const holidays = await holidayMap(admin.org_id);
     const b = body(req);
     if (typeof b.approve !== 'boolean') throw new HttpError(400, 'Say whether to approve or reject');
     const r = must(await db().from('leave_requests').select('*').eq('id', req.query.id).eq('org_id', admin.org_id).maybeSingle());
@@ -34,6 +36,6 @@ export default route({
         data: { screen: 'Leave' },
       });
     }
-    return { ok: true, request: leaveView(row, { weeklyOff: admin.org.weekly_off, staffName: person?.name }) };
+    return { ok: true, request: leaveView(row, { weeklyOff: admin.org.weekly_off, holidays, staffName: person?.name }) };
   },
 }, { admin: true });

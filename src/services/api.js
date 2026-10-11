@@ -66,6 +66,10 @@ export const leaveAPI = {
   decide: (id, data) => request(`/leave/${id}/decide`, { method: 'POST', body: JSON.stringify(data) }),
 };
 
+export const holidaysAPI = {
+  list: () => request('/holidays'),
+};
+
 export const reportsAPI = {
   day: (date) => request(`/reports/day${date ? `?date=${date}` : ''}`),
 };
