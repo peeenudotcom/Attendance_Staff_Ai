@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { Platform } from 'react-native';
 import { setAuthToken, setUnauthorizedHandler } from '../services/api';
+import { unregisterPush } from '../services/notifications';
 
 const AuthContext = createContext({});
 
@@ -68,6 +69,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
+    await unregisterPush(); // while still signed in, so the server can drop this phone
     try {
       await storage.removeItem('user');
       await storage.removeItem('token');

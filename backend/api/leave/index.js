@@ -1,6 +1,7 @@
 import { db, must } from '../../lib/db.js';
 import { route, body } from '../../lib/http.js';
 import { sendLeaveRequestEmail } from '../../lib/email.js';
+import { notify } from '../../lib/push.js';
 import { assertNoOverlap, fmtLeaveDates, leaveDays, leaveFields, leaveView, LEAVE_TYPES } from '../../lib/leave.js';
 
 export default route({
@@ -25,6 +26,10 @@ export default route({
       days: leaveDays(row, weeklyOff), typeLabel: LEAVE_TYPES[row.type], reason: row.reason,
     }).catch((err) => console.error('[leave] admin email failed:', err.message))));
 
+    const dates = fmtLeaveDates(row.from_date, row.to_date);
+    await notify(admins.filter((a) => a.id !== staff.id).map((a) => a.id), {
+      title: 'Leave request', body: `${staff.name} asked for ${LEAVE_TYPES[row.type].toLowerCase()}: ${dates}`, data: { screen: 'Leave' },
+    });
     return { ok: true, request: leaveView(row, { weeklyOff }) };
   },
 });

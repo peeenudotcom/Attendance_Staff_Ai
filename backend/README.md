@@ -10,6 +10,8 @@ here; the app's base URL is `https://<deployment>/api`.
 | `GET /api/auth/profile` | signed in | the current user |
 | `POST /api/attendance/check-in`, `check-out` | signed in | `{ selfie (base64 JPEG), latitude, longitude, accuracy?, address, timestamp }`; check-in refused outside the office radius when location lock is on |
 | `GET /api/attendance/today`, `history?month=YYYY-MM` | signed in | own records |
+| `GET /api/attendance/month?month=YYYY-MM` | signed in | own month for the app's calendar: each day's status and times, with totals |
+| `POST /api/push/register` `{ token, platform }`, `POST /api/push/unregister` `{ token }` | signed in | link or unlink this phone for push notifications |
 | `GET /api/staff`, `POST /api/staff` | admin | list with today's status; add a staff member (name, phone, email required) |
 | `GET /api/staff?include=inactive` | admin | also lists switched-off staff |
 | `GET /api/staff/:id`, `/api/staff/:id/attendance?month=` | admin | detail; month with selfie links |
@@ -111,6 +113,14 @@ after midnight closes yesterday's shift, and a new check-in is refused until it'
 Half days: with "less than N hours worked = half day" set, a checked-out day under N hours is a half day ("H" on the
 sheet, half pay). Missed check-outs show as "No check-out" on past days; an admin can set the out time on Today.
 
+## Notifications
+
+The app registers an Expo push token for the signed-in person (`push_tokens`, one row per phone). The server pushes
+"Leave request" to a company's admins and "Leave approved / not approved" to the person (`lib/push.js`; failures never
+fail the request, and tokens Expo reports as gone are removed). Check-in and check-out reminders are scheduled on the
+phone itself from the person's shift (or the company late time), skipping the weekly off and approved leave; they can
+be turned off in Profile.
+
 ## Admin-added attendance
 
 Admins can add a day for someone who couldn't check in (Today's "Add attendance", or click a day on the monthly sheet),
@@ -129,7 +139,7 @@ decides. A fake-GPS app on a rooted Android phone can still get around it; the s
 
 ## Database
 
-`supabase/migrations/` (001 to 008 applied). Row level security is on with no policies, so only the
+`supabase/migrations/` (001 to 009 applied). Row level security is on with no policies, so only the
 service-role key used here can read or write; the app never talks to Supabase directly.
 
 Add or change people directly when needed:

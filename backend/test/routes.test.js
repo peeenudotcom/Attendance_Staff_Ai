@@ -4,9 +4,10 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 const B = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
-const tables = { organizations: [], staff: [], otp_codes: [], attendance: [], call_logs: [], leave_requests: [], shifts: [] };
+const tables = { organizations: [], staff: [], otp_codes: [], attendance: [], call_logs: [], leave_requests: [], shifts: [], push_tokens: [] };
 const uploads = [];
 const sentEmails = [];
+const sentPushes = [];
 
 class Q {
   constructor(t) { this.t = t; this.filters = []; this.op = 'select'; this.one = null; this.ret = false; }
@@ -83,7 +84,13 @@ process.env.EMAIL_REPLY_TO = 'support@example.com';
 process.env.REVIEW_PHONE = '9000000001';
 process.env.REVIEW_CODE = '4826';
 
-globalThis.fetch = async (url, init) => { sentEmails.push(JSON.parse(init.body)); return { ok: true, text: async () => '' }; };
+globalThis.fetch = async (url, init) => {
+  if (String(url).includes('exp.host')) {
+    const msgs = JSON.parse(init.body); sentPushes.push(...msgs);
+    return { ok: true, json: async () => ({ data: msgs.map((m) => (m.to.includes('gone') ? { status: 'error', details: { error: 'DeviceNotRegistered' } } : { status: 'ok' })) }) };
+  }
+  sentEmails.push(JSON.parse(init.body)); return { ok: true, text: async () => '' };
+};
 
 tables.organizations.push({ id: 'org1', name: 'TARAhut', late_after_minutes: 555, weekly_off: 0, active: true });
 tables.organizations.push({ id: 'demo', name: 'Demo Company', late_after_minutes: 555, active: true });
@@ -548,6 +555,35 @@ test('full flow', async () => {
   r = await call('reports/day', { token, query: { date: '2026-10-06' } });
   assert.ok(!r.json.staff.some((x) => x.id === asha.id)); // gone again (she joined after that day)
   assert.ok(!tables.attendance.some((x) => x.id === addedId));
+
+  // ---- the app: my month, push notifications ----
+  r = await call('attendance/month', { token, query: { month: '2026-02' } });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.days.length, 28); assert.equal(r.json.days[0].status, 'off'); assert.equal(r.json.days[1].status, 'absent');
+  assert.equal(r.json.totals.off, 4); assert.equal(r.json.totals.absent, 24);
+  r = await call('attendance/month', { token: aToken });
+  assert.ok(r.json.days.some((d) => d.status === 'pending' || d.status === 'off' || d.status === 'before'));
+  assert.equal((await call('attendance/month', { token: aToken, query: { month: '2026-13' } })).status, 400);
+  assert.equal((await call('push/register', { method: 'POST', token, body: { token: 'nope' } })).status, 400);
+  assert.equal((await call('push/register', { method: 'POST', token, body: { token: 'ExponentPushToken[admin-phone]', platform: 'ios' } })).status, 200);
+  assert.equal((await call('push/register', { method: 'POST', token, body: { token: 'ExponentPushToken[admin-gone]', platform: 'ios' } })).status, 200);
+  assert.equal((await call('push/register', { method: 'POST', token: aToken, body: { token: 'ExponentPushToken[asha-phone]' } })).status, 200);
+  // a phone moves to whoever signs in on it
+  await call('push/register', { method: 'POST', token: aToken, body: { token: 'ExponentPushToken[shared]' } });
+  await call('push/register', { method: 'POST', token, body: { token: 'ExponentPushToken[shared]' } });
+  assert.equal(tables.push_tokens.find((t) => t.token === 'ExponentPushToken[shared]').staff_id, 'admin1');
+  // leave request -> admin's phones; decision -> the person's phone; dead tokens are dropped
+  const pushesBefore = sentPushes.length;
+  r = await call('leave/index', { method: 'POST', token: aToken, body: { from: plus(20), to: plus(20), type: 'paid' } });
+  const toAdmin = sentPushes.slice(pushesBefore);
+  assert.deepEqual(toAdmin.map((m) => m.to).sort(), ['ExponentPushToken[admin-gone]', 'ExponentPushToken[admin-phone]', 'ExponentPushToken[shared]']);
+  assert.match(toAdmin[0].body, /Asha R asked for paid leave/);
+  assert.ok(!tables.push_tokens.some((t) => t.token === 'ExponentPushToken[admin-gone]'));
+  await call('leave/[id]/decide', { method: 'POST', token, query: { id: r.json.request.id }, body: { approve: false, note: 'Audit week' } });
+  assert.equal(sentPushes.at(-1).to, 'ExponentPushToken[asha-phone]'); assert.match(sentPushes.at(-1).body, /not approved: Audit week/);
+  assert.equal((await call('push/unregister', { method: 'POST', token: aToken, body: { token: 'ExponentPushToken[asha-phone]' } })).status, 200);
+  assert.ok(!tables.push_tokens.some((t) => t.token === 'ExponentPushToken[asha-phone]'));
+  assert.equal((await call('company', { token })).json.myShift, null);
 
   // pausing a company locks its users out
   const majafId = tables.organizations.find((o) => o.name === 'Majaf Fabrics').id;
