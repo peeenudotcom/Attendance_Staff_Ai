@@ -34,6 +34,8 @@ here; the app's base URL is `https://<deployment>/api`.
 | `POST /api/attendance` `{ staffId, date, checkIn, checkOut?, note? }` | admin | add a day for someone who couldn't check in |
 | `PATCH /api/attendance/:id` `{ checkIn?, checkOut?, note? }` | admin | fill in a missed check-out or correct the times (hours and late mark worked out again) |
 | `DELETE /api/attendance/:id` | admin | remove a day recorded by mistake |
+| `GET /api/holidays?year=` | signed in | the company's holidays (default this year and next) |
+| `POST /api/holidays` `{ date, name }`, `DELETE /api/holidays/:id` | admin | add or remove a holiday |
 | `GET /api/health` | anyone | `{ ok: true }` |
 | `/privacy`, `/support`, `/get` | anyone | pages for the App Store listing; install page |
 | `/dashboard` | company admins | owner web dashboard (see below) |
@@ -113,6 +115,13 @@ after midnight closes yesterday's shift, and a new check-in is refused until it'
 Half days: with "less than N hours worked = half day" set, a checked-out day under N hours is a half day ("H" on the
 sheet, half pay). Missed check-outs show as "No check-out" on past days; an admin can set the out time on Today.
 
+## Holidays
+
+Admins add company holidays in Settings (with quick-add for 26 Jan, 15 Aug, 2 Oct and 25 Dec; festivals that move
+each year are entered by hand). A holiday shows as "Holiday" (HO on the sheet), is paid like the weekly off for monthly
+and weekly salaries (daily and hourly pay only days worked), isn't counted as a leave day, and gets no check-in
+reminder. Checking in on a holiday still counts as a worked day; the weekly off wins if both fall on the same day.
+
 ## Notifications
 
 The app registers an Expo push token for the signed-in person (`push_tokens`, one row per phone). The server pushes
@@ -139,7 +148,7 @@ decides. A fake-GPS app on a rooted Android phone can still get around it; the s
 
 ## Database
 
-`supabase/migrations/` (001 to 009 applied). Row level security is on with no policies, so only the
+`supabase/migrations/` (001 to 010 applied). Row level security is on with no policies, so only the
 service-role key used here can read or write; the app never talks to Supabase directly.
 
 Add or change people directly when needed:

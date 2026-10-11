@@ -15,7 +15,7 @@ const istToday = () => new Date(Date.now() + 330 * 60_000).toISOString().slice(0
 const addDays = (d, n) => new Date(Date.parse(`${d}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
 const nice = (d) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 const fmtDist = (m) => (m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1)} km`);
-const ORDER = { late: 0, half: 1, present: 2, pending: 3, absent: 4, leave: 5, off: 6 };
+const ORDER = { late: 0, half: 1, present: 2, pending: 3, absent: 4, leave: 5, holiday: 6, off: 7 };
 
 function TimeForm({ visible, person, date, record, onClose, onSaved, C }) {
   const [checkIn, setCheckIn] = useState('');
@@ -140,13 +140,14 @@ export default function TeamScreen({ navigation }) {
           </View>
         )}
 
+        {!!data?.holiday && <Text style={[styles.holiday, { color: '#8A6D1F' }]}>Holiday: {data.holiday}</Text>}
         {data && !people.length && <Text style={[styles.error, { color: C.textMuted }]}>{s?.off ? 'Weekly off.' : 'No staff yet.'}</Text>}
 
         {people.map((p) => {
           const st = DAY_STYLE[p.status] || DAY_STYLE.pending;
           const color = toneColor(C, st.tone);
           const away = data.office && p.checkInDistance != null && p.checkInDistance > data.office.radiusM;
-          const canAdd = !p.attendanceId && (p.status === 'absent' || p.status === 'pending' || p.status === 'off' || p.status === 'leave');
+          const canAdd = !p.attendanceId && (p.status === 'absent' || p.status === 'pending' || p.status === 'off' || p.status === 'leave' || p.status === 'holiday');
           return (
             <View key={p.id} style={[styles.card, { backgroundColor: C.bgCard, borderColor: C.border }]}>
               <View style={styles.cardTop}>
@@ -226,6 +227,7 @@ const styles = StyleSheet.create({
   arrowText: { fontSize: 22, fontWeight: '600', marginTop: -2 },
   dateText: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700' },
   error: { textAlign: 'center', marginTop: 30, paddingHorizontal: SPACING.xl },
+  holiday: { textAlign: 'center', fontSize: 14, fontWeight: '700', marginTop: 10 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: SPACING.xl, marginTop: 14, marginBottom: 6 },
   chip: { flexGrow: 1, minWidth: 64, borderWidth: 1, borderRadius: RADIUS.md, paddingVertical: 8, alignItems: 'center' },
   chipNum: { fontSize: 18, fontWeight: '800' },

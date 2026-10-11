@@ -15,7 +15,7 @@ import DailyBriefingCard from '../components/DailyBriefingCard';
 import PredictiveCard from '../components/PredictiveCard';
 import FloatingAssistantButton from '../components/FloatingAssistantButton';
 import { SHOW_SAMPLE_DATA } from '../config/features';
-import { attendanceAPI, companyAPI, leaveAPI } from '../services/api';
+import { attendanceAPI, companyAPI, holidaysAPI, leaveAPI } from '../services/api';
 import { scheduleReminders } from '../services/notifications';
 
 const { width } = Dimensions.get('window');
@@ -37,14 +37,14 @@ export default function HomeScreen({ navigation }) {
       attendanceAPI.getMonth().then((m) => setMonth(m.totals)).catch(() => {});
       const t = await attendanceAPI.getToday().catch(() => null);
       if (t) setToday(t);
-      // Re-plan check-in / check-out reminders from the shift, today's status and approved leave.
-      const [company, leave] = await Promise.all([companyAPI.get().catch(() => null), leaveAPI.mine().catch(() => null)]);
+      // Re-plan check-in / check-out reminders from the shift, today's status, approved leave and holidays.
+      const [company, leave, hols] = await Promise.all([companyAPI.get().catch(() => null), leaveAPI.mine().catch(() => null), holidaysAPI.list().catch(() => null)]);
       const leaveDates = (leave?.requests || []).filter((r) => r.status === 'approved').flatMap((r) => {
         const out = [];
         for (let d = r.from; d <= r.to; d = new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)) out.push(d);
         return out;
       });
-      scheduleReminders({ company, today: t, leaveDates });
+      scheduleReminders({ company, today: t, leaveDates: [...leaveDates, ...(hols?.holidays || []).map((x) => x.date)] });
     };
     load();
     return navigation.addListener('focus', load);

@@ -153,3 +153,8 @@ td.clickable { cursor: pointer; }
 td.clickable:hover { background: var(--soft); }
 .cell.edited { outline: 1.5px dashed currentColor; outline-offset: 1px; }
 .btn.ghost.danger { color: var(--red); }
+
+.cell.holiday { background: #F6EED5; color: #8A6D1F; font-size: 9px; }
+.pill.holiday { background: #F6EED5; color: #8A6D1F; }
+.holiday-tag { margin-left: 12px; padding: 3px 10px; border-radius: 999px; background: #F6EED5; color: #8A6D1F; font-size: 13px; font-weight: 600; }
+table.mini tr.past td { opacity: .55; }

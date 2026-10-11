@@ -19,12 +19,13 @@ export const DAY_STYLE = {
   absent: { label: 'Absent', short: 'A', tone: 'danger' },
   leave: { label: 'On leave', short: 'LV', tone: 'info' },
   off: { label: 'Weekly off', short: '·', tone: 'muted' },
+  holiday: { label: 'Holiday', short: 'HO', tone: 'holiday' },
   pending: { label: '', short: '', tone: 'none' },
   before: { label: '', short: '', tone: 'none' },
 };
 
 export function toneColor(C, tone) {
-  return { success: C.success, warning: C.warning, danger: C.danger, info: C.info, half: '#7A3E8A', muted: C.textMuted }[tone] || C.textMuted;
+  return { success: C.success, warning: C.warning, danger: C.danger, info: C.info, half: '#7A3E8A', holiday: '#8A6D1F', muted: C.textMuted }[tone] || C.textMuted;
 }
 
 export default function HistoryScreen() {
@@ -85,6 +86,7 @@ export default function HistoryScreen() {
             ['Absent', t.absent, C.danger],
             ['Leave', t.leave, C.info],
             ...(t.half ? [['Half day', t.half, '#7A3E8A']] : []),
+            ...(t.holiday ? [['Holiday', t.holiday, '#8A6D1F']] : []),
           ].map(([label, n, color]) => (
             <View key={label} style={[styles.total, { backgroundColor: C.bgCard, borderColor: C.border }]}>
               <Text style={[styles.totalNum, { color }]}>{n}</Text>
@@ -124,7 +126,7 @@ export default function HistoryScreen() {
         <View style={[styles.detail, { backgroundColor: C.bgCard, borderColor: C.border }]}>
           <Text style={[styles.detailDate, { color: C.textPrimary }]}>{niceDay(sel.date)}</Text>
           <Text style={[styles.detailStatus, { color: toneColor(C, (DAY_STYLE[sel.status] || DAY_STYLE.pending).tone) }]}>
-            {DAY_STYLE[sel.status]?.label || (sel.status === 'pending' ? 'Not checked in yet' : 'Before you joined')}
+            {sel.holiday ? `Holiday: ${sel.holiday}` : DAY_STYLE[sel.status]?.label || (sel.status === 'pending' ? 'Not checked in yet' : 'Before you joined')}
           </Text>
           {sel.checkIn && <Text style={[styles.detailLine, { color: C.textSecondary }]}>In {sel.checkIn}{sel.checkOut ? `  ·  Out ${sel.checkOut}` : '  ·  No check-out'}{sel.hours ? `  ·  ${sel.hours}` : ''}</Text>}
           {sel.edited && <Text style={[styles.detailLine, { color: C.textMuted }]}>Added or changed by your admin{sel.note ? `: ${sel.note}` : ''}</Text>}

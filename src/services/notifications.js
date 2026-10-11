@@ -71,11 +71,11 @@ const toMin = (hhmm) => { const [h, m] = String(hhmm).split(':').map(Number); re
 
 /**
  * Plans the next two weeks of reminders (iOS keeps at most 64):
- * - check in: at the shift's late time (or the company's), on working days that aren't approved leave,
+ * - check in: at the shift's late time (or the company's), on working days that aren't approved leave or holidays,
  *   skipping today once checked in;
  * - check out: today only, when checked in and not out, 15 minutes after the shift ends (20:00 without a shift).
  */
-export async function scheduleReminders({ company, today, leaveDates = [] }) {
+export async function scheduleReminders({ company, today, leaveDates = [] }) { // leaveDates: leave and holiday dates
   try {
     if (Platform.OS === 'web' || !company || !(await remindersOn())) return;
     if (!(await Notifications.getPermissionsAsync()).granted) return;

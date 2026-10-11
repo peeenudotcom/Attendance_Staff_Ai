@@ -1,7 +1,7 @@
 /**
  * Pay for one person for one month, from their monthly-sheet totals.
  *
- * - monthly: salary ÷ days in the month, for each paid day (present, late, weekly off, paid leave; half days count half)
+ * - monthly: salary ÷ days in the month, for each paid day (present, late, weekly off, holidays, paid leave; half days count half)
  * - weekly:  the same, at salary ÷ 7 a day
  * - daily:   the daily rate for each day worked (present or late; a half day counts half)
  * - hourly:  the hourly rate for each hour between check-in and check-out
@@ -21,6 +21,7 @@ export function monthPay({ salaryType, salary, totals, daysInMonth, lateCutEvery
     unpaidLeave: t.unpaidLeave,
     absent: t.absent,
     off: t.off,
+    holiday: t.holiday ?? 0,
     late: t.late,
     hours: Math.round((t.minutes / 60) * 10) / 10,
   };
@@ -37,7 +38,7 @@ export function monthPay({ salaryType, salary, totals, daysInMonth, lateCutEvery
     pay = salary * payDays;
   } else {
     rate = salary / (salaryType === 'weekly' ? 7 : daysInMonth);
-    payDays = Math.max(0, worked + t.off + t.paidLeave - lateCutDays);
+    payDays = Math.max(0, worked + t.off + (t.holiday ?? 0) + t.paidLeave - lateCutDays);
     pay = rate * payDays;
   }
   return { ...base, rate: Math.round(rate * 100) / 100, payDays, lateCutDays, pay: Math.round(pay), missing: false };

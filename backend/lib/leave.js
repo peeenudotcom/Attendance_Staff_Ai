@@ -14,8 +14,9 @@ export function datesBetween(from, to) {
   return out;
 }
 
-/** Days of leave a request uses: its dates minus the company's weekly off. */
-export const leaveDays = (r, weeklyOff) => datesBetween(r.from_date, r.to_date).filter((d) => weekday(d) !== weeklyOff).length;
+/** Days of leave a request uses: its dates minus the company's weekly off and holidays. */
+export const leaveDays = (r, weeklyOff, holidays = new Map()) =>
+  datesBetween(r.from_date, r.to_date).filter((d) => weekday(d) !== weeklyOff && !holidays.has(d)).length;
 
 /** Checks a new request's fields; returns the row to insert (without org/staff). */
 export function leaveFields(b) {
@@ -39,14 +40,14 @@ export function assertNoOverlap(existing, { from_date, to_date }) {
 }
 
 /** A request as the app and dashboard show it. */
-export function leaveView(r, { weeklyOff, staffName } = {}) {
+export function leaveView(r, { weeklyOff, staffName, holidays } = {}) {
   return {
     id: r.id,
     staffId: r.staff_id,
     ...(staffName !== undefined ? { staffName } : {}),
     from: r.from_date,
     to: r.to_date,
-    days: leaveDays(r, weeklyOff),
+    days: leaveDays(r, weeklyOff, holidays),
     type: r.type,
     typeLabel: LEAVE_TYPES[r.type],
     reason: r.reason,

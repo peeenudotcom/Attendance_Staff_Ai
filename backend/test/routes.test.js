@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 const B = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
-const tables = { organizations: [], staff: [], otp_codes: [], attendance: [], call_logs: [], leave_requests: [], shifts: [], push_tokens: [] };
+const tables = { organizations: [], staff: [], otp_codes: [], attendance: [], call_logs: [], leave_requests: [], shifts: [], push_tokens: [], holidays: [] };
 const uploads = [];
 const sentEmails = [];
 const sentPushes = [];
@@ -32,6 +32,7 @@ class Q {
       const r = { id: randomUUID(), active: true, approval: 'pending', ...(this.t === 'leave_requests' ? { status: 'pending' } : {}), created_at: new Date().toISOString(), ...this.row };
       if (this.t === 'staff' && rows.some((x) => x.phone === r.phone)) return { data: null, error: { code: '23505', message: 'dup' } };
       if (this.t === 'attendance' && rows.some((x) => x.staff_id === r.staff_id && x.date === r.date)) return { data: null, error: { code: '23505', message: 'dup' } };
+      if (this.t === 'holidays' && rows.some((x) => x.org_id === r.org_id && x.date === r.date)) return { data: null, error: { code: '23505', message: 'dup' } };
       rows.push(r); out = [r];
     } else if (this.op === 'delete') {
       out = match(); tables[this.t] = rows.filter((r) => !out.includes(r));
@@ -584,6 +585,35 @@ test('full flow', async () => {
   assert.equal((await call('push/unregister', { method: 'POST', token: aToken, body: { token: 'ExponentPushToken[asha-phone]' } })).status, 200);
   assert.ok(!tables.push_tokens.some((t) => t.token === 'ExponentPushToken[asha-phone]'));
   assert.equal((await call('company', { token })).json.myShift, null);
+
+  // ---- holidays ----
+  assert.equal((await call('holidays/index', { method: 'POST', token: aToken, body: { date: '2026-02-16', name: 'X' } })).status, 403);
+  assert.equal((await call('holidays/index', { method: 'POST', token, body: { date: 'soon', name: 'X' } })).status, 400);
+  assert.equal((await call('holidays/index', { method: 'POST', token, body: { date: '2026-02-16' } })).status, 400);
+  r = await call('holidays/index', { method: 'POST', token, body: { date: '2026-02-16', name: 'Test holiday' } });
+  assert.equal(r.status, 200); const holId = r.json.holiday.id;
+  assert.equal((await call('holidays/index', { method: 'POST', token, body: { date: '2026-02-16', name: 'Again' } })).status, 409);
+  assert.equal((await call('holidays/index', { token: aToken, query: { year: '2026' } })).json.holidays.length, 1); // staff can see them
+  r = await call('reports/day', { token, query: { date: '2026-02-16' } });
+  assert.equal(r.json.holiday, 'Test holiday'); assert.equal(r.json.staff.find((x) => x.id === 'admin1').status, 'holiday');
+  r = await call('reports/month', { token, query: { month: '2026-02' } });
+  const febOwner = r.json.staff.find((x) => x.id === 'admin1');
+  assert.equal(febOwner.days['2026-02-16'].status, 'holiday'); assert.equal(febOwner.days['2026-02-16'].holiday, 'Test holiday');
+  assert.equal(febOwner.totals.holiday, 1); assert.equal(febOwner.totals.absent, 23);
+  r = await call('reports/salary', { token, query: { month: '2026-02' } });
+  assert.equal(r.json.staff.find((x) => x.id === 'admin1').pay, 5000); // 4 Sundays + 1 holiday paid at 28000/28
+  r = await call('attendance/month', { token, query: { month: '2026-02' } });
+  assert.equal(r.json.days[15].status, 'holiday'); assert.equal(r.json.days[15].holiday, 'Test holiday');
+  // holidays don't use up leave days
+  const hDate = plus(40);
+  await call('holidays/index', { method: 'POST', token, body: { date: hDate, name: 'Festival' } });
+  r = await call('leave/index', { method: 'POST', token: aToken, body: { from: plus(39), to: plus(41), type: 'casual' } });
+  const span = [plus(39), plus(40), plus(41)];
+  const expectedDays = span.filter((d) => new Date(`${d}T00:00:00Z`).getUTCDay() !== 0 && d !== hDate).length;
+  assert.equal(r.json.request.days, expectedDays);
+  assert.equal((await call('holidays/[id]', { method: 'DELETE', token: aToken, query: { id: holId } })).status, 403);
+  assert.equal((await call('holidays/[id]', { method: 'DELETE', token, query: { id: holId } })).status, 200);
+  assert.equal((await call('reports/day', { token, query: { date: '2026-02-16' } })).json.staff.find((x) => x.id === 'admin1').status, 'absent');
 
   // pausing a company locks its users out
   const majafId = tables.organizations.find((o) => o.name === 'Majaf Fabrics').id;

@@ -3,7 +3,7 @@ import { fmtHours } from '../../lib/attendance.js';
 import { buildMonth } from '../../lib/report.js';
 
 // GET /api/attendance/month?month=YYYY-MM (Bearer) -> the signed-in person's own month for the app's calendar:
-// every day's status (present, late, half, absent, leave, off, pending, before) with times, and the month's totals.
+// every day's status (present, late, half, absent, leave, off, holiday, pending, before) with times, and the month's totals.
 export default route({
   async GET(req, { staff }) {
     const m = await buildMonth(staff.org, req.query.month, { staffId: staff.id });
@@ -22,6 +22,7 @@ export default route({
           ...(c.leaveType ? { leaveType: c.leaveType } : {}),
           ...(c.edited ? { edited: true } : {}),
           ...(c.note ? { note: c.note } : {}),
+          ...(c.holiday ? { holiday: c.holiday } : {}),
         };
       }),
       totals: me ? { ...me.totals, hours: fmtHours(me.totals.minutes) } : null,
