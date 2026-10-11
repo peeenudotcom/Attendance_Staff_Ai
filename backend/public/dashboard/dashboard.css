@@ -120,3 +120,15 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .hide-sm { display: none; }
   th, td { padding: 9px 8px; }
 }
+
+.settings { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.settings .form-card { flex: 1 1 340px; }
+.loc-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 14px; }
+.loc-actions:last-child { margin: 0; }
+.dist { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.dist.away { color: var(--red); font-weight: 600; }
+.tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+.check { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 6px; cursor: pointer; }
+.check input { margin-top: 3px; accent-color: var(--maroon); }
+.check small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.hint .pill { margin-right: 4px; }

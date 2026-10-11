@@ -8,7 +8,7 @@ here; the app's base URL is `https://<deployment>/api`.
 | `POST /api/auth/login` `{ phone }` | anyone | emails a 4-digit code (5 min, 5 tries, 5 codes per 15 min) |
 | `POST /api/auth/verify-otp` `{ phone, otp }` | anyone | `{ user, token }` (token valid 30 days) |
 | `GET /api/auth/profile` | signed in | the current user |
-| `POST /api/attendance/check-in`, `check-out` | signed in | `{ selfie (base64 JPEG), latitude, longitude, address, timestamp }` |
+| `POST /api/attendance/check-in`, `check-out` | signed in | `{ selfie (base64 JPEG), latitude, longitude, accuracy?, address, timestamp }`; check-in refused outside the office radius when location lock is on |
 | `GET /api/attendance/today`, `history?month=YYYY-MM` | signed in | own records |
 | `GET /api/staff`, `POST /api/staff` | admin | list with today's status; add a staff member (name, phone, email required) |
 | `GET /api/staff?include=inactive` | admin | also lists switched-off staff |
@@ -19,7 +19,7 @@ here; the app's base URL is `https://<deployment>/api`.
 | `GET /api/reports/month?month=YYYY-MM` | admin | attendance sheet with totals |
 | `PUT /api/attendance/:id/approve`, `/reject` `{ reason }` | admin | review a day |
 | `POST /api/call-logs/sync` `{ logs }` | signed in | Android call history |
-| `GET /api/company`, `PATCH /api/company` `{ name?, lateAfterMinutes?, weeklyOff? }` | signed in / company admin | own company and its settings |
+| `GET /api/company`, `PATCH /api/company` `{ name?, lateAfterMinutes?, weeklyOff?, office? }` | signed in / company admin | own company and its settings |
 | `GET /api/companies`, `POST /api/companies` `{ name, adminName, adminPhone, adminEmail }` | platform admin | client companies; add one with its first admin |
 | `PATCH /api/companies/:id` `{ name?, logoUrl?, lateAfterMinutes?, active? }` | platform admin | edit or pause a company |
 | `GET /api/health` | anyone | `{ ok: true }` |
@@ -66,9 +66,18 @@ time, weekly off) and, for the platform admin, Clients (add, pause or resume com
 
 The weekly off day is a single company setting, so changing it also changes how past months show.
 
+## Location lock
+
+A company admin sets an office location and an allowed distance (Settings in the dashboard; `office: { lat, lng, radiusM }`
+on `PATCH /api/company`, `null` turns it off). Check-in from farther away is refused with the distance in the message;
+the phone's reported GPS accuracy gives up to 50 m of extra room. Check-out is never blocked. Staff marked "can check
+in from anywhere" (`locationFree`) skip the check. Every check-in and check-out stores its distance from the office,
+shown on the dashboard's Today page. The app warns before the selfie (`lockApplies` on `GET /api/company`); the server
+decides. A fake-GPS app on a rooted Android phone can still get around it; the selfie and the map link are the backstop.
+
 ## Database
 
-`supabase/migrations/` (001 to 003 applied). Row level security is on with no policies, so only the
+`supabase/migrations/` (001 to 004 applied). Row level security is on with no policies, so only the
 service-role key used here can read or write; the app never talks to Supabase directly.
 
 Add or change people directly when needed:

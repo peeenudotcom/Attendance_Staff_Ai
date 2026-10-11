@@ -38,6 +38,7 @@ export function staffFields(b, { partial = false } = {}) {
     out.salary = salary;
   }
   if (has('role')) out.role = b.role === 'admin' ? 'admin' : 'staff';
+  if (has('locationFree')) out.location_free = b.locationFree === true || b.locationFree === 'true' || b.locationFree === 'on';
   return out;
 }
 
@@ -54,6 +55,7 @@ export function adminView(s) {
     salaryType: s.salary_type,
     salary: s.salary,
     active: s.active,
+    locationFree: !!s.location_free,
     lastLoginAt: s.last_login_at,
     createdAt: s.created_at,
   };

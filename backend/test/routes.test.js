@@ -272,7 +272,9 @@ test('full flow', async () => {
   const me = r.json.staff.find((x) => x.id === 'admin1');
   assert.ok(['present', 'late'].includes(me.status));
   assert.match(me.checkInSelfie, /^https:\/\/signed/);
-  assert.equal(r.json.staff.find((x) => x.name === 'Asha Rani').status, 'pending'); // added today, not in yet
+  // added today, not in yet (or the weekly off, Sunday, when the tests run on a Sunday)
+  const sundayToday = new Date(Date.now() + 330 * 60000).getUTCDay() === 0;
+  assert.equal(r.json.staff.find((x) => x.name === 'Asha Rani').status, sundayToday ? 'off' : 'pending');
   assert.equal(r.json.summary.total, r.json.staff.length);
   assert.ok(!r.json.staff.some((x) => x.name === 'Majaf Owner')); // other company
   assert.equal((await call('reports/day', { token, query: { date: '10-10-2026' } })).status, 400);
@@ -315,6 +317,43 @@ test('full flow', async () => {
   r = await call('company', { method: 'PATCH', token, body: { weeklyOff: 6 } });
   assert.equal(r.json.weeklyOff, 6);
   assert.equal((await call('company', { method: 'PATCH', token, body: { weeklyOff: null } })).json.weeklyOff, null);
+
+  // ---- location lock ----
+  assert.equal((await call('company', { method: 'PATCH', token, body: { office: { lat: 30.2110, lng: 74.9455, radiusM: 10 } } })).status, 400);
+  assert.equal((await call('company', { method: 'PATCH', token, body: { office: { lat: 'x', lng: 74.9, radiusM: 200 } } })).status, 400);
+  r = await call('company', { method: 'PATCH', token, body: { office: { lat: 30.2110, lng: 74.9455, radiusM: 200 } } });
+  assert.deepEqual(r.json.office, { lat: 30.2110, lng: 74.9455, radiusM: 200 });
+  await call('auth/login', { method: 'POST', body: { phone: asha.phone } });
+  const aCode = /(\d{4}) is your/.exec(sentEmails.at(-1).subject)[1];
+  const aToken = (await call('auth/verify-otp', { method: 'POST', body: { phone: asha.phone, otp: aCode } })).json.token;
+  assert.equal((await call('company', { token: aToken })).json.lockApplies, true);
+  // ~1.1 km away: refused, nothing saved
+  const far = { selfie, latitude: 30.2210, longitude: 74.9455, accuracy: 20, address: 'Elsewhere' };
+  r = await call('attendance/check-in', { method: 'POST', token: aToken, body: far });
+  assert.equal(r.status, 403); assert.match(r.json.message, /1\.1 km from the office/);
+  // no location at all: refused
+  assert.equal((await call('attendance/check-in', { method: 'POST', token: aToken, body: { selfie } })).status, 400);
+  assert.ok(!tables.attendance.some((x) => x.staff_id === asha.id));
+  // 230 m away with 40 m GPS accuracy: allowed (accuracy gives up to 50 m of room)
+  r = await call('attendance/check-in', { method: 'POST', token: aToken, body: { selfie, latitude: 30.21307, longitude: 74.9455, accuracy: 40 } });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const aRow = tables.attendance.find((x) => x.staff_id === asha.id);
+  assert.ok(aRow.check_in_distance_m > 200 && aRow.check_in_distance_m < 250);
+  // check-out is never blocked, distance recorded
+  assert.equal((await call('attendance/check-out', { method: 'POST', token: aToken, body: far })).status, 200);
+  assert.ok(tables.attendance.find((x) => x.staff_id === asha.id).check_out_distance_m > 1000);
+  r = await call('reports/day', { token });
+  const aDay = r.json.staff.find((x) => x.id === asha.id);
+  assert.equal(aDay.checkInDistance, aRow.check_in_distance_m); assert.equal(r.json.office.radiusM, 200);
+  // field staff may check in anywhere
+  r = await call('staff/[id]/index', { method: 'PATCH', token, query: { id: asha.id }, body: { locationFree: true } });
+  assert.equal(r.json.staff.locationFree, true);
+  assert.equal((await call('company', { token: aToken })).json.lockApplies, false);
+  tables.attendance = tables.attendance.filter((x) => x.staff_id !== asha.id);
+  assert.equal((await call('attendance/check-in', { method: 'POST', token: aToken, body: far })).status, 200);
+  // turning the lock off
+  r = await call('company', { method: 'PATCH', token, body: { office: null } });
+  assert.equal(r.json.office, null);
 
   // pausing a company locks its users out
   const majafId = tables.organizations.find((o) => o.name === 'Majaf Fabrics').id;
