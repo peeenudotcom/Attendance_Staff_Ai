@@ -19,6 +19,7 @@ export default route({
   // (Bearer, admin). Switching someone off (active: false) blocks their sign-in; nothing is deleted.
   async PATCH(req, { staff: admin }) {
     const target = await findInCompany(req.query.id, admin.org_id);
+    if (target.deletion_requested_at) throw new HttpError(409, 'This person deleted their account, so it can no longer be changed');
     const b = body(req);
     const patch = staffFields(b, { partial: true });
     await assertShiftInOrg(db(), patch.shift_id, admin.org_id);

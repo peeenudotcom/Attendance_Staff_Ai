@@ -120,3 +120,49 @@ export function sendLeaveDecisionEmail({ to, name, approved, dates, typeLabel, n
   <p>You can see all your leave in the Haazri app under Leave.</p>`),
   });
 }
+
+/** Tells TARAhut support and the company's admins that someone deleted their account. */
+export function sendAccountDeletedEmail({ to, staffName, phone, company, eraseBy }) {
+  return send({
+    to,
+    subject: `${staffName} deleted their ${PRODUCT} account`,
+    text: [
+      `${staffName} (${phone}, ${company}) deleted their ${PRODUCT} account from the app.`,
+      '',
+      'The account is switched off and can no longer sign in.',
+      `Their name, phone, email, selfies and check-in locations will be erased automatically on ${eraseBy}.`,
+      'Their attendance days and hours stay in your monthly sheet and salary, without their name.',
+      '',
+      'Download the monthly sheet before then if you need it with their name for your records.',
+    ].join('\n'),
+    html: wrap(`
+  <p><strong>${escapeHtml(staffName)}</strong> (${escapeHtml(phone)}, ${escapeHtml(company)}) deleted their ${PRODUCT} account from the app.</p>
+  <p>The account is switched off and can no longer sign in. Their name, phone, email, selfies and check-in locations
+  will be erased automatically on <strong>${escapeHtml(eraseBy)}</strong>. Their attendance days and hours stay in your
+  monthly sheet and salary, without their name.</p>
+  <p>Download the <a href="${SITE}/dashboard">monthly sheet</a> before then if you need it with their name for your records.</p>`),
+  });
+}
+
+/** Confirms to the person that their account was deleted. */
+export function sendAccountDeletionConfirmEmail({ to, name, eraseBy }) {
+  return send({
+    to,
+    subject: `Your ${PRODUCT} account has been deleted`,
+    text: [
+      `Hi ${firstName(name)},`,
+      '',
+      `Your ${PRODUCT} account has been deleted and you have been signed out.`,
+      `Your name, phone number, email, selfies and check-in locations will be erased by ${eraseBy}.`,
+      'Your employer keeps the dates and hours you worked, without your name, for payroll.',
+      '',
+      'If you did not do this, reply to this email straight away.',
+    ].join('\n'),
+    html: wrap(`
+  <p>Hi ${escapeHtml(firstName(name))},</p>
+  <p>Your ${PRODUCT} account has been deleted and you have been signed out. Your name, phone number, email, selfies
+  and check-in locations will be erased by <strong>${escapeHtml(eraseBy)}</strong>. Your employer keeps the dates and
+  hours you worked, without your name, for payroll.</p>
+  <p>If you did not do this, reply to this email straight away.</p>`),
+  });
+}

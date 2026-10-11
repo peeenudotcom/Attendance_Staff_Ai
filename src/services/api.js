@@ -42,6 +42,7 @@ export const authAPI = {
   login: (credentials) => request('/auth/login', { method: 'POST', body: JSON.stringify(credentials) }),
   verifyOTP: (data) => request('/auth/verify-otp', { method: 'POST', body: JSON.stringify(data) }),
   getProfile: () => request('/auth/profile'),
+  deleteAccount: () => request('/account/delete', { method: 'POST' }),
 };
 
 export const attendanceAPI = {

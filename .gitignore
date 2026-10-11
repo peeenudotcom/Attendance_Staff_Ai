@@ -39,3 +39,10 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Firebase / Play credentials (kept in EAS, never committed)
+google-services.json
+GoogleService-Info.plist
+*service-account*.json
+*.keystore
+credentials.json

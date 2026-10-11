@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Linking,
 } from 'react-native';
+import Constants from 'expo-constants';
 import { remindersOn, setRemindersOn, registerForPush } from '../services/notifications';
+import { authAPI } from '../services/api';
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS, GLASS } from '../utils/theme';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -31,6 +33,33 @@ export default function ProfileScreen({ navigation }) {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Sign Out', style: 'destructive', onPress: logout },
     ]);
+  };
+
+  // Google Play and the App Store require a way to delete your account from inside the app.
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete your account?',
+      "You will be signed out and won't be able to sign in again. Your name, phone, email, selfies and check-in "
+        + 'locations are erased within 30 days. Your employer keeps the dates and hours you worked, without your name, for payroll.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete account', style: 'destructive', onPress: async () => {
+            try {
+              const res = await authAPI.deleteAccount();
+              if (res.demo) {
+                Alert.alert('Demo account', 'This is the review demo account, so it stays on for other reviewers. A real account is switched off and signed out at this point.');
+                return;
+              }
+              Alert.alert('Account deleted', `Your account has been deleted. Your personal data will be erased by ${res.eraseBy}.`);
+              logout();
+            } catch (e) {
+              Alert.alert('Could not delete your account', `${e.message}\n\nYou can also email support@tarahutaibuilds.com.`);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const menuSections = [
@@ -63,7 +92,8 @@ export default function ProfileScreen({ navigation }) {
     { title: 'APP', items: [
       { icon: '◈', label: `Check-in reminders: ${reminders ? 'On' : 'Off'}`, onPress: toggleReminders },
       { icon: '◎', label: 'Language' },
-      { icon: '◉', label: 'Privacy & Security' },
+      { icon: '◉', label: 'Privacy policy', onPress: () => Linking.openURL('https://haazri.tarahutaibuilds.com/privacy') },
+      { icon: '◎', label: 'Help & support', onPress: () => Linking.openURL('https://haazri.tarahutaibuilds.com/support') },
       { icon: isDark ? '☀️' : '🌙', label: isDark ? 'Light Mode' : 'Dark Mode', onPress: toggleTheme },
     ]},
   ];
@@ -145,7 +175,11 @@ export default function ProfileScreen({ navigation }) {
         <Text style={[styles.logoutText, { color: C.danger }]}>Sign Out</Text>
       </TouchableOpacity>
 
-      <Text style={[styles.version, { color: C.textMuted }]}>TARAhut Haazri · by TARAhut AI Builds · v1.0.0</Text>
+      <TouchableOpacity style={styles.deleteBtn} onPress={handleDeleteAccount} activeOpacity={0.6}>
+        <Text style={[styles.deleteText, { color: C.danger }]}>Delete my account</Text>
+      </TouchableOpacity>
+
+      <Text style={[styles.version, { color: C.textMuted }]}>TARAhut Haazri · by TARAhut AI Builds · v{Constants.expoConfig?.version || '1.0.0'}</Text>
       <View style={{ height: 120 }} />
     </ScrollView>
   );
@@ -178,6 +212,8 @@ const styles = StyleSheet.create({
   menuArrow: { fontSize: 20, color: COLORS.textMuted },
 
   logoutBtn: { marginHorizontal: SPACING.xl, marginTop: 24, padding: 14, borderRadius: RADIUS.sm, backgroundColor: COLORS.dangerSoft, alignItems: 'center', borderWidth: 1, borderColor: COLORS.danger + '20' },
+  deleteBtn: { alignSelf: 'center', marginTop: 14, paddingVertical: 8, paddingHorizontal: 16 },
+  deleteText: { fontSize: 13, fontWeight: '600', textDecorationLine: 'underline' },
   logoutText: { fontSize: 14, fontWeight: '600', color: COLORS.danger },
   version: { ...FONTS.small, textAlign: 'center', marginTop: 16, fontSize: 10 },
 });
