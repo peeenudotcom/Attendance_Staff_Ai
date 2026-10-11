@@ -68,7 +68,7 @@ App Store Connect → TARAhut Attendance.
 >
 > After signing in, tap Check In. The app asks for camera permission (to take the check-in selfie) and location permission "while using the app" (to record where attendance was marked). Take the selfie, confirm, and you are checked in; the home screen then offers Check Out.
 >
-> Accounts are created by each organisation's admin, so there is no public sign-up and no in-app account deletion; staff ask their admin, or email privacy@tarahutaibuilds.com, to have their data deleted.
+> Accounts are created by each organisation's admin, so there is no public sign-up. Anyone can delete their own account in the app (You → Delete my account); it is switched off at once and personal data is erased after 30 days. Details: https://haazri.tarahutaibuilds.com/delete-account
 
 ## App Privacy ("nutrition labels")
 

@@ -2,5 +2,8 @@
   "cleanUrls": true,
   "functions": {
     "api/**/*.js": { "maxDuration": 15 }
-  }
+  },
+  "crons": [
+    { "path": "/api/cron/erase-accounts", "schedule": "30 21 * * *" }
+  ]
 }

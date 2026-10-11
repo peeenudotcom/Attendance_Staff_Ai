@@ -19,6 +19,7 @@ export default function LoginScreen() {
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState('phone');
   const [sentTo, setSentTo] = useState(''); // masked destination reported by the backend
+  const [reviewLogin, setReviewLogin] = useState(false); // store-review demo account: fixed code, no email
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -37,6 +38,7 @@ export default function LoginScreen() {
     try {
       const res = await authAPI.login({ phone });
       setSentTo(res?.sentTo || '');
+      setReviewLogin(res?.channel === 'review');
       setStep('otp');
     } catch (e) {
       Alert.alert('Could not send OTP', e.message || 'Please check your connection and try again.');
@@ -78,7 +80,7 @@ export default function LoginScreen() {
           <View style={styles.card}>
             <Text style={[styles.cardTitle, { color: C.textPrimary }]}>{step === 'phone' ? 'Sign In' : 'Verification'}</Text>
             <Text style={[styles.cardSub, { color: C.textSecondary }]}>
-              {step === 'phone' ? 'Enter your mobile number to continue' : `Code sent to ${sentTo || `+91 ${phone}`}`}
+              {step === 'phone' ? 'Enter your mobile number to continue' : reviewLogin ? 'Enter the code given in the review notes' : `Code sent to ${sentTo || `+91 ${phone}`}`}
             </Text>
 
             {step === 'phone' ? (

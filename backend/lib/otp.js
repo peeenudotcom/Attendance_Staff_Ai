@@ -18,12 +18,14 @@ function sameString(a, b) {
 }
 
 /**
- * App Review access: one phone number that accepts one fixed code, set by
- * REVIEW_PHONE and REVIEW_CODE. No email is sent for it. Unset both to turn it off.
+ * App Review access: phone numbers that accept one fixed code, set by REVIEW_PHONE (one number, or several
+ * separated by commas, e.g. a demo staff member and a demo admin) and REVIEW_CODE. No email is sent for them.
+ * Unset both to turn it off.
  */
 export function isReviewPhone(phone) {
-  const reviewPhone = String(process.env.REVIEW_PHONE || '').replace(/\D/g, '').slice(-10);
-  return !!reviewPhone && !!process.env.REVIEW_CODE && phone === reviewPhone;
+  if (!process.env.REVIEW_CODE) return false;
+  const phones = String(process.env.REVIEW_PHONE || '').split(',').map((p) => p.replace(/\D/g, '').slice(-10)).filter((p) => p.length === 10);
+  return phones.includes(phone);
 }
 
 /** Creates and stores a new 4-digit code for `phone`, enforcing the send limit. */

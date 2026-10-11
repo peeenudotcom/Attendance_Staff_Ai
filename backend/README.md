@@ -49,7 +49,8 @@ here; the app's base URL is `https://<deployment>/api`.
 | `AUTH_TOKEN_SECRET` | random, 32+ characters; changing it signs everyone out |
 | `RESEND_API_KEY`, `EMAIL_FROM` | key from the Haazri Resend account (sending access, domain-limited); sender `TARAhut Haazri <codes@haazri.tarahutaibuilds.com>` |
 | `EMAIL_REPLY_TO` | `support@tarahutaibuilds.com`, where replies to code emails go |
-| `REVIEW_PHONE`, `REVIEW_CODE` | App Review account; unset both to disable it |
+| `REVIEW_PHONE`, `REVIEW_CODE` | App Review accounts (one number or several, comma-separated, e.g. `9000000001,9000000002`) that sign in with the fixed code; unset both to disable |
+| `CRON_SECRET` | Any long random string; lets Vercel Cron run the daily erase job for deleted accounts (`/api/cron/erase-accounts`) |
 
 ## Email
 
@@ -146,9 +147,19 @@ in from anywhere" (`locationFree`) skip the check. Every check-in and check-out 
 shown on the dashboard's Today page. The app warns before the selfie (`lockApplies` on `GET /api/company`); the server
 decides. A fake-GPS app on a rooted Android phone can still get around it; the selfie and the map link are the backstop.
 
+## Account deletion
+
+Anyone can delete their own account (app: You → Delete my account; `POST /api/account/delete`; web instructions at
+`/delete-account`). The account is switched off at once (no sign-in, notification tokens removed) and TARAhut support
+plus the company's admins are emailed; the person gets a confirmation email. A deleted account can't be switched back on.
+30 days later the daily job (`/api/cron/erase-accounts`, Vercel Cron, needs `CRON_SECRET`) erases it (`lib/account-deletion.js`):
+selfie files, check-in locations and addresses, leave reasons, call logs and codes go; the staff row becomes "Deleted user"
+with no phone or email, and the attendance days and hours stay for the employer's payroll. The review demo accounts are
+never switched off. To erase someone sooner, set their `deletion_requested_at` back by 30 days and wait for the next run.
+
 ## Database
 
-`supabase/migrations/` (001 to 010 applied). Row level security is on with no policies, so only the
+`supabase/migrations/` (001 to 010 applied; 011 account deletion to apply). Row level security is on with no policies, so only the
 service-role key used here can read or write; the app never talks to Supabase directly.
 
 Add or change people directly when needed:

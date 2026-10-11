@@ -59,6 +59,7 @@ export function adminView(s) {
     locationFree: !!s.location_free,
     shiftId: s.shift_id ?? null,
     lastLoginAt: s.last_login_at,
+    deletedAt: s.deletion_requested_at ?? null,
     createdAt: s.created_at,
   };
 }

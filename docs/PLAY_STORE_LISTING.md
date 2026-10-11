@@ -1,59 +1,73 @@
-# Google Play: setup, listing and Data safety
+# Google Play: build, listing, Data safety and review
 
-Package name: **com.tarahut.attendance** · App name: **TARAhut Haazri** · Home-screen label: **Haazri**
+Developer account: **Organisation**, legal name **SUKHIJA TECHNO AID** (public developer name: *TARAhut AI Builds*),
+owner account tarahutAIBuilds@gmail.com. Website tarahutaibuilds.com (verified).
 
-## 1. Try it on an Android phone first (no Play account needed)
+| | |
+| --- | --- |
+| Package name (final, can never change) | **com.tarahut.attendance** |
+| App name on Play | **TARAhut Haazri: Attendance** (or just *TARAhut Haazri*) |
+| Home-screen label | Haazri |
+| Version | `version` in `app.json` (now **1.0.0**) is the name users see; the **versionCode** is kept by EAS and goes up by one on every production build |
+| Target / compile / min SDK | **36 / 36 / 24** (Expo SDK 54, React Native 0.81). Play requires API 36 for new apps from 31 Aug 2026 |
+| 16 KB memory pages | Supported (React Native 0.81) |
+
+## 1. Build the release bundle (.aab)
 
 On the Mac, in the project folder:
 
 ```
 git checkout main && git pull && npm install
-eas build --platform android --profile preview
+eas build --platform android --profile production
 ```
 
-When it finishes (about 10–15 minutes) EAS prints a link and a QR code. Open it on an Android phone, download the
-APK and install it (Android asks to allow installs from the browser once). The first Android build asks to create an
-Android signing key: answer **Yes** (EAS keeps it; every later build and the Play Store use the same key).
+The `production` profile makes an **app bundle** and increases the versionCode itself. When it finishes (about
+15 minutes), download the `.aab` from the build page on expo.dev. Nothing is uploaded to Google by this command.
 
-## 2. Google Play developer account
+**Signing.** EAS created the Android upload key during the first (preview) build and keeps it on Expo's servers. It is
+never in this repository (`.gitignore` blocks `*.jks`, `*.keystore`, `credentials.json`, service-account keys and
+`google-services.json`). When you create the app in Play Console, keep **Play App Signing** on (the default): Google
+holds the key that signs what users install, and the EAS key is only the *upload* key. If the upload key is ever
+lost, Google can reset it. To back it up: `eas credentials` → Android → production → **Download credentials**, and
+store the file in a password manager, not in git.
 
-Play Console: <https://play.google.com/console/signup> · one-time fee **$25**.
+**Before the first production build (one-off checks):**
 
-| Account type | What you need | What it means |
+- `eas credentials` → Android → production should show the same keystore the preview APK used.
+- Optional, for push messages on Android: Firebase (section 8). Without it the app works and on-phone reminders
+  still fire; only "leave requested / approved" pushes don't reach Android phones.
+
+## 2. Create the app in Play Console (once verification is approved)
+
+**Create app** → name *TARAhut Haazri: Attendance* → default language **English (India) – en-IN** → **App** →
+**Free** → accept the declarations. Then fill in each section under **Dashboard → Set up your app**.
+
+## 3. Store listing
+
+| Field | Value | Limit |
 | --- | --- | --- |
-| **Personal** | Your ID, phone, a card | Quick to open. New personal accounts must run a **closed test with at least 12 testers for 14 days** before the app can go public. Your own staff and a pilot client's staff can be those testers |
-| **Organisation** (chosen) | A free **D-U-N-S number** in the legal name **Sukhija Technoaid** (proprietorship; trade name TARAhut AI Builds; takes 1–2 weeks) | Public developer name can be "TARAhut AI Builds"; Google may show the legal name and address under "About the developer"; no 12-tester rule |
+| App name | TARAhut Haazri: Attendance | 30 |
+| Short description | Selfie and location attendance, leave and reminders for your team | 80 (65 used) |
+| App icon | `assets/store/play-icon-512.png` (512 × 512, 32-bit PNG) | |
+| Feature graphic | `assets/store/play-feature-graphic.png` (1024 × 500) | |
+| Phone screenshots | `assets/store/screenshots/01…07` (1080 × 1920, demo company, fictional names) | 2–8 |
+| App category | **Business** | |
+| Tags | Attendance, Business, Productivity | |
+| Email | support@tarahutaibuilds.com | |
+| Website | https://tarahutaibuilds.com | |
+| Phone | optional; if given, it's public | |
+| Privacy policy | https://haazri.tarahutaibuilds.com/privacy | |
 
-Google shows the current rules when you sign up; follow what Play Console says if they differ from the above.
+Screenshot order: 01 Home (checked in) · 02 Check in with a selfie · 03 My attendance calendar · 04 Ask for leave ·
+05 Team today (admin) · 06 Approve leave (admin) · 07 Staff (admin). They were taken from the app's own screens
+running on demo data. You can swap in shots from a real Android phone later (signed in with the review accounts) at any time.
 
-## 3. Create the app
-
-Use the legal name **Sukhija Technoaid** and its registered address and phone exactly as on the D-U-N-S record when signing up;
-set the public **Developer name** to *TARAhut AI Builds* in Play Console → Settings → Developer account.
-
-Play Console → **Create app** → name *TARAhut Haazri*, default language *English (India)*, **App**, **Free**, accept
-the declarations. Then fill in each section under **Dashboard → Set up your app**:
-
-### Store listing
-
-| Field | Value |
-| --- | --- |
-| App name (30) | TARAhut Haazri |
-| Short description (80) | Selfie & location attendance with leave, shifts and salary for your team |
-| App icon | `assets/store/play-icon-512.png` (512 × 512) |
-| Feature graphic | `assets/store/play-feature-graphic.png` (1024 × 500) |
-| Phone screenshots | 2–8 screenshots from the APK (sign in with the review account so no real names show): Login, Home, Check In, My attendance, Leave, Team |
-| Category | Business |
-| Contact email | support@tarahutaibuilds.com |
-| Website | https://haazri.tarahutaibuilds.com |
-| Privacy policy | https://haazri.tarahutaibuilds.com/privacy |
-
-**Full description:**
+**Full description** (paste as is):
 
 > TARAhut Haazri makes daily attendance simple and honest for teams in offices, shops and on site.
 >
 > CHECK IN WITH A SELFIE
-> Tap Check In, take a quick selfie and the app records the time and your location. Check out the same way and your hours are worked out for you. If your company uses location lock, you can only check in at the office.
+> Tap Check In, take a quick selfie and the app records the time and where you are. Check out the same way and your hours are worked out for you. If your company uses location lock, you can only check in at the workplace.
 >
 > SEE YOUR MONTH
 > A calendar shows every day: present, late, half day, leave, holiday or absent, with your in and out times.
@@ -62,81 +76,146 @@ the declarations. Then fill in each section under **Dashboard → Set up your ap
 > Ask for leave from the app and get notified when your admin approves it.
 >
 > REMINDERS
-> A reminder if you haven't checked in by your start time, and one to check out at the end of your shift.
+> A reminder if you haven't checked in by your start time, and one to check out at the end of your shift. Weekly offs, holidays and approved leave are skipped.
 >
 > FOR ADMINS
-> See who is in, late or absent with selfies and locations, approve leave, fix a missed check-in, and manage staff. The web dashboard adds monthly sheets, salary from attendance, shifts, holidays and Excel downloads.
+> See who is in, late or absent today with selfies, approve leave, add a day for someone who missed check-in, and manage staff. The web dashboard adds monthly sheets, salary from attendance, shifts, holidays and Excel downloads.
 >
 > PRIVATE BY DESIGN
-> Location is read only when you check in or out, never in the background. Selfies are stored privately and shown only to your company's admins. No ads, no tracking.
+> Location is read only when you check in or out, never in the background. Selfies are stored privately and shown only to your company's admins. No ads, no tracking, no in-app purchases. You can delete your account from the app at any time.
 >
-> Your company's admin adds you first; then sign in with your phone number and a code sent to your email.
+> Haazri is for companies that use TARAhut Haazri. Your company's admin adds you first; then sign in with your phone number and a code sent to your email.
+
+**Release notes** (for the first release, "en-IN"):
+
+```
+First release of TARAhut Haazri:
+• Check in and out with a selfie and your location
+• Your attendance calendar with times, leave and holidays
+• Ask for leave and get notified when it's decided
+• Check-in and check-out reminders
+• For admins: team today, leave approvals, missed check-ins and staff
+• Delete your account from the app (You → Delete my account)
+```
+
+## 4. App content (Policy → App content)
+
+### Privacy policy
+https://haazri.tarahutaibuilds.com/privacy
 
 ### App access
+**All or some functionality is restricted** → add two sets of instructions:
 
-**All or some functionality is restricted** → add instructions:
+| Name | Username / phone | Password / code | Notes |
+| --- | --- | --- | --- |
+| Staff demo | 9000000001 | *REVIEW_CODE* | Enter the phone number, tap Continue, enter the 4-digit code, tap Verify |
+| Admin demo | 9000000002 | *REVIEW_CODE* | Same steps; shows Team today, leave approvals and Staff |
 
-> Sign-in is by phone number and a one-time code. Use phone number 9000000001 and code CODE (this test account always accepts that code; no email is needed). It is a staff account in a demo company.
+Instructions text:
 
-Put the real code (`REVIEW_CODE` in the Vercel project) in place of CODE; it is the same one given to Apple.
+> Sign-in is by phone number and a one-time code (normally emailed). These two demo accounts always accept the code CODE and need no email. They belong to a demo company with no location lock, so check-in works anywhere. Check In asks for camera and location permission, takes a selfie and records attendance. You → Delete my account shows the account-deletion flow; the demo accounts stay active for other reviewers, so a real account is switched off at that point.
+
+Replace CODE with the real `REVIEW_CODE` from Vercel (the same code Apple has). Before submitting, run
+`docs/review-demo-accounts.sql` once and set `REVIEW_PHONE` to `9000000001,9000000002` in Vercel.
 
 ### Ads
+**No**, the app contains no ads.
 
-**No**, the app has no ads.
+### Content rating (IARC questionnaire)
+- Email: support@tarahutaibuilds.com · Category: **All other app types** (utility, productivity, business).
+- Violence, fear, sexuality, language, controlled substances, crude humour, gambling: **No** to all.
+- Does the app let users interact or exchange content? **No.** There is no chat, messaging, public posting or
+  user-to-user media. Leave requests and selfies go only to the person's employer.
+- Does the app share the user's current physical location with other users? **Yes.** The check-in location is
+  shown to the company's admins.
+- Does the app allow purchase of digital goods? **No.** Is it a web browser or search engine? **No.**
+- Expected result: rated for everyone (3+ / Everyone), possibly with a "Shares location" notice.
 
-### Content rating
+### Target audience and content
+Age groups: **18 and over** only. The app does not appeal to children. Not in Designed for Families.
 
-Start the questionnaire: category **Utility, productivity, communication or other**; answer **No** to every
-question (no violence, sexuality, gambling, user-to-user chat, etc.). Result: rated for everyone.
-
-### Target audience
-
-**18 and over** only. Not designed for children.
+### News app: **No**. COVID-19 contact tracing/status: **No**. Government app: **No**.
+### Financial features: **None** (the salary figures on the web dashboard are payroll records, not financial services).
+### Health: **No** health features.
+### Advertising ID: **No**, the app doesn't use it (the `AD_ID` permission is blocked in `app.json`).
 
 ### Data safety
 
-Does the app collect or share user data? **Yes**. Is all data encrypted in transit? **Yes**. Can users request
-deletion? **Yes** (by email to privacy@tarahutaibuilds.com or through their admin). Shared with third parties? **No**
-(service providers acting for us don't count as sharing).
+Overview answers:
 
-| Data type | Collected | Optional? | Purposes |
-| --- | --- | --- | --- |
-| Personal info → Name | Yes | Required | App functionality, Account management |
-| Personal info → Email address | Yes | Required | App functionality, Account management |
-| Personal info → Phone number | Yes | Required | App functionality, Account management |
-| Personal info → User IDs | Yes | Required | App functionality, Account management |
-| Location → Precise location | Yes | Required | App functionality |
-| Photos and videos → Photos | Yes | Required | App functionality |
-| App activity → Other user-generated content (leave requests) | Yes | Optional | App functionality |
-| Device or other IDs (notification token) | Yes | Optional | App functionality |
+| Question | Answer |
+| --- | --- |
+| Does your app collect or share any of the required user data types? | **Yes** |
+| Is all of the user data collected by your app encrypted in transit? | **Yes** (HTTPS only) |
+| Which account creation methods does your app support? | **Username and other authentication** (phone number + one-time code). Admins create accounts for their staff in the app, so answer as an app that supports account creation. If asked to describe: "The company's admin adds each person; they sign in with their phone number and a one-time code." |
+| Do you provide a way for users to request that their data is deleted? | **Yes** |
+| Delete account URL | https://haazri.tarahutaibuilds.com/delete-account |
+| Data shared with third parties? | **No** (Supabase, Vercel, Resend, Expo and Google process data for us as service providers, which Play does not count as sharing) |
 
-Not collected: financial info, health, messages, contacts, call logs, web history, audio, files, calendar, app
-interactions/analytics, crash logs.
+Data types (all **collected**, none **shared**, none processed ephemerally unless noted; "Required" means the
+user can't turn it off):
 
-### Permissions
+| Category → type | Required? | Purposes |
+| --- | --- | --- |
+| Location → **Precise location** | Required (to check in) | App functionality |
+| Location → Approximate location | not collected separately (precise covers it) | |
+| Personal info → **Name** | Required | App functionality, Account management |
+| Personal info → **Email address** | Required | App functionality, Account management |
+| Personal info → **Phone number** | Required | App functionality, Account management |
+| Personal info → **User IDs** | Required | App functionality, Account management |
+| Personal info → **Other info** (designation, department) | Optional | App functionality |
+| Financial info → **Other financial info** (salary type and amount, entered by the admin) | Optional | App functionality |
+| Photos and videos → **Photos** (check-in selfies) | Required | App functionality, Fraud prevention, security and compliance |
+| App activity → **Other user-generated content** (leave reasons) | Optional | App functionality |
+| App activity → **Other actions** (check-in and check-out times) | Required | App functionality |
+| Device or other IDs → **Device or other IDs** (notification token) | Optional | App functionality |
 
-The app asks only for camera, precise location (while using the app) and notifications. No background location and
-no call-log or SMS permissions, so no permission declaration forms are needed.
+Not collected: messages, contacts, call logs, calendar, files and docs, audio, health and fitness, web browsing,
+installed apps, search history, app interactions/analytics, crash logs, diagnostics, advertising ID,
+purchase history, credit card or bank details.
 
-## 4. Upload the first release
+### Permissions (what the app bundle asks for)
+Camera, fine and coarse location (only while the app is open), notifications, vibrate, run at boot (to keep
+scheduled reminders after a restart), internet. **No** background location, call log, SMS, phone state,
+microphone, contacts, storage, photo library, exact alarms, foreground service or advertising ID, so **no**
+permission declaration forms are needed. (The call-log module is left out of the Android build by
+`react-native.config.js`; `app.json` blocks the other permissions.)
 
-```
-eas build --platform android --profile production
-```
+## 5. First upload (when you decide to)
 
-This makes an `.aab` file. In Play Console → **Testing → Internal testing** (or **Closed testing** for the 12-tester
-rule) → **Create new release** → upload the `.aab` from the EAS build page → add testers' Gmail addresses → roll out.
-Google requires the first upload to be done by hand; later builds can be uploaded automatically with
-`eas submit --platform android` once a Play service-account key is set up.
+Play Console → **Testing → Internal testing** → **Create new release** → upload the `.aab` → paste the release notes
+→ add testers (an email list) → **Save** → review → roll out to internal testers. Google requires the very first
+`.aab` to be uploaded by hand. After that, `eas submit --platform android` can upload builds (track `internal`, as a
+draft, set in `eas.json`) once a Play service-account key is added in `eas credentials`.
 
-## 5. Notifications on Android
+When internal testing looks good: **Production → Create new release** → promote the same build → **Send for review**.
+Organisation accounts don't need the 12-tester closed test that new personal accounts need.
 
-Reminders work without any setup. Push messages (leave requested / approved) on Android need Firebase:
+## 6. Account deletion (Play requirement)
 
-1. <https://console.firebase.google.com> → **Add project** "Haazri" (Analytics off).
-2. **Add app → Android**, package `com.tarahut.attendance` → download **google-services.json**.
-3. Put the file in the project root and add `"googleServicesFile": "./google-services.json"` under `android` in `app.json`
-   (or send it to Claude to do).
-4. Firebase → Project settings → **Service accounts** → **Generate new private key**, then on the Mac:
-   `eas credentials` → Android → production → **Google Service Account → FCM V1** → upload that key.
-5. Build again.
+- In the app: **You → Delete my account** → confirm. The account is switched off and signed out at once.
+- On the web: https://haazri.tarahutaibuilds.com/delete-account (steps + email route).
+- TARAhut support (support@tarahutaibuilds.com) and the company's admins get an email; the person gets a confirmation.
+- After 30 days the daily job erases name, phone, email, selfies (files), locations and leave reasons; the employer keeps
+  the dates and hours, without the name, for payroll. Needs migration `011_account_deletion.sql` and `CRON_SECRET` in Vercel.
+
+## 7. Before you submit: checklist
+
+- [ ] Migration `backend/supabase/migrations/011_account_deletion.sql` applied
+- [ ] `CRON_SECRET` set in Vercel (any long random string) so the erase job runs
+- [ ] `docs/review-demo-accounts.sql` run and `REVIEW_PHONE` = `9000000001,9000000002` in Vercel
+- [ ] support@tarahutaibuilds.com receives mail (deletion notices and the public contact go there)
+- [ ] Production `.aab` built with `eas build -p android --profile production`
+- [ ] Installed on a real Android phone (internal testing): sign in, check in, check out, leave, delete-account dialog
+- [ ] Store listing, App content and Data safety filled in from this page
+
+## 8. Push notifications on Android (optional, recommended)
+
+1. <https://console.firebase.google.com> → **Add project** "Haazri" (Google Analytics **off**).
+2. **Add app → Android**, package `com.tarahut.attendance` → download **google-services.json**. Keep it out of git.
+3. On the Mac: `eas env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --environment production --environment preview --visibility sensitive`
+   (`app.config.js` reads it at build time).
+4. Firebase → Project settings → **Service accounts** → **Generate new private key**, then
+   `eas credentials` → Android → production → **Google Service Account → FCM V1** → upload that key. Delete the key file afterwards.
+5. Build again. Firebase Cloud Messaging only delivers the notifications; it adds no new data types to Data safety
+   (the notification token is already declared).

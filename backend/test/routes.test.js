@@ -8,6 +8,7 @@ const tables = { organizations: [], staff: [], otp_codes: [], attendance: [], ca
 const uploads = [];
 const sentEmails = [];
 const sentPushes = [];
+const removed = [];
 
 class Q {
   constructor(t) { this.t = t; this.filters = []; this.op = 'select'; this.one = null; this.ret = false; }
@@ -17,6 +18,7 @@ class Q {
   gte(k, v) { this.filters.push((r) => r[k] >= v); return this; }
   lte(k, v) { this.filters.push((r) => r[k] <= v); return this; }
   lt(k, v) { this.filters.push((r) => r[k] < v); return this; }
+  is(k, v) { this.filters.push((r) => (r[k] ?? null) === v); return this; }
   order(k, o = {}) { this.sort = [k, o.ascending !== false]; return this; }
   insert(row) { this.op = 'insert'; this.row = row; return this; }
   update(p) { this.op = 'update'; this.patch = p; return this; }
@@ -69,6 +71,7 @@ class Q {
 const fakeClient = {
   from: (t) => new Q(t),
   storage: { from: () => ({
+    remove: async (paths) => { removed.push(...paths); return { error: null }; },
     upload: async (path, buf) => { uploads.push({ path, size: buf.length }); return { error: null }; },
     createSignedUrl: async (path) => ({ data: { signedUrl: `https://signed.example/${path}` } }),
     createSignedUrls: async (paths) => ({ data: paths.map((path) => ({ path, signedUrl: `https://signed.example/${path}` })) }),
@@ -82,7 +85,7 @@ process.env.AUTH_TOKEN_SECRET = 'a'.repeat(40);
 process.env.RESEND_API_KEY = 're_test';
 process.env.EMAIL_FROM = 'TARAhut <no-reply@example.com>';
 process.env.EMAIL_REPLY_TO = 'support@example.com';
-process.env.REVIEW_PHONE = '9000000001';
+process.env.REVIEW_PHONE = '9000000001, 90000 00002';
 process.env.REVIEW_CODE = '4826';
 
 globalThis.fetch = async (url, init) => {
@@ -619,4 +622,53 @@ test('full flow', async () => {
   const majafId = tables.organizations.find((o) => o.name === 'Majaf Fabrics').id;
   assert.equal((await call('companies/[id]', { method: 'PATCH', token, query: { id: majafId }, body: { active: false } })).status, 200);
   assert.equal((await call('attendance/today', { token: mToken })).status, 401);
+});
+
+test('account deletion', async () => {
+  const { issueToken } = await import(`${B}/lib/auth.js`);
+  tables.staff.push({ id: 'del1', created_at: '2026-01-01T00:00:00Z', org_id: 'org1', name: 'Gone Person', phone: '9888800001', email: 'gone@example.com', role: 'staff', active: true });
+  tables.attendance.push({ id: 'att-del', staff_id: 'del1', date: '2026-03-02', check_in_at: '2026-03-02T04:00:00Z', check_in_selfie: 'del1/a.jpg', check_out_selfie: 'del1/b.jpg', check_in_lat: 30.1, check_in_lng: 75.2, check_in_address: 'Somewhere', worked_minutes: 480 });
+  tables.push_tokens.push({ token: 'ExponentPushToken[del]', staff_id: 'del1' });
+  tables.leave_requests.push({ id: 'lv-del', staff_id: 'del1', org_id: 'org1', reason: 'family', status: 'approved' });
+  const token = issueToken('del1');
+  sentEmails.length = 0;
+
+  let r = await call('account/delete', { method: 'POST', token });
+  assert.equal(r.status, 200); assert.match(r.json.eraseBy, /^\d{4}-\d{2}-\d{2}$/);
+  const s = tables.staff.find((x) => x.id === 'del1');
+  assert.equal(s.active, false); assert.ok(s.deletion_requested_at);
+  assert.equal(tables.push_tokens.filter((t) => t.staff_id === 'del1').length, 0);
+  assert.ok(sentEmails.some((e) => e.to.includes('support@tarahutaibuilds.com') && e.to.includes('owner@example.com')));
+  assert.ok(sentEmails.some((e) => e.to === 'gone@example.com'));
+  assert.equal((await call('attendance/today', { token })).status, 401); // signed out everywhere
+  assert.equal((await call('auth/login', { method: 'POST', body: { phone: '9888800001' } })).status, 404);
+  // an admin can't switch a deleted account back on
+  const ownerToken = issueToken('admin1');
+  assert.equal((await call('staff/[id]/index', { method: 'PATCH', token: ownerToken, query: { id: 'del1' }, body: { active: true } })).status, 409);
+
+  // the demo account used by app reviewers stays on
+  r = await call('account/delete', { method: 'POST', token: issueToken('rev1') });
+  assert.equal(r.json.demo, true); assert.equal(tables.staff.find((x) => x.id === 'rev1').active, true);
+  const { isReviewPhone } = await import(`${B}/lib/otp.js`);
+  assert.equal(isReviewPhone('9000000002'), true); assert.equal(isReviewPhone('9000000003'), false);
+
+  // the daily job: needs the cron secret, and erases only after 30 days
+  assert.equal((await call('cron/erase-accounts')).status, 401);
+  process.env.CRON_SECRET = 'c'.repeat(32);
+  const cron = async () => {
+    const mod = await import(`${B}/api/cron/erase-accounts.js`);
+    let out; const res = { status(c) { out = { status: c }; return this; }, json(j) { out.json = j; return this; } };
+    await mod.default({ method: 'GET', headers: { authorization: `Bearer ${process.env.CRON_SECRET}` } }, res);
+    return out;
+  };
+  assert.equal((await cron()).json.erased, 0);
+  s.deletion_requested_at = new Date(Date.now() - 31 * 86_400_000).toISOString();
+  assert.equal((await cron()).json.erased, 1);
+  assert.equal(s.name, 'Deleted user'); assert.equal(s.email, null); assert.notEqual(s.phone, '9888800001'); assert.ok(s.erased_at);
+  const a = tables.attendance.find((x) => x.id === 'att-del');
+  assert.equal(a.check_in_selfie, null); assert.equal(a.check_in_lat, null); assert.equal(a.check_in_address, null);
+  assert.equal(a.worked_minutes, 480); // hours kept for payroll
+  assert.deepEqual(removed.filter((p) => p.startsWith('del1/')).sort(), ['del1/a.jpg', 'del1/b.jpg']);
+  assert.equal(tables.leave_requests.find((x) => x.id === 'lv-del').reason, null);
+  assert.equal((await cron()).json.due, 0); // not erased twice
 });
