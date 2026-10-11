@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
-  Dimensions, StatusBar, Animated, Image,
+  Dimensions, StatusBar, Animated, Image, Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS, GLASS } from '../utils/theme';
@@ -17,6 +17,7 @@ export default function LoginScreen() {
   const { colors: C } = useTheme();
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
+  const otpInput = useRef(null);
   const [step, setStep] = useState('phone');
   const [sentTo, setSentTo] = useState(''); // masked destination reported by the backend
   const [reviewLogin, setReviewLogin] = useState(false); // store-review demo account: fixed code, no email
@@ -113,21 +114,28 @@ export default function LoginScreen() {
               </>
             ) : (
               <>
-                <View style={styles.otpRow}>
+                {/* The four boxes only show the code; one real input lies over them. It has to have a size: Android
+                    won't focus or open the keyboard for a zero-height input, and tapping the boxes refocuses it. */}
+                <Pressable style={styles.otpRow} onPress={() => otpInput.current?.focus()}>
                   {[0, 1, 2, 3].map((i) => (
                     <View key={i} style={[styles.otpBox, { backgroundColor: C.bgCard, borderColor: C.border }, otp.length > i && { borderColor: C.accentBorder, backgroundColor: C.accentSoft }]}>
                       <Text style={[styles.otpChar, { color: C.textPrimary }]}>{otp[i] || '·'}</Text>
                     </View>
                   ))}
-                </View>
-                <TextInput
-                  style={styles.hiddenInput}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  value={otp}
-                  onChangeText={setOtp}
-                  autoFocus
-                />
+                  <TextInput
+                    ref={otpInput}
+                    style={styles.hiddenInput}
+                    keyboardType="number-pad"
+                    textContentType="oneTimeCode"
+                    autoComplete="one-time-code"
+                    maxLength={4}
+                    value={otp}
+                    onChangeText={(t) => setOtp(t.replace(/\D/g, '').slice(0, 4))}
+                    caretHidden
+                    autoFocus
+                  />
+                </Pressable>
+                <Text style={[styles.otpHint, { color: C.textMuted }]}>Tap the boxes if the keyboard doesn't open</Text>
 
                 <TouchableOpacity
                   style={[otp.length < 4 && styles.ctaBtnDisabled]}
@@ -144,7 +152,7 @@ export default function LoginScreen() {
                   <TouchableOpacity onPress={() => { setStep('phone'); setOtp(''); }}>
                     <Text style={[styles.link, { color: C.textAccent }]}>Change Number</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity>
+                  <TouchableOpacity onPress={() => { setOtp(''); handleSendOTP(); }} disabled={loading}>
                     <Text style={[styles.link, { color: C.textAccent }]}>Resend</Text>
                   </TouchableOpacity>
                 </View>
@@ -187,7 +195,8 @@ const styles = StyleSheet.create({
   otpBox: { width: 52, height: 56, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bgCard, justifyContent: 'center', alignItems: 'center' },
   otpBoxFill: { borderColor: COLORS.accentBorder, backgroundColor: COLORS.accentSoft },
   otpChar: { fontSize: 24, fontWeight: '700', color: COLORS.textPrimary },
-  hiddenInput: { position: 'absolute', opacity: 0, height: 0 },
+  hiddenInput: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.02, color: 'transparent', fontSize: 1 },
+  otpHint: { textAlign: 'center', fontSize: 11, marginTop: -14, marginBottom: 18 },
 
   ctaBtn: { borderRadius: RADIUS.sm, paddingVertical: 16, alignItems: 'center', ...SHADOWS.accent },
   ctaBtnDisabled: { opacity: 0.3 },
