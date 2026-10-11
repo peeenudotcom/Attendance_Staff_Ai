@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { RADIUS } from '../utils/theme';
 import { useBottomInset } from '../utils/safeArea';
-import { SHOW_SAMPLE_DATA } from '../config/features';
+import { SHOW_SAMPLE_DATA, ENABLE_CALL_LOGS } from '../config/features';
 
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -122,7 +122,7 @@ function TabNavigator() {
       <Tab.Screen name="History" component={HistoryScreen} />
       {isAdmin && <Tab.Screen name="Team" component={TeamScreen} />}
       {/* iOS has no public API for call history, so the Calls tab only ships on Android. */}
-      {Platform.OS === 'android' && <Tab.Screen name="CallLogs" component={CallLogsScreen} />}
+      {ENABLE_CALL_LOGS && Platform.OS === 'android' && <Tab.Screen name="CallLogs" component={CallLogsScreen} />}
       {/* Gallery captures photos but does not yet upload or persist them, so it stays out
           of the store build until it is wired to the backend (see src/config/features.js). */}
       {SHOW_SAMPLE_DATA && <Tab.Screen name="Gallery" component={GalleryScreen} />}

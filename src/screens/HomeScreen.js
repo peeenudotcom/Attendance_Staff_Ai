@@ -14,7 +14,7 @@ import GlowDot from '../components/GlowDot';
 import DailyBriefingCard from '../components/DailyBriefingCard';
 import PredictiveCard from '../components/PredictiveCard';
 import FloatingAssistantButton from '../components/FloatingAssistantButton';
-import { SHOW_SAMPLE_DATA } from '../config/features';
+import { SHOW_SAMPLE_DATA, ENABLE_CALL_LOGS } from '../config/features';
 import { attendanceAPI, companyAPI, holidaysAPI, leaveAPI } from '../services/api';
 import { scheduleReminders } from '../services/notifications';
 
@@ -88,7 +88,7 @@ export default function HomeScreen({ navigation }) {
   // Leave is live everywhere; the sample-data destinations are held back from the store build.
   const quickActions = [
 
-    ...(Platform.OS === 'android' ? [{ icon: '◉', label: 'Calls', screen: 'CallLogs' }] : []),
+    ...(ENABLE_CALL_LOGS && Platform.OS === 'android' ? [{ icon: '◉', label: 'Calls', screen: 'CallLogs' }] : []),
     ...(SHOW_SAMPLE_DATA ? [{ icon: '◫', label: 'Gallery', screen: 'Gallery' }] : []),
     { icon: '◇', label: 'Leave', screen: 'Leave' },
     ...(SHOW_SAMPLE_DATA ? [{ icon: '◈', label: 'Reports', screen: 'Reports' }] : []),
