@@ -5,6 +5,7 @@ import { officeOf } from '../lib/geo.js';
 
 const view = (o) => ({
   id: o.id, name: o.name, logoUrl: o.logo_url, lateAfterMinutes: o.late_after_minutes, weeklyOff: o.weekly_off, office: officeOf(o),
+  lateCutEvery: o.late_cut_every ?? null,
 });
 
 export default route({
@@ -13,7 +14,8 @@ export default route({
   GET: (req, { staff }) => ({ ...view(staff.org), lockApplies: !!officeOf(staff.org) && !staff.location_free }),
 
   // PATCH /api/company { name?, lateAfterMinutes?, weeklyOff? (0 = Sunday … 6, or null),
-  //   office? ({ lat, lng, radiusM } to turn location lock on, null to turn it off) } (company admin) -> their own company's settings
+  //   office? ({ lat, lng, radiusM } to turn location lock on, null to turn it off),
+  //   lateCutEvery? (every N late marks cut half a day's pay, 2-10, or null for no cut) } (company admin) -> their own company's settings
   async PATCH(req, { staff }) {
     if (staff.role !== 'admin') throw new HttpError(403, 'Only admins can do this');
     const b = body(req);
@@ -32,6 +34,11 @@ export default route({
       const d = b.weeklyOff === null || b.weeklyOff === '' ? null : Number(b.weeklyOff);
       if (d !== null && (!Number.isInteger(d) || d < 0 || d > 6)) throw new HttpError(400, 'Weekly off must be a day of the week');
       patch.weekly_off = d;
+    }
+    if (b.lateCutEvery !== undefined) {
+      const n = b.lateCutEvery === null || b.lateCutEvery === '' ? null : Number(b.lateCutEvery);
+      if (n !== null && (!Number.isInteger(n) || n < 2 || n > 10)) throw new HttpError(400, 'Late cut must be every 2 to 10 late marks');
+      patch.late_cut_every = n;
     }
     if (b.office !== undefined) {
       if (b.office === null) {

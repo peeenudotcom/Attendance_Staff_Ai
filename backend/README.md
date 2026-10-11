@@ -19,13 +19,14 @@ here; the app's base URL is `https://<deployment>/api`.
 | `GET /api/reports/month?month=YYYY-MM` | admin | attendance sheet with totals |
 | `PUT /api/attendance/:id/approve`, `/reject` `{ reason }` | admin | review a day |
 | `POST /api/call-logs/sync` `{ logs }` | signed in | Android call history |
-| `GET /api/company`, `PATCH /api/company` `{ name?, lateAfterMinutes?, weeklyOff?, office? }` | signed in / company admin | own company and its settings |
+| `GET /api/company`, `PATCH /api/company` `{ name?, lateAfterMinutes?, weeklyOff?, office?, lateCutEvery? }` | signed in / company admin | own company and its settings |
 | `GET /api/companies`, `POST /api/companies` `{ name, adminName, adminPhone, adminEmail }` | platform admin | client companies; add one with its first admin |
 | `PATCH /api/companies/:id` `{ name?, logoUrl?, lateAfterMinutes?, active? }` | platform admin | edit or pause a company |
 | `GET /api/leave`, `POST /api/leave` `{ from, to, type, reason? }` | signed in | own leave requests; ask for leave (admins are emailed) |
 | `POST /api/leave/:id/cancel` | signed in | withdraw your own pending request, or approved leave that hasn't started |
 | `GET /api/leave/company` | admin | `{ pending, recent }` for the company |
 | `POST /api/leave/:id/decide` `{ approve, note? }` | admin | approve or reject (the person is emailed) |
+| `GET /api/reports/salary?month=YYYY-MM` | admin | each person's pay for the month from attendance (pay so far for the current month) |
 | `GET /api/health` | anyone | `{ ok: true }` |
 | `/privacy`, `/support`, `/get` | anyone | pages for the App Store listing; install page |
 | `/dashboard` | company admins | owner web dashboard (see below) |
@@ -78,6 +79,20 @@ on the dashboard's Leave tab (which shows a count of waiting requests), and can 
 shows as "On leave" on Today and "LV" on the monthly sheet and its download; a check-in on a leave day still counts as
 present, and the weekly off stays "off". Day counts leave out the weekly off.
 
+## Salary
+
+Each person's pay type (monthly, weekly, daily, hourly) and amount are set on their Staff record. The dashboard's
+Salary tab (and `lib/payroll.js`) works out pay for a month:
+
+- monthly: salary ÷ days in the month × paid days (worked, weekly off, approved casual/sick/paid leave)
+- weekly: the same at salary ÷ 7 a day
+- daily: rate × days worked
+- hourly: rate × hours between check-in and check-out
+
+Absent days and unpaid leave are not paid. A company can set "every N late marks = half-day cut" (not for hourly pay).
+Only days up to today count, so the current month shows pay so far. It's a calculation from attendance, not a payslip:
+no PF, ESI, TDS, advances or bonuses.
+
 ## Location lock
 
 A company admin sets an office location and an allowed distance (Settings in the dashboard; `office: { lat, lng, radiusM }`
@@ -89,7 +104,7 @@ decides. A fake-GPS app on a rooted Android phone can still get around it; the s
 
 ## Database
 
-`supabase/migrations/` (001 to 005 applied). Row level security is on with no policies, so only the
+`supabase/migrations/` (001 to 006 applied). Row level security is on with no policies, so only the
 service-role key used here can read or write; the app never talks to Supabase directly.
 
 Add or change people directly when needed:

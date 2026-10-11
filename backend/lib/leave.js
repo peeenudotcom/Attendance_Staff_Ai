@@ -57,20 +57,20 @@ export function leaveView(r, { weeklyOff, staffName } = {}) {
   };
 }
 
-/** staffId -> Set of dates on approved leave, from approved requests. */
+/** staffId -> Map(date -> leave type) for approved requests. */
 export function leaveDateMap(rows) {
   const map = new Map();
   for (const r of rows) {
     if (r.status !== 'approved') continue;
-    if (!map.has(r.staff_id)) map.set(r.staff_id, new Set());
-    for (const d of datesBetween(r.from_date, r.to_date)) map.get(r.staff_id).add(d);
+    if (!map.has(r.staff_id)) map.set(r.staff_id, new Map());
+    for (const d of datesBetween(r.from_date, r.to_date)) map.get(r.staff_id).set(d, r.type);
   }
   return map;
 }
 
 /** A company's approved leave touching the date range (for reports). */
 export async function approvedLeave(db, orgId, first, last) {
-  const { data, error } = await db.from('leave_requests').select('staff_id, from_date, to_date, status')
+  const { data, error } = await db.from('leave_requests').select('staff_id, from_date, to_date, status, type')
     .eq('org_id', orgId).eq('status', 'approved').lte('from_date', last).gte('to_date', first);
   if (error) throw new Error(error.message);
   return leaveDateMap(data);

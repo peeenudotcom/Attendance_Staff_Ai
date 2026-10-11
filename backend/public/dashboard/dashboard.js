@@ -340,6 +340,80 @@ async function viewLeave(root) {
   body.replaceChildren(h('h3', { class: 'sub' }, `Waiting for you (${data.pending.length})`), pending, h('h3', { class: 'sub' }, 'Earlier'), recent);
 }
 
+// ---------- Salary ----------
+
+const PAY_TYPES = { monthly: 'Monthly', daily: 'Daily', hourly: 'Hourly', weekly: 'Weekly' };
+const PER = { monthly: '/month', daily: '/day', hourly: '/hour', weekly: '/week' };
+const rupees = (n) => `₹${Math.round(n).toLocaleString('en-IN')}`;
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+// 0.5 -> "½ day", 1 -> "1 day", 1.5 -> "1½ days"
+const halfDays = (n) => `${Math.floor(n) || ''}${n % 1 ? '½' : ''} day${n > 1 ? 's' : ''}`;
+
+async function viewSalary(root, month = istMonth()) {
+  const picker = h('input', { type: 'month', value: month, max: istMonth(), onchange: (e) => viewSalary(root, e.target.value || istMonth()) });
+  const dl = h('button', { class: 'btn small', disabled: true }, 'Download for Excel');
+  const body = h('div');
+  root.replaceChildren(h('div', { class: 'view-head' }, h('h2', {}, 'Salary'), h('div', { class: 'spacer' }), picker, dl), body);
+  loading(body);
+  let data;
+  try { data = await api(`/reports/salary?month=${month}`); } catch (err) { return failed(body, err); }
+  if (!data.staff.length) return body.replaceChildren(h('div', { class: 'card empty' }, 'No staff yet.'));
+
+  const chip = (n, label, cls = '') => h('div', { class: `chip ${cls}` }, h('b', {}, n), h('span', {}, label));
+  const chips = h('div', { class: 'chips' },
+    chip(rupees(data.total), data.inProgress ? 'Payable so far' : 'Total payable', 'ok'),
+    chip(data.staff.length - data.missing, 'Staff with pay set'),
+    data.missing ? chip(data.missing, 'Pay not set', 'abs') : null);
+
+  const rows = data.staff.map((p) => {
+    const setPay = h('button', { class: 'btn ghost small', onclick: async () => {
+      const full = await api(`/staff/${p.id}`).catch(() => null);
+      if (full) staffForm(full, () => viewSalary(root, month));
+    } }, p.missing ? 'Set pay' : 'Edit pay');
+    const cut = [p.absent ? `${plural(p.absent, 'absent day')}` : null, p.unpaidLeave ? `${p.unpaidLeave} unpaid leave` : null,
+      p.lateCutDays ? `${halfDays(p.lateCutDays)} for ${p.late} late marks` : null].filter(Boolean).join(', ');
+    return h('tr', {},
+      h('td', { class: 'person' }, h('b', {}, p.name), h('small', {}, p.designation || '')),
+      h('td', {}, p.missing ? h('span', { class: 'muted' }, 'Not set') : [h('b', {}, `${rupees(p.salary)}${PER[p.salaryType]}`), h('small', { class: 'dist' }, PAY_TYPES[p.salaryType])]),
+      h('td', { class: 'num' }, p.worked), h('td', { class: 'num hide-sm' }, p.off), h('td', { class: 'num hide-sm' }, p.paidLeave),
+      h('td', { class: 'num hide-sm' }, p.salaryType === 'hourly' ? `${p.hours} h` : (p.payDays ?? '—')),
+      h('td', { class: 'place hide-sm' }, cut || '—'),
+      h('td', { class: 'num' }, p.pay == null ? '—' : h('b', {}, rupees(p.pay))),
+      h('td', {}, h('div', { class: 'actions' }, setPay)));
+  });
+
+  const rules = h('div', { class: 'legend rules' },
+    h('span', {}, h('b', {}, 'Monthly:'), ` salary ÷ ${data.daysInMonth} days × paid days (worked, weekly off and paid leave).`),
+    h('span', {}, h('b', {}, 'Weekly:'), ' the same at salary ÷ 7 a day.'),
+    h('span', {}, h('b', {}, 'Daily:'), ' rate × days worked.'),
+    h('span', {}, h('b', {}, 'Hourly:'), ' rate × hours between check-in and check-out.'),
+    h('span', {}, 'Absent days and unpaid leave are not paid. ',
+      data.lateCutEvery ? `Every ${data.lateCutEvery} late marks cut half a day (Settings).` : 'Late marks do not cut pay (change in Settings).'),
+    data.inProgress ? h('span', {}, h('b', {}, 'This month is not over:'), ' amounts are up to today.') : null);
+
+  body.replaceChildren(chips, h('div', { class: 'card scroll' }, h('table', {},
+    h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Pay'), h('th', { class: 'num' }, 'Worked'), h('th', { class: 'num hide-sm' }, 'Off'),
+      h('th', { class: 'num hide-sm' }, 'Paid leave'), h('th', { class: 'num hide-sm' }, 'Pay days'), h('th', { class: 'hide-sm' }, 'Cut for'),
+      h('th', { class: 'num' }, 'Salary'), h('th', {}))),
+    h('tbody', {}, rows))), rules);
+  dl.disabled = false;
+  dl.onclick = () => downloadSalaryCsv(data);
+}
+
+function downloadSalaryCsv(data) {
+  const esc = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const lines = [['Name', 'Designation', 'Pay type', 'Rate', 'Days worked', 'Weekly off', 'Paid leave', 'Unpaid leave', 'Absent',
+    'Late marks', 'Late cut (days)', 'Hours', 'Pay days', 'Salary'].map(esc).join(',')];
+  for (const p of data.staff) {
+    lines.push([p.name, p.designation || '', PAY_TYPES[p.salaryType] || 'Not set', p.salary ?? '', p.worked, p.off, p.paidLeave, p.unpaidLeave,
+      p.absent, p.late, p.lateCutDays, p.hours, p.payDays ?? '', p.pay ?? ''].map(esc).join(','));
+  }
+  lines.push(['Total', '', '', '', '', '', '', '', '', '', '', '', '', data.total].map(esc).join(','));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = h('a', { href: URL.createObjectURL(blob), download: `haazri-salary-${state.company.name.replace(/[^\w]+/g, '-').toLowerCase()}-${data.month}.csv` });
+  document.body.append(a); a.click(); a.remove();
+}
+
 // ---------- Staff ----------
 
 async function viewStaff(root, showOff = false) {
@@ -379,6 +453,11 @@ function staffForm(s, onDone) {
       f('Phone *', 'phone', s?.phone, { required: true, inputmode: 'numeric', maxlength: 14 }),
       f('Email * (sign-in codes go here)', 'email', s?.email, { required: true, type: 'email' })),
     h('div', { class: 'row2' }, f('Designation', 'designation', s?.designation), f('Department', 'department', s?.department)),
+    h('div', { class: 'row2' },
+      h('label', { class: 'field' }, h('span', {}, 'Pay type'),
+        h('select', { name: 'salaryType' }, h('option', { value: '', selected: !s?.salaryType }, 'Not set'),
+          Object.entries(PAY_TYPES).map(([k, v]) => h('option', { value: k, selected: s?.salaryType === k }, v)))),
+      f('Salary (₹)', 'salary', s?.salary ?? '', { type: 'number', min: 0, step: 'any', inputmode: 'decimal', placeholder: 'per month, day, hour or week' })),
     h('label', { class: 'field' }, h('span', {}, 'Role'),
       h('select', { name: 'role' }, h('option', { value: 'staff', selected: s?.role !== 'admin' }, 'Staff (uses the app)'),
         h('option', { value: 'admin', selected: s?.role === 'admin' }, 'Admin (app + this dashboard)'))),
@@ -426,6 +505,9 @@ function viewSettings(root) {
         h('select', { name: 'off' }, h('option', { value: '', selected: c.weeklyOff == null }, 'None (open every day)'),
           DAYS.map((d, i) => h('option', { value: i, selected: c.weeklyOff === i }, d))),
         h('small', {}, 'The monthly sheet marks this day as off, for past months too.'))),
+    h('label', { class: 'field' }, h('span', {}, 'Late marks and salary'),
+      h('select', { name: 'lateCut' }, h('option', { value: '', selected: c.lateCutEvery == null }, 'No salary cut for late marks'),
+        [2, 3, 4, 5].map((n) => h('option', { value: n, selected: c.lateCutEvery === n }, `Every ${n} late marks = half-day cut`)))),
     msg,
     h('button', { class: 'btn', type: 'submit' }, 'Save settings'),
   );
@@ -434,7 +516,7 @@ function viewSettings(root) {
     const btn = e.submitter; btn.disabled = true; msg.className = 'msg'; msg.textContent = '';
     const v = Object.fromEntries(new FormData(form));
     try {
-      state.company = await api('/company', { method: 'PATCH', body: { name: v.name, lateAfterMinutes: hhmmToMinutes(v.late), weeklyOff: v.off === '' ? null : Number(v.off) } });
+      state.company = await api('/company', { method: 'PATCH', body: { name: v.name, lateAfterMinutes: hhmmToMinutes(v.late), weeklyOff: v.off === '' ? null : Number(v.off), lateCutEvery: v.lateCut === '' ? null : Number(v.lateCut) } });
       $('company-name').textContent = state.company.name;
       msg.className = 'msg ok'; msg.textContent = 'Saved.';
     } catch (err) { msg.textContent = err.message; } finally { btn.disabled = false; }
@@ -565,7 +647,7 @@ async function pauseCompany(c, onDone) {
   try { await api(`/companies/${c.id}`, { method: 'PATCH', body: { active: !c.active } }); toast(c.active ? `${c.name} paused` : `${c.name} resumed`); onDone(); } catch (err) { toast(err.message); }
 }
 
-const VIEWS = { today: viewToday, month: viewMonth, leave: viewLeave, staff: viewStaff, settings: viewSettings, clients: viewClients };
+const VIEWS = { today: viewToday, month: viewMonth, leave: viewLeave, salary: viewSalary, staff: viewStaff, settings: viewSettings, clients: viewClients };
 
 // ---------- boot ----------
 if (localStorage.getItem(TOKEN_KEY)) start(); else showAuth();
