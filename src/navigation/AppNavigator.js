@@ -135,13 +135,13 @@ export default function AppNavigator() {
           <>
             <Stack.Screen name="Main" component={TabNavigator} />
             <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="Leave" component={LeaveScreen} />
             {/* Admin-only screens are not registered for staff, so no shortcut or chat action can open them. */}
             {isAdmin && <Stack.Screen name="AddStaff" component={AddStaffScreen} />}
             {/* Screens that still show sample data are left out of the store build (see src/config/features.js). */}
             {SHOW_SAMPLE_DATA && (
               <Stack.Group>
                 <Stack.Screen name="Reports" component={ReportsScreen} />
-                <Stack.Screen name="Leave" component={LeaveScreen} />
                 <Stack.Screen name="Chat" component={ChatScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
                 <Stack.Screen name="Notifications" component={NotificationsScreen} />
               </Stack.Group>

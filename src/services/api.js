@@ -53,6 +53,14 @@ export const attendanceAPI = {
   reject: (id, reason) => request(`/attendance/${id}/reject`, { method: 'PUT', body: JSON.stringify({ reason }) }),
 };
 
+export const leaveAPI = {
+  mine: () => request('/leave'),
+  ask: (data) => request('/leave', { method: 'POST', body: JSON.stringify(data) }),
+  cancel: (id) => request(`/leave/${id}/cancel`, { method: 'POST' }),
+  company: () => request('/leave/company'),
+  decide: (id, data) => request(`/leave/${id}/decide`, { method: 'POST', body: JSON.stringify(data) }),
+};
+
 export const companyAPI = {
   get: () => request('/company'),
 };

@@ -75,13 +75,13 @@ export default function HomeScreen({ navigation }) {
     ] : []),
   ];
 
-  // On the iOS store build every optional destination is held back, so this can be empty;
-  // the section only renders when it has at least one chip.
+  // Leave is live everywhere; the sample-data destinations are held back from the store build.
   const quickActions = [
     ...(SHOW_SAMPLE_DATA ? [{ icon: '◷', label: 'History', screen: 'History' }] : []),
     ...(Platform.OS === 'android' ? [{ icon: '◉', label: 'Calls', screen: 'CallLogs' }] : []),
     ...(SHOW_SAMPLE_DATA ? [{ icon: '◫', label: 'Gallery', screen: 'Gallery' }] : []),
-    ...(SHOW_SAMPLE_DATA ? [{ icon: '◈', label: 'Reports', screen: 'Reports' }, { icon: '◇', label: 'Leave', screen: 'Leave' }] : []),
+    { icon: '◇', label: 'Leave', screen: 'Leave' },
+    ...(SHOW_SAMPLE_DATA ? [{ icon: '◈', label: 'Reports', screen: 'Reports' }] : []),
     ...(SHOW_SAMPLE_DATA && isAdmin ? [{ icon: '◆', label: 'Salary', screen: 'Salary' }] : []),
   ];
 

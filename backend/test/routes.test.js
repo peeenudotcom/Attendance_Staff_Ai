@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 const B = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
-const tables = { organizations: [], staff: [], otp_codes: [], attendance: [], call_logs: [] };
+const tables = { organizations: [], staff: [], otp_codes: [], attendance: [], call_logs: [], leave_requests: [] };
 const uploads = [];
 const sentEmails = [];
 
@@ -28,7 +28,7 @@ class Q {
     const match = () => rows.filter((r) => this.filters.every((f) => f(r)));
     let out;
     if (this.op === 'insert') {
-      const r = { id: randomUUID(), active: true, approval: 'pending', created_at: new Date().toISOString(), ...this.row };
+      const r = { id: randomUUID(), active: true, approval: 'pending', ...(this.t === 'leave_requests' ? { status: 'pending' } : {}), created_at: new Date().toISOString(), ...this.row };
       if (this.t === 'staff' && rows.some((x) => x.phone === r.phone)) return { data: null, error: { code: '23505', message: 'dup' } };
       if (this.t === 'attendance' && rows.some((x) => x.staff_id === r.staff_id && x.date === r.date)) return { data: null, error: { code: '23505', message: 'dup' } };
       rows.push(r); out = [r];
@@ -354,6 +354,53 @@ test('full flow', async () => {
   // turning the lock off
   r = await call('company', { method: 'PATCH', token, body: { office: null } });
   assert.equal(r.json.office, null);
+
+  // ---- leave requests ----
+  await call('company', { method: 'PATCH', token, body: { weeklyOff: 0 } }); // Sunday off again
+  const istToday = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+  const plus = (n) => new Date(Date.now() + 330 * 60000 + n * 86400000).toISOString().slice(0, 10);
+  assert.equal((await call('leave/index', { method: 'POST', token: aToken, body: { from: plus(3), to: plus(1), type: 'casual' } })).status, 400);
+  assert.equal((await call('leave/index', { method: 'POST', token: aToken, body: { from: plus(1), to: plus(2), type: 'holiday' } })).status, 400);
+  assert.equal((await call('leave/index', { method: 'POST', token: aToken, body: { from: plus(-40), to: plus(-40), type: 'sick' } })).status, 400);
+  assert.equal((await call('leave/index', { method: 'POST', token: aToken, body: { from: plus(1), to: plus(70), type: 'paid' } })).status, 400);
+  const mailsBefore = sentEmails.length;
+  r = await call('leave/index', { method: 'POST', token: aToken, body: { from: plus(1), to: plus(7), type: 'casual', reason: 'Family wedding' } });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.request.status, 'pending');
+  assert.equal(r.json.request.days, 6); // 7 days minus one Sunday (weekly off)
+  const leaveId = r.json.request.id;
+  assert.equal(sentEmails.length, mailsBefore + 1); // the admin
+  assert.match(sentEmails.at(-1).subject, /Asha R asked for leave/);
+  // overlapping request refused
+  assert.equal((await call('leave/index', { method: 'POST', token: aToken, body: { from: plus(7), to: plus(9), type: 'sick' } })).status, 409);
+  assert.equal((await call('leave/index', { token: aToken })).json.requests.length, 1);
+  // admin view: staff can't, other company can't decide
+  assert.equal((await call('leave/company', { token: aToken })).status, 403);
+  r = await call('leave/company', { token });
+  assert.equal(r.json.pending.length, 1); assert.equal(r.json.pending[0].staffName, 'Asha R');
+  assert.equal((await call('leave/[id]/decide', { method: 'POST', token: mToken, query: { id: leaveId }, body: { approve: true } })).status, 404); // other company
+  assert.equal((await call('leave/[id]/decide', { method: 'POST', token, query: { id: leaveId }, body: {} })).status, 400);
+  r = await call('leave/[id]/decide', { method: 'POST', token, query: { id: leaveId }, body: { approve: true, note: 'Enjoy' } });
+  assert.equal(r.status, 200); assert.equal(r.json.request.status, 'approved');
+  assert.match(sentEmails.at(-1).subject, /was approved/); assert.equal(sentEmails.at(-1).to, asha.email);
+  // reports show leave (unless it's the weekly off)
+  const day1 = plus(1);
+  r = await call('reports/day', { token, query: { date: day1 } });
+  const expected = new Date(`${day1}T00:00:00Z`).getUTCDay() === 0 ? 'off' : 'leave';
+  assert.equal(r.json.staff.find((x) => x.id === asha.id).status, expected);
+  r = await call('reports/month', { token, query: { month: day1.slice(0, 7) } });
+  assert.equal(r.json.staff.find((x) => x.id === asha.id).days[day1].status, expected);
+  // cancel: approved future leave can be withdrawn by its owner only
+  assert.equal((await call('leave/[id]/cancel', { method: 'POST', token, query: { id: leaveId } })).status, 404);
+  r = await call('leave/[id]/cancel', { method: 'POST', token: aToken, query: { id: leaveId } });
+  assert.equal(r.json.request.status, 'cancelled');
+  assert.equal((await call('leave/[id]/decide', { method: 'POST', token, query: { id: leaveId }, body: { approve: true } })).status, 409);
+  // after cancelling, the same days can be asked for again; leave that already started can't be cancelled
+  r = await call('leave/index', { method: 'POST', token: aToken, body: { from: plus(-2), to: plus(2), type: 'sick' } });
+  assert.equal(r.status, 200);
+  await call('leave/[id]/decide', { method: 'POST', token, query: { id: r.json.request.id }, body: { approve: true } });
+  assert.equal((await call('leave/[id]/cancel', { method: 'POST', token: aToken, query: { id: r.json.request.id } })).status, 409);
+  assert.ok(istToday());
 
   // pausing a company locks its users out
   const majafId = tables.organizations.find((o) => o.name === 'Majaf Fabrics').id;

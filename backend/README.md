@@ -22,6 +22,10 @@ here; the app's base URL is `https://<deployment>/api`.
 | `GET /api/company`, `PATCH /api/company` `{ name?, lateAfterMinutes?, weeklyOff?, office? }` | signed in / company admin | own company and its settings |
 | `GET /api/companies`, `POST /api/companies` `{ name, adminName, adminPhone, adminEmail }` | platform admin | client companies; add one with its first admin |
 | `PATCH /api/companies/:id` `{ name?, logoUrl?, lateAfterMinutes?, active? }` | platform admin | edit or pause a company |
+| `GET /api/leave`, `POST /api/leave` `{ from, to, type, reason? }` | signed in | own leave requests; ask for leave (admins are emailed) |
+| `POST /api/leave/:id/cancel` | signed in | withdraw your own pending request, or approved leave that hasn't started |
+| `GET /api/leave/company` | admin | `{ pending, recent }` for the company |
+| `POST /api/leave/:id/decide` `{ approve, note? }` | admin | approve or reject (the person is emailed) |
 | `GET /api/health` | anyone | `{ ok: true }` |
 | `/privacy`, `/support`, `/get` | anyone | pages for the App Store listing; install page |
 | `/dashboard` | company admins | owner web dashboard (see below) |
@@ -66,6 +70,14 @@ time, weekly off) and, for the platform admin, Clients (add, pause or resume com
 
 The weekly off day is a single company setting, so changing it also changes how past months show.
 
+## Leave
+
+Staff ask for leave in the app (Leave on the home screen): casual, sick, paid or unpaid, from up to 30 days back, at
+most 60 days per request, no overlap with their own pending or approved leave. Admins approve or reject in the app or
+on the dashboard's Leave tab (which shows a count of waiting requests), and can change a decision later. Approved leave
+shows as "On leave" on Today and "LV" on the monthly sheet and its download; a check-in on a leave day still counts as
+present, and the weekly off stays "off". Day counts leave out the weekly off.
+
 ## Location lock
 
 A company admin sets an office location and an allowed distance (Settings in the dashboard; `office: { lat, lng, radiusM }`
@@ -77,7 +89,7 @@ decides. A fake-GPS app on a rooted Android phone can still get around it; the s
 
 ## Database
 
-`supabase/migrations/` (001 to 004 applied). Row level security is on with no policies, so only the
+`supabase/migrations/` (001 to 005 applied). Row level security is on with no policies, so only the
 service-role key used here can read or write; the app never talks to Supabase directly.
 
 Add or change people directly when needed:

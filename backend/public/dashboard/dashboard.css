@@ -132,3 +132,9 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .check input { margin-top: 3px; accent-color: var(--maroon); }
 .check small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 .hint .pill { margin-right: 4px; }
+
+.cell.leave { background: #E6EEF7; color: #2F5A8A; font-size: 9px; }
+.chip.lv b { color: #2F5A8A; }
+.pill.leave { background: #E6EEF7; color: #2F5A8A; }
+.badge { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 999px; background: var(--maroon); color: #fff; font-size: 11px; line-height: 18px; text-align: center; }
+h3.sub { font-size: 14px; color: var(--muted); margin: 18px 2px 8px; font-weight: 600; }
