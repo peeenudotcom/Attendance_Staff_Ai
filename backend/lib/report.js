@@ -23,18 +23,22 @@ export function dayStatus({ row, date, joinedOn, weeklyOff, onLeave = false, hal
 export const joinedOn = (s) => istDay(new Date(s.created_at));
 
 /**
- * A company's month: every active staff member's status for each day, with totals.
+ * A company's month (or, with `staffId`, one person's): every active staff member's status for each day, with totals.
  * Cells: { status, in?, out?, minutes?, leaveType? }. Totals count present, late, half, absent, off and leave days up to today
  * (paidLeave/unpaidLeave split the leave) and worked minutes.
  */
-export async function buildMonth(org, monthParam) {
+export async function buildMonth(org, monthParam, { staffId = null } = {}) {
   const { month, days } = monthDays(monthParam);
   const weeklyOff = org.weekly_off;
-  const staff = must(await db().from('staff').select('*').eq('org_id', org.id).eq('active', true).order('name'));
-  const rows = must(await db().from('attendance').select('id, staff_id, date, status, check_in_at, check_out_at, worked_minutes, check_in_edited_by, check_out_edited_by, admin_note')
-    .eq('org_id', org.id).gte('date', days[0]).lte('date', days[days.length - 1]));
+  let staffQ = db().from('staff').select('*').eq('org_id', org.id).eq('active', true);
+  if (staffId) staffQ = staffQ.eq('id', staffId);
+  const staff = must(await staffQ.order('name'));
+  let rowsQ = db().from('attendance').select('id, staff_id, date, status, check_in_at, check_out_at, worked_minutes, check_in_edited_by, check_out_edited_by, admin_note')
+    .eq('org_id', org.id).gte('date', days[0]).lte('date', days[days.length - 1]);
+  if (staffId) rowsQ = rowsQ.eq('staff_id', staffId);
+  const rows = must(await rowsQ);
   const leave = await approvedLeave(db(), org.id, days[0], days[days.length - 1]);
-  const key = (staffId, date) => `${staffId}|${date}`;
+  const key = (sid, date) => `${sid}|${date}`;
   const byKey = new Map(rows.map((r) => [key(r.staff_id, r.date), r]));
   const today = istDay(new Date());
 

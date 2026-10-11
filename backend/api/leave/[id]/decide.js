@@ -1,6 +1,7 @@
 import { db, must } from '../../../lib/db.js';
 import { route, body, HttpError } from '../../../lib/http.js';
 import { sendLeaveDecisionEmail } from '../../../lib/email.js';
+import { notify } from '../../../lib/push.js';
 import { fmtLeaveDates, leaveView, LEAVE_TYPES } from '../../../lib/leave.js';
 
 // POST /api/leave/:id/decide { approve: boolean, note? } (Bearer, admin) -> approves or rejects a request
@@ -25,6 +26,13 @@ export default route({
         to: person.email, name: person.name, approved: b.approve, dates: fmtLeaveDates(r.from_date, r.to_date),
         typeLabel: LEAVE_TYPES[r.type], note, by: admin.name,
       }).catch((err) => console.error('[leave] decision email failed:', err.message));
+    }
+    if (r.staff_id !== admin.id) {
+      await notify([r.staff_id], {
+        title: b.approve ? 'Leave approved' : 'Leave not approved',
+        body: `Your leave for ${fmtLeaveDates(r.from_date, r.to_date)} was ${b.approve ? 'approved' : 'not approved'}${note ? `: ${note}` : ''}`,
+        data: { screen: 'Leave' },
+      });
     }
     return { ok: true, request: leaveView(row, { weeklyOff: admin.org.weekly_off, staffName: person?.name }) };
   },

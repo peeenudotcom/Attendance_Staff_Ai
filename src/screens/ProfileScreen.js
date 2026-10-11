@@ -1,18 +1,30 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Linking,
 } from 'react-native';
+import { remindersOn, setRemindersOn, registerForPush } from '../services/notifications';
 import { COLORS, SHADOWS, RADIUS, SPACING, FONTS, GLASS } from '../utils/theme';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useHeaderInset } from '../utils/safeArea';
 import { SHOW_SAMPLE_DATA } from '../config/features';
 
-export default function ProfileScreen() {
+export default function ProfileScreen({ navigation }) {
   const { user, logout } = useAuth();
   const { colors: C, isDark, toggleTheme } = useTheme();
   const headerTop = useHeaderInset(16);
   const isAdmin = user?.role === 'admin';
+  const [reminders, setReminders] = useState(true);
+  useEffect(() => { remindersOn().then(setReminders); }, []);
+  const toggleReminders = async () => {
+    const next = !reminders;
+    await setRemindersOn(next);
+    setReminders(next);
+    if (next) registerForPush();
+    Alert.alert(next ? 'Reminders on' : 'Reminders off', next
+      ? "You'll get a reminder if you haven't checked in by your start time, and one to check out at the end of your shift."
+      : "You won't get check-in or check-out reminders on this phone.");
+  };
 
   const handleLogout = () => {
     Alert.alert('Sign Out', 'Are you sure?', [
@@ -23,6 +35,11 @@ export default function ProfileScreen() {
 
   const menuSections = [
     { title: 'ACCOUNT', items: [
+      { icon: '◷', label: 'My attendance', onPress: () => navigation.navigate('History') },
+      { icon: '◇', label: 'My leave', onPress: () => navigation.navigate('Leave') },
+      { icon: '◈', label: 'Team today', admin: true, onPress: () => navigation.navigate('Team') },
+      { icon: '◎', label: 'Staff', admin: true, onPress: () => navigation.navigate('StaffList') },
+      { icon: '⬡', label: 'Web dashboard (reports, salary, settings)', admin: true, onPress: () => Linking.openURL('https://haazri.tarahutaibuilds.com/dashboard') },
       { icon: '◉', label: 'Edit Profile' },
       { icon: '◈', label: 'Company Settings', admin: true },
       { icon: '◎', label: 'Manage Team', admin: true },
@@ -44,7 +61,7 @@ export default function ProfileScreen() {
       { icon: '◎', label: 'Email Notifications' },
     ]},
     { title: 'APP', items: [
-      { icon: '◈', label: 'Notifications' },
+      { icon: '◈', label: `Check-in reminders: ${reminders ? 'On' : 'Off'}`, onPress: toggleReminders },
       { icon: '◎', label: 'Language' },
       { icon: '◉', label: 'Privacy & Security' },
       { icon: isDark ? '☀️' : '🌙', label: isDark ? 'Light Mode' : 'Dark Mode', onPress: toggleTheme },

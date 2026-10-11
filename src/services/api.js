@@ -49,6 +49,11 @@ export const attendanceAPI = {
   checkOut: (data) => request('/attendance/check-out', { method: 'POST', body: JSON.stringify(data) }),
   getHistory: (params = '') => request(`/attendance/history?${params}`),
   getToday: () => request('/attendance/today'),
+  getMonth: (month) => request(`/attendance/month${month ? `?month=${month}` : ''}`),
+  // admin
+  add: (data) => request('/attendance', { method: 'POST', body: JSON.stringify(data) }),
+  edit: (id, data) => request(`/attendance/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  remove: (id) => request(`/attendance/${id}`, { method: 'DELETE' }),
   approve: (id) => request(`/attendance/${id}/approve`, { method: 'PUT' }),
   reject: (id, reason) => request(`/attendance/${id}/reject`, { method: 'PUT', body: JSON.stringify({ reason }) }),
 };
@@ -61,6 +66,15 @@ export const leaveAPI = {
   decide: (id, data) => request(`/leave/${id}/decide`, { method: 'POST', body: JSON.stringify(data) }),
 };
 
+export const reportsAPI = {
+  day: (date) => request(`/reports/day${date ? `?date=${date}` : ''}`),
+};
+
+export const pushAPI = {
+  register: (token, platform) => request('/push/register', { method: 'POST', body: JSON.stringify({ token, platform }) }),
+  unregister: (token) => request('/push/unregister', { method: 'POST', body: JSON.stringify({ token }) }),
+};
+
 export const companyAPI = {
   get: () => request('/company'),
 };
@@ -69,6 +83,9 @@ export const staffAPI = {
   getAll: () => request('/staff'),
   create: (data) => request('/staff', { method: 'POST', body: JSON.stringify(data) }),
   getById: (id) => request(`/staff/${id}`),
+  list: (includeInactive) => request(`/staff${includeInactive ? '?include=inactive' : ''}`),
+  update: (id, data) => request(`/staff/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  invite: (id) => request(`/staff/${id}/invite`, { method: 'POST' }),
   getAttendanceReport: (id, month) => request(`/staff/${id}/attendance?month=${month}`),
 };
 

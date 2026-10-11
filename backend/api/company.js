@@ -2,6 +2,7 @@ import { db, must } from '../lib/db.js';
 import { route, body, HttpError } from '../lib/http.js';
 import { coord } from '../lib/attendance.js';
 import { officeOf } from '../lib/geo.js';
+import { shiftView } from '../lib/shifts.js';
 
 const view = (o) => ({
   id: o.id, name: o.name, logoUrl: o.logo_url, lateAfterMinutes: o.late_after_minutes, weeklyOff: o.weekly_off, office: officeOf(o),
@@ -11,8 +12,12 @@ const view = (o) => ({
 
 export default route({
   // GET /api/company (Bearer) -> the signed-in user's company; `lockApplies` says whether their check-in
-  // must be at the office (so the app can warn before the selfie).
-  GET: (req, { staff }) => ({ ...view(staff.org), lockApplies: !!officeOf(staff.org) && !staff.location_free }),
+  // must be at the office (so the app can warn before the selfie), and `myShift` their shift (null = company late time).
+  GET: (req, { staff }) => ({
+    ...view(staff.org),
+    lockApplies: !!officeOf(staff.org) && !staff.location_free,
+    myShift: staff.shift ? shiftView(staff.shift) : null, // for the app's check-in / check-out reminders
+  }),
 
   // PATCH /api/company { name?, lateAfterMinutes?, weeklyOff? (0 = Sunday … 6, or null),
   //   office? ({ lat, lng, radiusM } to turn location lock on, null to turn it off),

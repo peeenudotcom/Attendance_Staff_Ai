@@ -15,7 +15,8 @@ import DailyBriefingCard from '../components/DailyBriefingCard';
 import PredictiveCard from '../components/PredictiveCard';
 import FloatingAssistantButton from '../components/FloatingAssistantButton';
 import { SHOW_SAMPLE_DATA } from '../config/features';
-import { attendanceAPI } from '../services/api';
+import { attendanceAPI, companyAPI, leaveAPI } from '../services/api';
+import { scheduleReminders } from '../services/notifications';
 
 const { width } = Dimensions.get('window');
 
@@ -30,8 +31,21 @@ export default function HomeScreen({ navigation }) {
   const checkedIn = !!today?.checkedIn && !today?.checkedOut;
   const checkedOut = !!today?.checkedOut;
 
+  const [month, setMonth] = useState(null); // this month's totals for the summary card
   useEffect(() => {
-    const load = () => attendanceAPI.getToday().then(setToday).catch(() => {});
+    const load = async () => {
+      attendanceAPI.getMonth().then((m) => setMonth(m.totals)).catch(() => {});
+      const t = await attendanceAPI.getToday().catch(() => null);
+      if (t) setToday(t);
+      // Re-plan check-in / check-out reminders from the shift, today's status and approved leave.
+      const [company, leave] = await Promise.all([companyAPI.get().catch(() => null), leaveAPI.mine().catch(() => null)]);
+      const leaveDates = (leave?.requests || []).filter((r) => r.status === 'approved').flatMap((r) => {
+        const out = [];
+        for (let d = r.from; d <= r.to; d = new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)) out.push(d);
+        return out;
+      });
+      scheduleReminders({ company, today: t, leaveDates });
+    };
     load();
     return navigation.addListener('focus', load);
   }, [navigation]);
@@ -58,15 +72,11 @@ export default function HomeScreen({ navigation }) {
   const isAdmin = user?.role === 'admin';
   const score = 82;
 
-  const stats = [
-    { label: 'Present', value: '22', color: C.success },
-    { label: 'Absent', value: '3', color: C.danger },
-    { label: 'Late', value: '2', color: C.warning },
-    { label: 'Leave', value: '1', color: C.info },
-  ];
 
-  // Add Staff is live; the other Command Center actions still show sample data, so they are demo-only.
+  // Team, Staff and Add Staff are live; the other Command Center actions still show sample data, so they are demo-only.
   const adminActions = [
+    { icon: '👥', label: 'Team today', value: '', screen: 'Team' },
+    { icon: '📋', label: 'Staff', value: '', screen: 'StaffList' },
     { icon: '➕', label: 'Add Staff', value: '12 members', screen: 'AddStaff' },
     ...(SHOW_SAMPLE_DATA ? [
       { icon: '📈', label: 'Analytics', value: '96% rate', screen: 'Reports' },
@@ -77,7 +87,7 @@ export default function HomeScreen({ navigation }) {
 
   // Leave is live everywhere; the sample-data destinations are held back from the store build.
   const quickActions = [
-    ...(SHOW_SAMPLE_DATA ? [{ icon: '◷', label: 'History', screen: 'History' }] : []),
+
     ...(Platform.OS === 'android' ? [{ icon: '◉', label: 'Calls', screen: 'CallLogs' }] : []),
     ...(SHOW_SAMPLE_DATA ? [{ icon: '◫', label: 'Gallery', screen: 'Gallery' }] : []),
     { icon: '◇', label: 'Leave', screen: 'Leave' },
@@ -196,12 +206,17 @@ export default function HomeScreen({ navigation }) {
           )}
         </View>
 
-        {/* Today Insights */}
-        {SHOW_SAMPLE_DATA && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: C.textMuted }]}>TODAY'S INSIGHTS</Text>
+        {/* This month (real totals; tap for the calendar) */}
+        {month && (
+        <TouchableOpacity style={styles.section} activeOpacity={0.8} onPress={() => navigation.navigate('History')}>
+          <Text style={[styles.sectionLabel, { color: C.textMuted }]}>THIS MONTH  ›</Text>
           <View style={styles.insightsRow}>
-            {stats.map((s) => (
+            {[
+              { label: 'Present', value: month.present + month.late, color: C.success },
+              { label: 'Late', value: month.late, color: C.warning },
+              { label: 'Absent', value: month.absent, color: C.danger },
+              { label: 'Leave', value: month.leave, color: C.info },
+            ].map((s) => (
               <View key={s.label} style={[styles.insightCard, { backgroundColor: C.bgCard, borderColor: C.border }]}>
                 <GlowDot color={s.color} size={6} />
                 <Text style={[styles.insightValue, { color: s.color }]}>{s.value}</Text>
@@ -209,7 +224,7 @@ export default function HomeScreen({ navigation }) {
               </View>
             ))}
           </View>
-        </View>
+        </TouchableOpacity>
         )}
 
         {/* Quick Access */}

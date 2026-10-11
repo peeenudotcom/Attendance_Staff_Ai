@@ -73,6 +73,12 @@
           "cameraPermission": "Haazri uses the camera to capture proof-of-work and site photos.",
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#802534"
+        }
       ]
     ],
     "extra": {

@@ -1,5 +1,5 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import React, { useEffect } from 'react';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, Text, StyleSheet, Platform } from 'react-native';
@@ -24,6 +24,11 @@ import LeaveScreen from '../screens/LeaveScreen';
 import LiveTrackScreen from '../screens/LiveTrackScreen';
 import ChatScreen from '../screens/ChatScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
+import TeamScreen from '../screens/TeamScreen';
+import StaffListScreen from '../screens/StaffListScreen';
+import { onNotificationTap, registerForPush } from '../services/notifications';
+
+const navigationRef = createNavigationContainerRef();
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -84,14 +89,16 @@ const glassBarStyles = StyleSheet.create({
 
 function TabNavigator() {
   const { colors: C, isDark } = useTheme();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   return (
     <Tab.Navigator
       tabBar={(props) => (
         <GlassTabBar isDark={isDark}>
           {props.state.routes.map((route, index) => {
             const focused = props.state.index === index;
-            const icons = { Home: '⬡', History: '◷', CallLogs: '◉', Gallery: '◫', Profile: '◎' };
-            const labels = { Home: 'Home', History: 'Logs', CallLogs: 'Calls', Gallery: 'Media', Profile: 'You' };
+            const icons = { Home: '⬡', History: '◷', Team: '◈', CallLogs: '◉', Gallery: '◫', Profile: '◎' };
+            const labels = { Home: 'Home', History: 'Attendance', Team: 'Team', CallLogs: 'Calls', Gallery: 'Media', Profile: 'You' };
             return (
               <View key={route.key} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                 <TabIcon
@@ -112,7 +119,8 @@ function TabNavigator() {
       screenOptions={{ headerShown: false }}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
-      {SHOW_SAMPLE_DATA && <Tab.Screen name="History" component={HistoryScreen} />}
+      <Tab.Screen name="History" component={HistoryScreen} />
+      {isAdmin && <Tab.Screen name="Team" component={TeamScreen} />}
       {/* iOS has no public API for call history, so the Calls tab only ships on Android. */}
       {Platform.OS === 'android' && <Tab.Screen name="CallLogs" component={CallLogsScreen} />}
       {/* Gallery captures photos but does not yet upload or persist them, so it stays out
@@ -126,10 +134,20 @@ function TabNavigator() {
 export default function AppNavigator() {
   const { user, isLoading } = useAuth();
   const isAdmin = user?.role === 'admin';
+
+  // Once signed in: link this phone for push messages, and open the right screen when a notification is tapped.
+  useEffect(() => {
+    if (!user) return undefined;
+    registerForPush();
+    return onNotificationTap((name, params) => {
+      if (navigationRef.isReady()) navigationRef.navigate(name, params);
+    });
+  }, [user?.id]);
+
   if (isLoading) return null;
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
         {user ? (
           <>
@@ -138,6 +156,7 @@ export default function AppNavigator() {
             <Stack.Screen name="Leave" component={LeaveScreen} />
             {/* Admin-only screens are not registered for staff, so no shortcut or chat action can open them. */}
             {isAdmin && <Stack.Screen name="AddStaff" component={AddStaffScreen} />}
+            {isAdmin && <Stack.Screen name="StaffList" component={StaffListScreen} />}
             {/* Screens that still show sample data are left out of the store build (see src/config/features.js). */}
             {SHOW_SAMPLE_DATA && (
               <Stack.Group>
