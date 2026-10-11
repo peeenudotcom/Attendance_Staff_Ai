@@ -39,7 +39,13 @@ export async function currentStaff(req) {
   const staffId = verifyToken(header.startsWith('Bearer ') ? header.slice(7) : '');
   if (!staffId) return null;
   const { data } = await db().from('staff').select('*, org:organizations(*)').eq('id', staffId).maybeSingle();
-  return data && data.active && data.org?.active ? data : null;
+  if (!(data && data.active && data.org?.active)) return null;
+  data.shift = null;
+  if (data.shift_id) {
+    const { data: shift } = await db().from('shifts').select('*').eq('id', data.shift_id).eq('org_id', data.org_id).maybeSingle();
+    data.shift = shift ?? null;
+  }
+  return data;
 }
 
 /** The user object the app stores after sign-in (`s.org` included when loaded). */

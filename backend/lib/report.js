@@ -4,11 +4,15 @@ import { approvedLeave } from './leave.js';
 
 /**
  * What a day was for one person, given their attendance row (or none):
- * 'present' | 'late' (checked in), 'off' (weekly off), 'before' (not yet joined), 'leave' (approved leave),
+ * 'present' | 'late' (checked in), 'half' (checked out with fewer than `halfDayMinutes` worked),
+ * 'off' (weekly off), 'before' (not yet joined), 'leave' (approved leave),
  * 'pending' (today or later, not checked in yet) or 'absent'. Checking in wins over leave.
  */
-export function dayStatus({ row, date, joinedOn, weeklyOff, onLeave = false }) {
-  if (row?.check_in_at) return row.status;
+export function dayStatus({ row, date, joinedOn, weeklyOff, onLeave = false, halfDayMinutes = null }) {
+  if (row?.check_in_at) {
+    if (halfDayMinutes && row.check_out_at && (row.worked_minutes ?? 0) < halfDayMinutes) return 'half';
+    return row.status;
+  }
   if (date < joinedOn) return 'before';
   if (weeklyOff != null && weekday(date) === weeklyOff) return 'off';
   if (onLeave) return 'leave';
@@ -20,7 +24,7 @@ export const joinedOn = (s) => istDay(new Date(s.created_at));
 
 /**
  * A company's month: every active staff member's status for each day, with totals.
- * Cells: { status, in?, out?, minutes?, leaveType? }. Totals count present, late, absent, off and leave days up to today
+ * Cells: { status, in?, out?, minutes?, leaveType? }. Totals count present, late, half, absent, off and leave days up to today
  * (paidLeave/unpaidLeave split the leave) and worked minutes.
  */
 export async function buildMonth(org, monthParam) {
@@ -39,12 +43,12 @@ export async function buildMonth(org, monthParam) {
     days,
     weeklyOff,
     staff: staff.map((s) => {
-      const totals = { present: 0, late: 0, absent: 0, off: 0, leave: 0, paidLeave: 0, unpaidLeave: 0, minutes: 0 };
+      const totals = { present: 0, late: 0, half: 0, absent: 0, off: 0, leave: 0, paidLeave: 0, unpaidLeave: 0, minutes: 0 };
       const cells = {};
       for (const date of days) {
         const r = byKey.get(key(s.id, date));
         const leaveType = leave.get(s.id)?.get(date);
-        const status = dayStatus({ row: r, date, joinedOn: joinedOn(s), weeklyOff, onLeave: !!leaveType });
+        const status = dayStatus({ row: r, date, joinedOn: joinedOn(s), weeklyOff, onLeave: !!leaveType, halfDayMinutes: org.half_day_minutes });
         // Totals only count days up to today, so a month in progress isn't paid for Sundays or leave still to come.
         if (date <= today && status in totals) totals[status] += 1;
         if (date <= today && status === 'leave') totals[leaveType === 'unpaid' ? 'unpaidLeave' : 'paidLeave'] += 1;

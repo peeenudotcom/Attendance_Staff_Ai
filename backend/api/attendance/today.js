@@ -1,11 +1,10 @@
-import { db, must } from '../../lib/db.js';
 import { route } from '../../lib/http.js';
-import { fmtHours, fmtTime, istDay, selfieUrl } from '../../lib/attendance.js';
+import { currentRecord, fmtHours, fmtTime, selfieUrl } from '../../lib/attendance.js';
 
-// GET /api/attendance/today (Bearer) -> today's record, or {} before check-in
+// GET /api/attendance/today (Bearer) -> today's record (or a night shift's still-open one from yesterday), or {} before check-in
 export default route({
   async GET(req, { staff }) {
-    const r = must(await db().from('attendance').select('*').eq('staff_id', staff.id).eq('date', istDay(new Date())).maybeSingle());
+    const r = await currentRecord(staff.id);
     if (!r) return {};
     return {
       id: r.id,

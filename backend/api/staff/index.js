@@ -3,6 +3,7 @@ import { route, body, HttpError } from '../../lib/http.js';
 import { fmtTime, istDay } from '../../lib/attendance.js';
 import { sendWelcomeEmail } from '../../lib/email.js';
 import { staffFields, adminView } from '../../lib/staff-fields.js';
+import { assertShiftInOrg } from '../../lib/shifts.js';
 
 export default route({
   // GET /api/staff[?include=inactive] (Bearer, admin) -> the admin's company with today's status
@@ -29,6 +30,7 @@ export default route({
   // POST /api/staff { name, phone, email, department?, designation?, salaryType?, salary?, role? } (Bearer, admin)
   async POST(req, { staff: admin }) {
     const fields = staffFields(body(req));
+    await assertShiftInOrg(db(), fields.shift_id, admin.org_id);
     const { data, error } = await db().from('staff')
       .insert({ role: 'staff', ...fields, org_id: admin.org_id, created_by: admin.id })
       .select('*').single();

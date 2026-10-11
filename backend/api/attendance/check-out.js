@@ -1,6 +1,6 @@
 import { db, must } from '../../lib/db.js';
 import { route, body, HttpError } from '../../lib/http.js';
-import { coord, eventTime, istDay, uploadSelfie } from '../../lib/attendance.js';
+import { coord, currentRecord, eventTime, uploadSelfie } from '../../lib/attendance.js';
 import { officeDistance } from '../../lib/geo.js';
 
 // POST /api/attendance/check-out { selfie (base64), latitude, longitude, accuracy?, address, timestamp } (Bearer)
@@ -12,7 +12,7 @@ export default route({
     const lng = coord(longitude, 180);
     const at = eventTime(timestamp);
 
-    const record = must(await db().from('attendance').select('*').eq('staff_id', staff.id).eq('date', istDay(at)).maybeSingle());
+    const record = await currentRecord(staff.id, at); // after midnight, a night shift's check-in from yesterday
     if (!record?.check_in_at) throw new HttpError(400, 'No check-in found for today');
     if (record.check_out_at) throw new HttpError(409, 'You have already checked out today');
 

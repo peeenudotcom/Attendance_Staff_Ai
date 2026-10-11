@@ -1,9 +1,9 @@
 /**
  * Pay for one person for one month, from their monthly-sheet totals.
  *
- * - monthly: salary ÷ days in the month, for each paid day (present, late, weekly off, paid leave)
+ * - monthly: salary ÷ days in the month, for each paid day (present, late, weekly off, paid leave; half days count half)
  * - weekly:  the same, at salary ÷ 7 a day
- * - daily:   the daily rate for each day worked (present or late)
+ * - daily:   the daily rate for each day worked (present or late; a half day counts half)
  * - hourly:  the hourly rate for each hour between check-in and check-out
  *
  * Absent days and unpaid leave are not paid. With `lateCutEvery` (say 3), every 3 late marks cut half a day
@@ -12,9 +12,11 @@
  */
 export function monthPay({ salaryType, salary, totals, daysInMonth, lateCutEvery }) {
   const t = totals;
-  const worked = t.present + t.late;
+  const half = t.half ?? 0;
+  const worked = t.present + t.late + half / 2;
   const base = {
     worked,
+    half,
     paidLeave: t.paidLeave,
     unpaidLeave: t.unpaidLeave,
     absent: t.absent,

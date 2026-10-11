@@ -4,6 +4,7 @@ import { fmtHours, fmtTime, istDay, selfieUrls } from '../../lib/attendance.js';
 import { dayStatus, joinedOn } from '../../lib/report.js';
 import { officeOf } from '../../lib/geo.js';
 import { approvedLeave } from '../../lib/leave.js';
+import { leftEarlyBy } from '../../lib/shifts.js';
 
 // GET /api/reports/day?date=YYYY-MM-DD (Bearer, admin) -> everyone's attendance for one day (default: today, IST)
 export default route({
@@ -15,6 +16,8 @@ export default route({
     const rows = must(await db().from('attendance').select('*').eq('org_id', admin.org_id).eq('date', date));
     const byStaff = new Map(rows.map((r) => [r.staff_id, r]));
     const leave = await approvedLeave(db(), admin.org_id, date, date);
+    const shifts = new Map(must(await db().from('shifts').select('*').eq('org_id', admin.org_id)).map((x) => [x.id, x]));
+    const today = istDay(new Date());
     const urls = await selfieUrls(rows.flatMap((r) => [r.check_in_selfie, r.check_out_selfie]));
 
     const people = staff.map((s) => {
@@ -24,7 +27,11 @@ export default route({
         name: s.name,
         designation: s.designation,
         department: s.department,
-        status: dayStatus({ row: r, date, joinedOn: joinedOn(s), weeklyOff: admin.org.weekly_off, onLeave: !!leave.get(s.id)?.has(date) }),
+        status: dayStatus({ row: r, date, joinedOn: joinedOn(s), weeklyOff: admin.org.weekly_off, onLeave: !!leave.get(s.id)?.has(date), halfDayMinutes: admin.org.half_day_minutes }),
+        shift: shifts.get(s.shift_id)?.name ?? null,
+        leftEarlyBy: leftEarlyBy(shifts.get(s.shift_id), r?.check_in_at, r?.check_out_at),
+        noCheckOut: !!(r?.check_in_at && !r.check_out_at && date < today),
+        checkOutSetByAdmin: !!r?.check_out_edited_by,
         attendanceId: r?.id ?? null,
         approval: r?.approval ?? null,
         checkIn: fmtTime(r?.check_in_at),
@@ -47,12 +54,13 @@ export default route({
       office: officeOf(admin.org),
       summary: {
         total: people.length,
-        present: count('present'),
+        present: count('present') + count('half'),
         late: count('late'),
         absent: count('absent'),
         notYet: count('pending'),
         off: count('off'),
         leave: count('leave'),
+        half: count('half'),
         checkedOut: people.filter((p) => p.checkOut !== '—').length,
       },
       staff: people,

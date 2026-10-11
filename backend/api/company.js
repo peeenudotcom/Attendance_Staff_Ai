@@ -6,6 +6,7 @@ import { officeOf } from '../lib/geo.js';
 const view = (o) => ({
   id: o.id, name: o.name, logoUrl: o.logo_url, lateAfterMinutes: o.late_after_minutes, weeklyOff: o.weekly_off, office: officeOf(o),
   lateCutEvery: o.late_cut_every ?? null,
+  halfDayMinutes: o.half_day_minutes ?? null,
 });
 
 export default route({
@@ -15,7 +16,8 @@ export default route({
 
   // PATCH /api/company { name?, lateAfterMinutes?, weeklyOff? (0 = Sunday … 6, or null),
   //   office? ({ lat, lng, radiusM } to turn location lock on, null to turn it off),
-  //   lateCutEvery? (every N late marks cut half a day's pay, 2-10, or null for no cut) } (company admin) -> their own company's settings
+  //   lateCutEvery? (every N late marks cut half a day's pay, 2-10, or null for no cut),
+  //   halfDayMinutes? (fewer worked minutes = half day, 60-720, or null for no half days) } (company admin) -> their own company's settings
   async PATCH(req, { staff }) {
     if (staff.role !== 'admin') throw new HttpError(403, 'Only admins can do this');
     const b = body(req);
@@ -39,6 +41,11 @@ export default route({
       const n = b.lateCutEvery === null || b.lateCutEvery === '' ? null : Number(b.lateCutEvery);
       if (n !== null && (!Number.isInteger(n) || n < 2 || n > 10)) throw new HttpError(400, 'Late cut must be every 2 to 10 late marks');
       patch.late_cut_every = n;
+    }
+    if (b.halfDayMinutes !== undefined) {
+      const n = b.halfDayMinutes === null || b.halfDayMinutes === '' ? null : Number(b.halfDayMinutes);
+      if (n !== null && (!Number.isInteger(n) || n < 60 || n > 720)) throw new HttpError(400, 'Half day must be between 1 and 12 hours');
+      patch.half_day_minutes = n;
     }
     if (b.office !== undefined) {
       if (b.office === null) {

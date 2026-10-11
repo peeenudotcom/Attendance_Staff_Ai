@@ -1,6 +1,7 @@
 import { db, must } from '../../lib/db.js';
 import { route, body, HttpError } from '../../lib/http.js';
-import { coord, eventTime, isLate, istDay, uploadSelfie } from '../../lib/attendance.js';
+import { coord, currentRecord, eventTime, istDay, uploadSelfie } from '../../lib/attendance.js';
+import { isLateFor } from '../../lib/shifts.js';
 import { officeDistance } from '../../lib/geo.js';
 
 // POST /api/attendance/check-in { selfie (base64), latitude, longitude, accuracy?, address, timestamp } (Bearer)
@@ -15,9 +16,11 @@ export default route({
 
     const existing = must(await db().from('attendance').select('id, check_in_at').eq('staff_id', staff.id).eq('date', date).maybeSingle());
     if (existing?.check_in_at) throw new HttpError(409, 'You have already checked in today');
+    const open = await currentRecord(staff.id, at);
+    if (open?.check_in_at && !open.check_out_at) throw new HttpError(409, 'Check out of your last shift first');
     const distance = officeDistance(staff, { lat, lng, accuracy }, { enforce: true });
 
-    const status = isLate(at, staff.org.late_after_minutes) ? 'late' : 'present';
+    const status = isLateFor(at, staff) ? 'late' : 'present';
     const record = must(await db().from('attendance').insert({
       staff_id: staff.id,
       org_id: staff.org_id,
