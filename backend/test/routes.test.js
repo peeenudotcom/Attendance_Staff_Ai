@@ -14,6 +14,7 @@ class Q {
   delete() { this.op = 'delete'; return this; }
   eq(k, v) { this.filters.push((r) => r[k] === v); return this; }
   gte(k, v) { this.filters.push((r) => r[k] >= v); return this; }
+  lte(k, v) { this.filters.push((r) => r[k] <= v); return this; }
   lt(k, v) { this.filters.push((r) => r[k] < v); return this; }
   order(k, o = {}) { this.sort = [k, o.ascending !== false]; return this; }
   insert(row) { this.op = 'insert'; this.row = row; return this; }
@@ -27,14 +28,18 @@ class Q {
     const match = () => rows.filter((r) => this.filters.every((f) => f(r)));
     let out;
     if (this.op === 'insert') {
-      const r = { id: randomUUID(), active: true, approval: 'pending', ...this.row };
+      const r = { id: randomUUID(), active: true, approval: 'pending', created_at: new Date().toISOString(), ...this.row };
       if (this.t === 'staff' && rows.some((x) => x.phone === r.phone)) return { data: null, error: { code: '23505', message: 'dup' } };
       if (this.t === 'attendance' && rows.some((x) => x.staff_id === r.staff_id && x.date === r.date)) return { data: null, error: { code: '23505', message: 'dup' } };
       rows.push(r); out = [r];
     } else if (this.op === 'delete') {
       out = match(); tables[this.t] = rows.filter((r) => !out.includes(r));
     } else if (this.op === 'update') {
-      out = match(); out.forEach((r) => Object.assign(r, this.patch));
+      out = match();
+      if (this.t === 'staff' && this.patch.phone && rows.some((x) => x.phone === this.patch.phone && !out.includes(x))) {
+        return { data: null, error: { code: '23505', message: 'dup' } };
+      }
+      out.forEach((r) => Object.assign(r, this.patch));
     } else if (this.op === 'upsert') {
       out = [];
       for (const r of [].concat(this.row)) {
@@ -64,6 +69,7 @@ const fakeClient = {
   storage: { from: () => ({
     upload: async (path, buf) => { uploads.push({ path, size: buf.length }); return { error: null }; },
     createSignedUrl: async (path) => ({ data: { signedUrl: `https://signed.example/${path}` } }),
+    createSignedUrls: async (paths) => ({ data: paths.map((path) => ({ path, signedUrl: `https://signed.example/${path}` })) }),
   }) },
 };
 mock.module(import.meta.resolve('@supabase/supabase-js'), { namedExports: { createClient: () => fakeClient } });
@@ -79,10 +85,10 @@ process.env.REVIEW_CODE = '4826';
 
 globalThis.fetch = async (url, init) => { sentEmails.push(JSON.parse(init.body)); return { ok: true, text: async () => '' }; };
 
-tables.organizations.push({ id: 'org1', name: 'TARAhut', late_after_minutes: 555, active: true });
+tables.organizations.push({ id: 'org1', name: 'TARAhut', late_after_minutes: 555, weekly_off: 0, active: true });
 tables.organizations.push({ id: 'demo', name: 'Demo Company', late_after_minutes: 555, active: true });
-tables.staff.push({ id: 'admin1', org_id: 'org1', is_platform_admin: true, name: 'Parveen Sukhija', phone: '9915424411', email: 'owner@example.com', role: 'admin', active: true });
-tables.staff.push({ id: 'rev1', org_id: 'demo', name: 'App Review', phone: '9000000001', email: null, role: 'staff', active: true });
+tables.staff.push({ id: 'admin1', created_at: '2026-01-01T00:00:00Z', org_id: 'org1', is_platform_admin: true, name: 'Parveen Sukhija', phone: '9915424411', email: 'owner@example.com', role: 'admin', active: true });
+tables.staff.push({ id: 'rev1', created_at: '2026-01-01T00:00:00Z', org_id: 'demo', name: 'App Review', phone: '9000000001', email: null, role: 'staff', active: true });
 
 async function call(path, { method = 'GET', body, token, query = {} } = {}) {
   const mod = await import(`${B}/api/${path}.js`);
@@ -258,6 +264,57 @@ test('full flow', async () => {
   assert.equal((await call('company', { method: 'PATCH', token: revToken, body: { lateAfterMinutes: 1 } })).status, 403);
   assert.equal((await call('company', { method: 'PATCH', token: mToken, body: { lateAfterMinutes: 2000 } })).status, 400);
   assert.equal((await call('company', { token: revToken })).json.name, 'Demo Company');
+
+  // ---- dashboard: reports ----
+  assert.equal((await call('reports/day', { token: revToken })).status, 403);
+  r = await call('reports/day', { token });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const me = r.json.staff.find((x) => x.id === 'admin1');
+  assert.ok(['present', 'late'].includes(me.status));
+  assert.match(me.checkInSelfie, /^https:\/\/signed/);
+  assert.equal(r.json.staff.find((x) => x.name === 'Asha Rani').status, 'pending'); // added today, not in yet
+  assert.equal(r.json.summary.total, r.json.staff.length);
+  assert.ok(!r.json.staff.some((x) => x.name === 'Majaf Owner')); // other company
+  assert.equal((await call('reports/day', { token, query: { date: '10-10-2026' } })).status, 400);
+  r = await call('reports/day', { token, query: { date: '2025-12-31' } });
+  assert.equal(r.json.staff.length, 0); // nobody had joined yet
+
+  r = await call('reports/month', { token });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const today = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+  const myRow = r.json.staff.find((x) => x.id === 'admin1');
+  assert.ok(['present', 'late'].includes(myRow.days[today].status));
+  assert.equal(r.json.days.length >= 28, true);
+  assert.equal((await call('reports/month', { token, query: { month: '2026-13' } })).status, 400);
+  r = await call('reports/month', { token, query: { month: '2026-02' } });
+  const feb = r.json.staff.find((x) => x.id === 'admin1');
+  assert.equal(feb.days['2026-02-01'].status, 'off'); // a Sunday, weekly off
+  assert.equal(feb.days['2026-02-02'].status, 'absent');
+  assert.equal(feb.totals.off, 4);
+  assert.equal(feb.totals.absent, 24);
+
+  // ---- dashboard: editing staff ----
+  const asha = tables.staff.find((x) => x.phone === '9876543210');
+  assert.equal((await call('staff/[id]/index', { method: 'PATCH', token, query: { id: asha.id }, body: { email: 'a@gmail.con' } })).status, 400);
+  r = await call('staff/[id]/index', { method: 'PATCH', token, query: { id: asha.id }, body: { designation: 'Senior Exec', name: 'Asha R' } });
+  assert.equal(r.status, 200); assert.equal(r.json.staff.designation, 'Senior Exec'); assert.equal(r.json.staff.name, 'Asha R');
+  assert.equal((await call('staff/[id]/index', { method: 'PATCH', token, query: { id: asha.id }, body: { phone: '9915424411' } })).status, 409);
+  assert.equal((await call('staff/[id]/index', { method: 'PATCH', token, query: { id: 'admin1' }, body: { active: false } })).status, 400);
+  assert.equal((await call('staff/[id]/index', { method: 'PATCH', token: mToken, query: { id: asha.id }, body: { name: 'x' } })).status, 404);
+  assert.equal((await call('staff/[id]/index', { method: 'PATCH', token, query: { id: asha.id }, body: { active: false } })).status, 200);
+  assert.ok(!(await call('staff/index', { token })).json.staff.some((x) => x.id === asha.id));
+  assert.ok((await call('staff/index', { token, query: { include: 'inactive' } })).json.staff.some((x) => x.id === asha.id && x.active === false));
+  assert.equal((await call('staff/[id]/invite', { method: 'POST', token, query: { id: asha.id } })).status, 400);
+  await call('staff/[id]/index', { method: 'PATCH', token, query: { id: asha.id }, body: { active: true } });
+  const before2 = sentEmails.length;
+  assert.equal((await call('staff/[id]/invite', { method: 'POST', token, query: { id: asha.id } })).status, 200);
+  assert.equal(sentEmails.length, before2 + 1);
+
+  // ---- dashboard: company settings ----
+  assert.equal((await call('company', { method: 'PATCH', token, body: { weeklyOff: 7 } })).status, 400);
+  r = await call('company', { method: 'PATCH', token, body: { weeklyOff: 6 } });
+  assert.equal(r.json.weeklyOff, 6);
+  assert.equal((await call('company', { method: 'PATCH', token, body: { weeklyOff: null } })).json.weeklyOff, null);
 
   // pausing a company locks its users out
   const majafId = tables.organizations.find((o) => o.name === 'Majaf Fabrics').id;

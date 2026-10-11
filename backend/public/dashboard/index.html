@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard · TARAhut Haazri</title>
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/dashboard/dashboard.css">
+</head>
+<body>
+
+<section id="auth" class="auth hidden">
+  <div class="auth-card">
+    <img src="/logo.svg" alt="TARAhut Haazri">
+    <h1>Haazri Dashboard</h1>
+    <p id="auth-hint">Sign in with your phone number</p>
+    <form id="phone-form">
+      <label class="field"><span>Phone number</span><input id="phone" inputmode="numeric" autocomplete="tel" maxlength="14" placeholder="10-digit mobile number" required></label>
+      <button class="btn block" type="submit">Send code</button>
+    </form>
+    <form id="code-form" class="hidden">
+      <label class="field"><span>4-digit code</span><input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required></label>
+      <button class="btn block" type="submit">Sign in</button>
+      <button class="link-btn" type="button" id="change-phone">Use a different number</button>
+    </form>
+    <p class="msg" id="auth-msg"></p>
+  </div>
+</section>
+
+<section id="app" class="hidden">
+  <header class="top">
+    <div class="top-inner">
+      <img src="/logo.svg" alt="">
+      <div class="brand"><b>Haazri</b><small id="company-name"></small></div>
+      <div class="spacer"></div>
+      <div class="who"><div id="user-name"></div><small>Admin</small></div>
+      <button class="btn ghost small" id="sign-out">Sign out</button>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button class="tab" data-view="today">Today</button>
+      <button class="tab" data-view="month">Monthly sheet</button>
+      <button class="tab" data-view="staff">Staff</button>
+      <button class="tab" data-view="settings">Settings</button>
+      <button class="tab hidden" data-view="clients" id="clients-tab">Clients</button>
+    </nav>
+  </header>
+  <main id="view"></main>
+</section>
+
+<div id="modal" class="modal hidden"></div>
+<div id="toast" class="toast hidden"></div>
+
+<script type="module" src="/dashboard/dashboard.js"></script>
+</body>
+</html>
