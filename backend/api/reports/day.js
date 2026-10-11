@@ -32,6 +32,8 @@ export default route({
         leftEarlyBy: leftEarlyBy(shifts.get(s.shift_id), r?.check_in_at, r?.check_out_at),
         noCheckOut: !!(r?.check_in_at && !r.check_out_at && date < today),
         checkOutSetByAdmin: !!r?.check_out_edited_by,
+        addedByAdmin: !!r?.check_in_edited_by,
+        note: r?.admin_note ?? null,
         attendanceId: r?.id ?? null,
         approval: r?.approval ?? null,
         checkIn: fmtTime(r?.check_in_at),

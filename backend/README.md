@@ -29,7 +29,9 @@ here; the app's base URL is `https://<deployment>/api`.
 | `GET /api/reports/salary?month=YYYY-MM` | admin | each person's pay for the month from attendance (pay so far for the current month) |
 | `GET /api/shifts`, `POST /api/shifts` `{ name, start, end, lateAfter? }` | admin | the company's shifts; add one |
 | `PATCH /api/shifts/:id`, `DELETE /api/shifts/:id` | admin | edit; delete (people on it go back to the company late time) |
-| `PATCH /api/attendance/:id` `{ checkOut: "HH:MM" }` | admin | fill in a missed check-out (hours worked out again) |
+| `POST /api/attendance` `{ staffId, date, checkIn, checkOut?, note? }` | admin | add a day for someone who couldn't check in |
+| `PATCH /api/attendance/:id` `{ checkIn?, checkOut?, note? }` | admin | fill in a missed check-out or correct the times (hours and late mark worked out again) |
+| `DELETE /api/attendance/:id` | admin | remove a day recorded by mistake |
 | `GET /api/health` | anyone | `{ ok: true }` |
 | `/privacy`, `/support`, `/get` | anyone | pages for the App Store listing; install page |
 | `/dashboard` | company admins | owner web dashboard (see below) |
@@ -109,6 +111,13 @@ after midnight closes yesterday's shift, and a new check-in is refused until it'
 Half days: with "less than N hours worked = half day" set, a checked-out day under N hours is a half day ("H" on the
 sheet, half pay). Missed check-outs show as "No check-out" on past days; an admin can set the out time on Today.
 
+## Admin-added attendance
+
+Admins can add a day for someone who couldn't check in (Today's "Add attendance", or click a day on the monthly sheet),
+correct the in/out times, or remove a day. These days have no selfie or location; they're marked "Added by admin"
+(with an optional note) on Today and with a dashed outline on the sheet. Late or on time follows the person's shift.
+Times must not be in the future; a check-out not after the check-in is on the next day (night shift), at most 20 hours later.
+
 ## Location lock
 
 A company admin sets an office location and an allowed distance (Settings in the dashboard; `office: { lat, lng, radiusM }`
@@ -120,7 +129,7 @@ decides. A fake-GPS app on a rooted Android phone can still get around it; the s
 
 ## Database
 
-`supabase/migrations/` (001 to 007 applied). Row level security is on with no policies, so only the
+`supabase/migrations/` (001 to 008 applied). Row level security is on with no policies, so only the
 service-role key used here can read or write; the app never talks to Supabase directly.
 
 Add or change people directly when needed:

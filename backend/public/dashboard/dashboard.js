@@ -218,7 +218,11 @@ async function viewToday(root, date = istToday()) {
       : null;
     return h('tr', {},
       h('td', { class: 'person' }, h('b', {}, p.name), h('small', {}, [p.designation || p.department, p.shift].filter(Boolean).join(' · '))),
-      h('td', {}, h('span', { class: `pill ${p.status}` }, STATUS_LABEL[p.status])),
+      h('td', {}, h('span', { class: `pill ${p.status}` }, STATUS_LABEL[p.status]),
+        p.addedByAdmin ? h('small', { class: 'dist', title: p.note || '' }, `Added by admin${p.note ? `: ${p.note}` : ''}`) : null,
+        h('button', { class: 'link-btn small-link', onclick: () => attendanceForm({ id: p.id, name: p.name }, date,
+          p.attendanceId ? { id: p.attendanceId, in: p.checkIn, out: p.checkOut, note: p.note } : null, () => viewToday(root, date)) },
+        p.attendanceId ? 'Edit day' : 'Add attendance')),
       h('td', { class: 'num' }, p.checkIn), h('td', { class: 'num' }, outCell(p, () => viewToday(root, date))), h('td', { class: 'num hide-sm' }, p.hours),
       h('td', { class: 'place hide-sm' }, place, place && mapLink ? ' · ' : '', mapLink, dist),
       h('td', {}, h('div', { class: 'selfies' },
@@ -254,7 +258,13 @@ async function viewMonth(root, month = istMonth()) {
     data.days.map((d) => {
       const c = s.days[d];
       const tip = c.in ? `${STATUS_LABEL[c.status]} · in ${c.in}${c.out && c.out !== '—' ? `, out ${c.out}` : ''}` : STATUS_LABEL[c.status];
-      return h('td', { title: tip ? `${niceDate(d)}: ${tip}` : null }, h('span', { class: `cell ${c.status}` }, CELL[c.status]));
+      const editable = c.status !== 'before' && d <= istToday();
+      return h('td', {
+        title: `${niceDate(d)}${tip ? `: ${tip}` : ''}${c.note ? ` (${c.note})` : ''}${editable ? ' · click to add or change' : ''}`,
+        class: editable ? 'clickable' : null,
+        onclick: editable ? () => attendanceForm({ id: s.id, name: s.name }, d,
+          c.id ? { id: c.id, in: c.in, out: c.out, note: c.note } : null, () => viewMonth(root, month)) : null,
+      }, h('span', { class: `cell ${c.status}${c.edited ? ' edited' : ''}` }, CELL[c.status]));
     }),
     h('td', { class: 'num' }, s.totals.present), h('td', { class: 'num' }, s.totals.late), h('td', { class: 'num' }, s.totals.half), h('td', { class: 'num' }, s.totals.absent), h('td', { class: 'num' }, s.totals.leave),
     h('td', { class: 'num' }, fmtHours(s.totals.minutes))));
@@ -266,7 +276,8 @@ async function viewMonth(root, month = istMonth()) {
       h('span', {}, h('span', { class: 'cell half' }, 'H'), 'Half day'),
       h('span', {}, h('span', { class: 'cell absent' }, 'A'), 'Absent'), h('span', {}, h('span', { class: 'cell leave' }, 'LV'), 'Approved leave'),
       h('span', {}, h('span', { class: 'cell off' }, '·'), 'Weekly off'),
-      h('span', {}, 'Hover a day to see check-in and check-out times')),
+      h('span', {}, h('span', { class: 'cell present edited' }, 'P'), 'Added or changed by an admin'),
+      h('span', {}, 'Hover a day for times; click a day to add or change attendance')),
   );
   dl.disabled = false;
   dl.onclick = () => downloadCsv(data);
@@ -606,6 +617,40 @@ function officeCard(note = '') {
       state.company.office ? h('button', { class: 'btn ghost', type: 'button', onclick: () => confirm('Turn off location lock? Staff will be able to check in from anywhere.') && save(null) }, 'Turn off') : null),
   );
   return card;
+}
+
+// ---------- Add / edit a day (admin) ----------
+
+function attendanceForm(person, date, record, onDone) {
+  const msg = h('p', { class: 'msg' });
+  const t = (label, name, value, req) => h('label', { class: 'field' }, h('span', {}, label),
+    h('input', { name, type: 'time', value: value && value !== '—' ? value : '', required: req }));
+  const form = h('form', {},
+    h('p', { class: 'hint legend', style: 'margin:0 0 12px' }, record
+      ? 'Change the times or remove the day. Late or on time follows their shift.'
+      : 'For someone who couldn’t check in. There is no selfie or location, so the day is marked as added by an admin. Late or on time follows their shift.'),
+    h('div', { class: 'row2' }, t('Check-in', 'checkIn', record?.in, true), t('Check-out (optional)', 'checkOut', record?.out, false)),
+    h('label', { class: 'field' }, h('span', {}, 'Note (optional)'), h('input', { name: 'note', value: record?.note || '', maxlength: 200, placeholder: 'e.g. Phone battery dead' })),
+    msg,
+    h('div', { class: 'foot' },
+      record ? h('button', { class: 'btn ghost danger', type: 'button', onclick: remove, style: 'margin-right:auto' }, 'Remove day') : null,
+      h('button', { class: 'btn ghost', type: 'button', onclick: closeModal }, 'Cancel'),
+      h('button', { class: 'btn', type: 'submit' }, record ? 'Save' : 'Add')));
+  async function remove() {
+    if (!confirm(`Remove ${person.name}'s attendance on ${niceDate(date)}? It will show as absent.`)) return;
+    try { await api(`/attendance/${record.id}`, { method: 'DELETE' }); closeModal(); toast('Day removed'); onDone(); } catch (err) { msg.textContent = err.message; }
+  }
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.submitter; btn.disabled = true; msg.textContent = '';
+    const v = Object.fromEntries(new FormData(form));
+    try {
+      if (record) await api(`/attendance/${record.id}`, { method: 'PATCH', body: { checkIn: v.checkIn, checkOut: v.checkOut || '', note: v.note } });
+      else await api('/attendance', { method: 'POST', body: { staffId: person.id, date, checkIn: v.checkIn, checkOut: v.checkOut || null, note: v.note } });
+      closeModal(); toast(record ? 'Saved' : `Attendance added for ${person.name}`); onDone();
+    } catch (err) { msg.textContent = err.message; btn.disabled = false; }
+  });
+  openModal([h('h3', {}, `${record ? 'Edit' : 'Add'} attendance · ${person.name}`), h('p', { class: 'muted', style: 'margin:-6px 0 14px' }, niceDate(date)), form]);
 }
 
 // ---------- Shifts ----------

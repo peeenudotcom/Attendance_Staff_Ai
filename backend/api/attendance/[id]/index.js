@@ -1,22 +1,43 @@
 import { db, must } from '../../../lib/db.js';
 import { route, body, HttpError } from '../../../lib/http.js';
-import { parseHhmm } from '../../../lib/shifts.js';
+import { fmtTime } from '../../../lib/attendance.js';
+import { dayTimes, memberWithShift, noteText } from '../../../lib/admin-attendance.js';
 
-// PATCH /api/attendance/:id { checkOut: "HH:MM" } (Bearer, admin) -> fills in (or corrects) a check-out time
-// for someone who forgot. The time is on the attendance day, or the next day if it's before the check-in
-// (a night shift). Hours are worked out again and the record is marked as set by an admin.
+async function findRecord(id, orgId) {
+  const r = must(await db().from('attendance').select('*').eq('id', id).eq('org_id', orgId).maybeSingle());
+  if (!r) throw new HttpError(404, 'Attendance record not found');
+  return r;
+}
+
 export default route({
+  // PATCH /api/attendance/:id { checkIn?: "HH:MM", checkOut?: "HH:MM" | "" (clear), note? } (Bearer, admin)
+  // -> fills in a missed check-out or corrects the times; hours and late/on-time are worked out again.
   async PATCH(req, { staff: admin }) {
-    const r = must(await db().from('attendance').select('*').eq('id', req.query.id).eq('org_id', admin.org_id).maybeSingle());
-    if (!r) throw new HttpError(404, 'Attendance record not found');
-    if (!r.check_in_at) throw new HttpError(400, 'There is no check-in on this day');
-    const m = parseHhmm(body(req).checkOut, 'check-out time');
-    let out = new Date(Date.parse(`${r.date}T00:00:00+05:30`) + m * 60_000);
-    const inAt = new Date(r.check_in_at);
-    if (out <= inAt) out = new Date(out.getTime() + 86_400_000);
-    if (out - inAt > 20 * 3_600_000) throw new HttpError(400, 'That is more than 20 hours after the check-in');
-    const worked = Math.round((out - inAt) / 60_000);
-    must(await db().from('attendance').update({ check_out_at: out.toISOString(), worked_minutes: worked, check_out_edited_by: admin.id }).eq('id', r.id));
-    return { ok: true, checkOutAt: out.toISOString(), workedMinutes: worked };
+    const r = await findRecord(req.query.id, admin.org_id);
+    const b = body(req);
+    if (b.checkIn === undefined && b.checkOut === undefined && b.note === undefined) throw new HttpError(400, 'Nothing to update');
+    const patch = {};
+    if (b.checkIn !== undefined || b.checkOut !== undefined) {
+      if (!r.check_in_at && b.checkIn === undefined) throw new HttpError(400, 'There is no check-in on this day');
+      const person = await memberWithShift(r.staff_id, admin.org);
+      const checkIn = b.checkIn !== undefined ? b.checkIn : fmtTime(r.check_in_at);
+      const checkOut = b.checkOut !== undefined ? b.checkOut : (r.check_out_at ? fmtTime(r.check_out_at) : null);
+      const cols = dayTimes(person, r.date, checkIn, checkOut);
+      // Keep the recorded check-in (and its late mark) unless the admin changed it.
+      if (b.checkIn === undefined) { delete cols.check_in_at; delete cols.status; }
+      Object.assign(patch, cols);
+      if (b.checkIn !== undefined) patch.check_in_edited_by = admin.id;
+      if (b.checkOut !== undefined) patch.check_out_edited_by = b.checkOut ? admin.id : null;
+    }
+    if (b.note !== undefined) patch.admin_note = noteText(b.note);
+    must(await db().from('attendance').update(patch).eq('id', r.id));
+    return { ok: true, checkOutAt: patch.check_out_at ?? r.check_out_at, workedMinutes: patch.worked_minutes ?? r.worked_minutes, status: patch.status ?? r.status };
+  },
+
+  // DELETE /api/attendance/:id (Bearer, admin) -> removes a day recorded by mistake (it shows as absent again)
+  async DELETE(req, { staff: admin }) {
+    const r = await findRecord(req.query.id, admin.org_id);
+    must(await db().from('attendance').delete().eq('id', r.id));
+    return { ok: true };
   },
 }, { admin: true });
