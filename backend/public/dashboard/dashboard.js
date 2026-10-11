@@ -3,11 +3,11 @@
 
 const TOKEN_KEY = 'haazri_dashboard_token';
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const STATUS_LABEL = { present: 'Present', late: 'Late', absent: 'Absent', pending: 'Not in yet', off: 'Weekly off', leave: 'On leave', before: '' };
-const CELL = { present: 'P', late: 'L', absent: 'A', off: '·', leave: 'LV', pending: '', before: '' };
+const STATUS_LABEL = { present: 'Present', late: 'Late', half: 'Half day', absent: 'Absent', pending: 'Not in yet', off: 'Weekly off', leave: 'On leave', before: '' };
+const CELL = { present: 'P', late: 'L', half: 'H', absent: 'A', off: '·', leave: 'LV', pending: '', before: '' };
 
 const $ = (id) => document.getElementById(id);
-const state = { user: null, company: null, view: 'today', phone: '' };
+const state = { user: null, company: null, view: 'today', phone: '', shifts: [] };
 
 // ---------- helpers ----------
 
@@ -32,6 +32,7 @@ const istMonth = () => istToday().slice(0, 7);
 const minutesToHHMM = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 const hhmmToMinutes = (s) => { const [a, b] = String(s).split(':').map(Number); return a * 60 + b; };
 const fmtHours = (min) => (min ? `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}m` : '—');
+const durText = (m) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ''}`);
 const fmtDistance = (m) => (m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1)} km`);
 const mapUrl = (lat, lng) => `https://maps.google.com/?q=${lat},${lng}`;
 
@@ -160,6 +161,7 @@ async function start() {
     if (user.role !== 'admin') return signOut('The dashboard is for company admins.');
     state.user = user;
     state.company = await api('/company');
+    state.shifts = (await api('/shifts').catch(() => ({ shifts: [] }))).shifts;
   } catch (err) {
     if (err.message !== 'Signed out') signOut('Could not load your account. Please sign in again.');
     return;
@@ -206,7 +208,7 @@ async function viewToday(root, date = istToday()) {
   if (!data.staff.length) {
     return body.replaceChildren(chips, h('div', { class: 'card empty' }, s.off ? 'Weekly off.' : 'No staff yet. Add people in the Staff tab.'));
   }
-  const order = { late: 0, present: 1, pending: 2, absent: 3, leave: 4, off: 5 };
+  const order = { late: 0, half: 1, present: 2, pending: 3, absent: 4, leave: 5, off: 6 };
   const rows = [...data.staff].sort((a, b) => (order[a.status] - order[b.status]) || a.name.localeCompare(b.name)).map((p) => {
     const place = p.checkInAddress || '';
     const mapLink = p.checkInLocation ? h('a', { href: mapUrl(p.checkInLocation.lat, p.checkInLocation.lng), target: '_blank', rel: 'noopener' }, 'Map') : null;
@@ -215,9 +217,9 @@ async function viewToday(root, date = istToday()) {
       ? h('small', { class: away ? 'dist away' : 'dist' }, `${fmtDistance(p.checkInDistance)} from office${away && p.locationFree ? ' (can check in anywhere)' : ''}`)
       : null;
     return h('tr', {},
-      h('td', { class: 'person' }, h('b', {}, p.name), h('small', {}, p.designation || p.department || '')),
+      h('td', { class: 'person' }, h('b', {}, p.name), h('small', {}, [p.designation || p.department, p.shift].filter(Boolean).join(' · '))),
       h('td', {}, h('span', { class: `pill ${p.status}` }, STATUS_LABEL[p.status])),
-      h('td', { class: 'num' }, p.checkIn), h('td', { class: 'num' }, p.checkOut), h('td', { class: 'num hide-sm' }, p.hours),
+      h('td', { class: 'num' }, p.checkIn), h('td', { class: 'num' }, outCell(p, () => viewToday(root, date))), h('td', { class: 'num hide-sm' }, p.hours),
       h('td', { class: 'place hide-sm' }, place, place && mapLink ? ' · ' : '', mapLink, dist),
       h('td', {}, h('div', { class: 'selfies' },
         p.checkInSelfie ? h('img', { src: p.checkInSelfie, alt: 'Check-in selfie', title: 'Check-in selfie', onclick: () => showPhoto(p.checkInSelfie, `${p.name} · check-in ${p.checkIn}`) }) : null,
@@ -246,7 +248,7 @@ async function viewMonth(root, month = istMonth()) {
   const dow = (d) => new Date(`${d}T00:00:00Z`).getUTCDay();
   const head = h('tr', {}, h('th', {}, 'Name'),
     data.days.map((d) => h('th', { class: `dow ${dow(d) === data.weeklyOff ? 'weekend' : ''}`, title: niceDate(d) }, dayNum(d), h('br'), DAYS[dow(d)][0])),
-    h('th', { class: 'num' }, 'P'), h('th', { class: 'num' }, 'L'), h('th', { class: 'num' }, 'A'), h('th', { class: 'num' }, 'LV'), h('th', { class: 'num' }, 'Hours'));
+    h('th', { class: 'num' }, 'P'), h('th', { class: 'num' }, 'L'), h('th', { class: 'num' }, 'H'), h('th', { class: 'num' }, 'A'), h('th', { class: 'num' }, 'LV'), h('th', { class: 'num' }, 'Hours'));
   const rows = data.staff.map((s) => h('tr', {},
     h('td', { class: 'person' }, h('b', {}, s.name), h('small', {}, s.designation || '')),
     data.days.map((d) => {
@@ -254,13 +256,14 @@ async function viewMonth(root, month = istMonth()) {
       const tip = c.in ? `${STATUS_LABEL[c.status]} · in ${c.in}${c.out && c.out !== '—' ? `, out ${c.out}` : ''}` : STATUS_LABEL[c.status];
       return h('td', { title: tip ? `${niceDate(d)}: ${tip}` : null }, h('span', { class: `cell ${c.status}` }, CELL[c.status]));
     }),
-    h('td', { class: 'num' }, s.totals.present), h('td', { class: 'num' }, s.totals.late), h('td', { class: 'num' }, s.totals.absent), h('td', { class: 'num' }, s.totals.leave),
+    h('td', { class: 'num' }, s.totals.present), h('td', { class: 'num' }, s.totals.late), h('td', { class: 'num' }, s.totals.half), h('td', { class: 'num' }, s.totals.absent), h('td', { class: 'num' }, s.totals.leave),
     h('td', { class: 'num' }, fmtHours(s.totals.minutes))));
 
   body.replaceChildren(
     h('div', { class: 'card scroll' }, h('table', { class: 'grid' }, h('thead', {}, head), h('tbody', {}, rows))),
     h('div', { class: 'legend' },
       h('span', {}, h('span', { class: 'cell present' }, 'P'), 'Present'), h('span', {}, h('span', { class: 'cell late' }, 'L'), 'Late (still counts as present)'),
+      h('span', {}, h('span', { class: 'cell half' }, 'H'), 'Half day'),
       h('span', {}, h('span', { class: 'cell absent' }, 'A'), 'Absent'), h('span', {}, h('span', { class: 'cell leave' }, 'LV'), 'Approved leave'),
       h('span', {}, h('span', { class: 'cell off' }, '·'), 'Weekly off'),
       h('span', {}, 'Hover a day to see check-in and check-out times')),
@@ -271,12 +274,12 @@ async function viewMonth(root, month = istMonth()) {
 
 function downloadCsv(data) {
   const esc = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  const word = { present: 'P', late: 'L', absent: 'A', off: 'Off', leave: 'Leave', pending: '', before: '' };
-  const lines = [['Name', 'Designation', ...data.days.map((d) => d.slice(8)), 'Present', 'Late', 'Absent', 'Leave', 'Days worked', 'Hours'].map(esc).join(',')];
+  const word = { present: 'P', late: 'L', half: 'H', absent: 'A', off: 'Off', leave: 'Leave', pending: '', before: '' };
+  const lines = [['Name', 'Designation', ...data.days.map((d) => d.slice(8)), 'Present', 'Late', 'Half days', 'Absent', 'Leave', 'Days worked', 'Hours'].map(esc).join(',')];
   for (const s of data.staff) {
     const t = s.totals;
-    lines.push([s.name, s.designation || '', ...data.days.map((d) => word[s.days[d].status]), t.present, t.late, t.absent, t.leave,
-      t.present + t.late, (t.minutes / 60).toFixed(1)].map(esc).join(','));
+    lines.push([s.name, s.designation || '', ...data.days.map((d) => word[s.days[d].status]), t.present, t.late, t.half, t.absent, t.leave,
+      t.present + t.late + t.half / 2, (t.minutes / 60).toFixed(1)].map(esc).join(','));
   }
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = h('a', { href: URL.createObjectURL(blob), download: `haazri-${state.company.name.replace(/[^\w]+/g, '-').toLowerCase()}-${data.month}.csv` });
@@ -370,7 +373,7 @@ async function viewSalary(root, month = istMonth()) {
       const full = await api(`/staff/${p.id}`).catch(() => null);
       if (full) staffForm(full, () => viewSalary(root, month));
     } }, p.missing ? 'Set pay' : 'Edit pay');
-    const cut = [p.absent ? `${plural(p.absent, 'absent day')}` : null, p.unpaidLeave ? `${p.unpaidLeave} unpaid leave` : null,
+    const cut = [p.half ? `${plural(p.half, 'half day')}` : null, p.absent ? `${plural(p.absent, 'absent day')}` : null, p.unpaidLeave ? `${p.unpaidLeave} unpaid leave` : null,
       p.lateCutDays ? `${halfDays(p.lateCutDays)} for ${p.late} late marks` : null].filter(Boolean).join(', ');
     return h('tr', {},
       h('td', { class: 'person' }, h('b', {}, p.name), h('small', {}, p.designation || '')),
@@ -387,7 +390,7 @@ async function viewSalary(root, month = istMonth()) {
     h('span', {}, h('b', {}, 'Weekly:'), ' the same at salary ÷ 7 a day.'),
     h('span', {}, h('b', {}, 'Daily:'), ' rate × days worked.'),
     h('span', {}, h('b', {}, 'Hourly:'), ' rate × hours between check-in and check-out.'),
-    h('span', {}, 'Absent days and unpaid leave are not paid. ',
+    h('span', {}, 'Half days pay half. Absent days and unpaid leave are not paid. ',
       data.lateCutEvery ? `Every ${data.lateCutEvery} late marks cut half a day (Settings).` : 'Late marks do not cut pay (change in Settings).'),
     data.inProgress ? h('span', {}, h('b', {}, 'This month is not over:'), ' amounts are up to today.') : null);
 
@@ -431,7 +434,8 @@ async function viewStaff(root, showOff = false) {
     h('td', { class: 'num' }, s.phone),
     h('td', { class: 'hide-sm' }, s.email || '—'),
     h('td', {}, !s.active ? h('span', { class: 'pill inactive' }, 'Switched off') : s.role === 'admin' ? h('span', { class: 'pill admin' }, 'Admin') : h('span', { class: 'pill present' }, 'Staff'),
-      s.locationFree && state.company.office ? h('small', { class: 'tag', title: 'Can check in away from the office' }, 'Anywhere') : null),
+      s.locationFree && state.company.office ? h('small', { class: 'tag', title: 'Can check in away from the office' }, 'Anywhere') : null,
+      s.shiftId ? h('small', { class: 'tag' }, state.shifts.find((x) => x.id === s.shiftId)?.name || 'Shift') : null),
     h('td', { class: 'hide-sm' }, s.lastLoginAt ? new Date(s.lastLoginAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Never'),
     h('td', {}, h('div', { class: 'actions' },
       h('button', { class: 'btn ghost small', onclick: () => staffForm(s, () => viewStaff(root, showOff)) }, 'Edit'),
@@ -457,10 +461,13 @@ function staffForm(s, onDone) {
       h('label', { class: 'field' }, h('span', {}, 'Pay type'),
         h('select', { name: 'salaryType' }, h('option', { value: '', selected: !s?.salaryType }, 'Not set'),
           Object.entries(PAY_TYPES).map(([k, v]) => h('option', { value: k, selected: s?.salaryType === k }, v)))),
-      f('Salary (₹)', 'salary', s?.salary ?? '', { type: 'number', min: 0, step: 'any', inputmode: 'decimal', placeholder: 'per month, day, hour or week' })),
+      f('Salary (₹)', 'salary', s?.salary ?? '', { type: 'number', min: 0, step: 'any', inputmode: 'decimal', placeholder: 'Amount' })),
     h('label', { class: 'field' }, h('span', {}, 'Role'),
       h('select', { name: 'role' }, h('option', { value: 'staff', selected: s?.role !== 'admin' }, 'Staff (uses the app)'),
         h('option', { value: 'admin', selected: s?.role === 'admin' }, 'Admin (app + this dashboard)'))),
+    h('label', { class: 'field' }, h('span', {}, 'Shift'),
+      h('select', { name: 'shiftId' }, h('option', { value: '', selected: !s?.shiftId }, `Company default (late after ${minutesToHHMM(state.company.lateAfterMinutes)})`),
+        state.shifts.map((sh) => h('option', { value: sh.id, selected: s?.shiftId === sh.id }, `${sh.name} · ${sh.start}–${sh.end}`)))),
     h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'locationFree', checked: !!s?.locationFree }),
       h('span', {}, h('b', {}, 'Can check in from anywhere'), h('small', {}, 'For field or sales staff. Others must be at the office when location lock is on.'))),
     msg,
@@ -505,6 +512,10 @@ function viewSettings(root) {
         h('select', { name: 'off' }, h('option', { value: '', selected: c.weeklyOff == null }, 'None (open every day)'),
           DAYS.map((d, i) => h('option', { value: i, selected: c.weeklyOff === i }, d))),
         h('small', {}, 'The monthly sheet marks this day as off, for past months too.'))),
+    h('label', { class: 'field' }, h('span', {}, 'Half day'),
+      h('select', { name: 'halfDay' }, h('option', { value: '', selected: c.halfDayMinutes == null }, 'No half days'),
+        [[180, '3 hours'], [240, '4 hours'], [270, '4½ hours'], [300, '5 hours'], [360, '6 hours']].map(([m, w]) =>
+          h('option', { value: m, selected: c.halfDayMinutes === m }, `Less than ${w} worked = half day`)))),
     h('label', { class: 'field' }, h('span', {}, 'Late marks and salary'),
       h('select', { name: 'lateCut' }, h('option', { value: '', selected: c.lateCutEvery == null }, 'No salary cut for late marks'),
         [2, 3, 4, 5].map((n) => h('option', { value: n, selected: c.lateCutEvery === n }, `Every ${n} late marks = half-day cut`)))),
@@ -516,12 +527,12 @@ function viewSettings(root) {
     const btn = e.submitter; btn.disabled = true; msg.className = 'msg'; msg.textContent = '';
     const v = Object.fromEntries(new FormData(form));
     try {
-      state.company = await api('/company', { method: 'PATCH', body: { name: v.name, lateAfterMinutes: hhmmToMinutes(v.late), weeklyOff: v.off === '' ? null : Number(v.off), lateCutEvery: v.lateCut === '' ? null : Number(v.lateCut) } });
+      state.company = await api('/company', { method: 'PATCH', body: { name: v.name, lateAfterMinutes: hhmmToMinutes(v.late), weeklyOff: v.off === '' ? null : Number(v.off), lateCutEvery: v.lateCut === '' ? null : Number(v.lateCut), halfDayMinutes: v.halfDay === '' ? null : Number(v.halfDay) } });
       $('company-name').textContent = state.company.name;
       msg.className = 'msg ok'; msg.textContent = 'Saved.';
     } catch (err) { msg.textContent = err.message; } finally { btn.disabled = false; }
   });
-  root.replaceChildren(h('div', { class: 'view-head' }, h('h2', {}, 'Settings')), h('div', { class: 'settings' }, form, officeCard()));
+  root.replaceChildren(h('div', { class: 'view-head' }, h('h2', {}, 'Settings')), h('div', { class: 'settings' }, form, officeCard(), shiftsCard()));
 }
 
 function officeCard(note = '') {
@@ -595,6 +606,71 @@ function officeCard(note = '') {
       state.company.office ? h('button', { class: 'btn ghost', type: 'button', onclick: () => confirm('Turn off location lock? Staff will be able to check in from anywhere.') && save(null) }, 'Turn off') : null),
   );
   return card;
+}
+
+// ---------- Shifts ----------
+
+function shiftsCard() {
+  const list = h('div');
+  const draw = () => list.replaceChildren(state.shifts.length
+    ? h('table', { class: 'mini' }, h('tbody', {}, state.shifts.map((sh) => h('tr', {},
+      h('td', {}, h('b', {}, sh.name), h('small', { class: 'dist' }, `${sh.start}–${sh.end}${sh.overnight ? ' (overnight)' : ''} · late after ${sh.lateAfter}`)),
+      h('td', { class: 'num' }, plural(sh.staffCount ?? 0, 'person').replace('persons', 'people')),
+      h('td', {}, h('div', { class: 'actions' },
+        h('button', { class: 'btn ghost small', type: 'button', onclick: () => shiftForm(sh, reload) }, 'Edit'),
+        h('button', { class: 'btn ghost small', type: 'button', onclick: () => removeShift(sh) }, 'Delete')))))))
+    : h('p', { class: 'muted' }, 'No shifts yet. Everyone uses the company late time above.'));
+  const reload = async () => { state.shifts = (await api('/shifts')).shifts; draw(); };
+  const removeShift = async (sh) => {
+    if (!confirm(`Delete the ${sh.name} shift? People on it will use the company late time.`)) return;
+    try { await api(`/shifts/${sh.id}`, { method: 'DELETE' }); toast(`${sh.name} deleted`); reload(); } catch (err) { toast(err.message); }
+  };
+  draw();
+  return h('div', { class: 'card form-card' },
+    h('h3', {}, 'Shifts'),
+    h('p', { class: 'hint' }, 'Set working hours for different groups, then choose each person’s shift in Staff. Late marks follow their shift; Today shows who left before it ended.'),
+    list,
+    h('div', { class: 'loc-actions', style: 'margin-top:14px' }, h('button', { class: 'btn small', type: 'button', onclick: () => shiftForm(null, reload) }, '+ Add shift')));
+}
+
+function shiftForm(sh, onDone) {
+  const msg = h('p', { class: 'msg' });
+  const t = (label, name, value) => h('label', { class: 'field' }, h('span', {}, label), h('input', { name, type: 'time', value: value || '', required: name !== 'lateAfter' }));
+  const form = h('form', {},
+    h('label', { class: 'field' }, h('span', {}, 'Name'), h('input', { name: 'name', value: sh?.name || '', placeholder: 'e.g. Morning, Night, Store', required: true })),
+    h('div', { class: 'row2' }, t('Starts', 'start', sh?.start), t('Ends', 'end', sh?.end)),
+    t('Late after (blank = 15 minutes after the start)', 'lateAfter', sh?.lateAfter),
+    h('p', { class: 'hint legend', style: 'margin:0 0 8px' }, 'For a night shift, put an end time earlier than the start (e.g. 22:00 to 06:00).'),
+    msg,
+    h('div', { class: 'foot' }, h('button', { class: 'btn ghost', type: 'button', onclick: closeModal }, 'Cancel'), h('button', { class: 'btn', type: 'submit' }, sh ? 'Save' : 'Add shift')));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.submitter; btn.disabled = true; msg.textContent = '';
+    const v = Object.fromEntries(new FormData(form));
+    try {
+      await api(sh ? `/shifts/${sh.id}` : '/shifts', { method: sh ? 'PATCH' : 'POST', body: { name: v.name, start: v.start, end: v.end, lateAfter: v.lateAfter || null } });
+      closeModal(); toast(sh ? 'Shift saved' : 'Shift added'); onDone();
+    } catch (err) { msg.textContent = err.message; btn.disabled = false; }
+  });
+  openModal([h('h3', {}, sh ? `Edit ${sh.name}` : 'Add a shift'), form]);
+}
+
+// Out time on Today, with "left early", "set by admin" and a way to fill in a missed check-out.
+function outCell(p, refresh) {
+  const notes = [];
+  if (p.leftEarlyBy) notes.push(h('small', { class: 'dist away' }, `Left ${durText(p.leftEarlyBy)} early`));
+  if (p.checkOutSetByAdmin) notes.push(h('small', { class: 'dist' }, 'Set by admin'));
+  if (p.noCheckOut) {
+    return [h('span', { class: 'pill absent' }, 'No check-out'), h('br'),
+      h('button', { class: 'link-btn small-link', onclick: () => setOutTime(p, refresh) }, 'Set out time')];
+  }
+  return [p.checkOut, ...notes];
+}
+
+async function setOutTime(p, refresh) {
+  const v = prompt(`${p.name} checked in at ${p.checkIn} and didn't check out. What time did they leave? (HH:MM, 24-hour)`, '18:00');
+  if (v === null) return;
+  try { await api(`/attendance/${p.attendanceId}`, { method: 'PATCH', body: { checkOut: v.trim() } }); toast('Out time saved'); refresh(); } catch (err) { toast(err.message); }
 }
 
 // ---------- Clients (platform admin) ----------

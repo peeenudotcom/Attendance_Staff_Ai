@@ -1,6 +1,7 @@
 import { db, must } from '../../../lib/db.js';
 import { route, body, HttpError } from '../../../lib/http.js';
 import { staffFields, adminView } from '../../../lib/staff-fields.js';
+import { assertShiftInOrg } from '../../../lib/shifts.js';
 
 async function findInCompany(id, orgId) {
   const s = must(await db().from('staff').select('*').eq('id', id).eq('org_id', orgId).maybeSingle());
@@ -20,6 +21,7 @@ export default route({
     const target = await findInCompany(req.query.id, admin.org_id);
     const b = body(req);
     const patch = staffFields(b, { partial: true });
+    await assertShiftInOrg(db(), patch.shift_id, admin.org_id);
     if (b.active !== undefined) patch.active = !!b.active;
     if (!Object.keys(patch).length) throw new HttpError(400, 'Nothing to update');
 

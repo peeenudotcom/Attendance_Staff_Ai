@@ -19,6 +19,20 @@ export const isLate = (d, lateAfterMinutes = 555) => {
   return ist.getUTCHours() * 60 + ist.getUTCMinutes() > lateAfterMinutes;
 };
 
+/**
+ * The person's current attendance row: today's, or (for a night shift that ran past midnight)
+ * yesterday's if they checked in less than 20 hours ago and haven't checked out.
+ */
+export async function currentRecord(staffId, at = new Date()) {
+  const today = await db().from('attendance').select('*').eq('staff_id', staffId).eq('date', istDay(at)).maybeSingle();
+  if (today.error) throw new Error(today.error.message);
+  if (today.data?.check_in_at) return today.data;
+  const y = await db().from('attendance').select('*').eq('staff_id', staffId).eq('date', istDay(new Date(at.getTime() - 86_400_000))).maybeSingle();
+  if (y.error) throw new Error(y.error.message);
+  const open = y.data?.check_in_at && !y.data.check_out_at && at - new Date(y.data.check_in_at) < 20 * 3_600_000;
+  return open ? y.data : today.data;
+}
+
 /** "HH:MM" in IST, or "—". */
 export const fmtTime = (ts) => {
   if (!ts) return '—';

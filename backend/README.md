@@ -19,7 +19,7 @@ here; the app's base URL is `https://<deployment>/api`.
 | `GET /api/reports/month?month=YYYY-MM` | admin | attendance sheet with totals |
 | `PUT /api/attendance/:id/approve`, `/reject` `{ reason }` | admin | review a day |
 | `POST /api/call-logs/sync` `{ logs }` | signed in | Android call history |
-| `GET /api/company`, `PATCH /api/company` `{ name?, lateAfterMinutes?, weeklyOff?, office?, lateCutEvery? }` | signed in / company admin | own company and its settings |
+| `GET /api/company`, `PATCH /api/company` `{ name?, lateAfterMinutes?, weeklyOff?, office?, lateCutEvery?, halfDayMinutes? }` | signed in / company admin | own company and its settings |
 | `GET /api/companies`, `POST /api/companies` `{ name, adminName, adminPhone, adminEmail }` | platform admin | client companies; add one with its first admin |
 | `PATCH /api/companies/:id` `{ name?, logoUrl?, lateAfterMinutes?, active? }` | platform admin | edit or pause a company |
 | `GET /api/leave`, `POST /api/leave` `{ from, to, type, reason? }` | signed in | own leave requests; ask for leave (admins are emailed) |
@@ -27,6 +27,9 @@ here; the app's base URL is `https://<deployment>/api`.
 | `GET /api/leave/company` | admin | `{ pending, recent }` for the company |
 | `POST /api/leave/:id/decide` `{ approve, note? }` | admin | approve or reject (the person is emailed) |
 | `GET /api/reports/salary?month=YYYY-MM` | admin | each person's pay for the month from attendance (pay so far for the current month) |
+| `GET /api/shifts`, `POST /api/shifts` `{ name, start, end, lateAfter? }` | admin | the company's shifts; add one |
+| `PATCH /api/shifts/:id`, `DELETE /api/shifts/:id` | admin | edit; delete (people on it go back to the company late time) |
+| `PATCH /api/attendance/:id` `{ checkOut: "HH:MM" }` | admin | fill in a missed check-out (hours worked out again) |
 | `GET /api/health` | anyone | `{ ok: true }` |
 | `/privacy`, `/support`, `/get` | anyone | pages for the App Store listing; install page |
 | `/dashboard` | company admins | owner web dashboard (see below) |
@@ -93,6 +96,19 @@ Absent days and unpaid leave are not paid. A company can set "every N late marks
 Only days up to today count, so the current month shows pay so far. It's a calculation from attendance, not a payslip:
 no PF, ESI, TDS, advances or bonuses.
 
+## Shifts and half days
+
+A company can define shifts (name, start, end, late-after time; an end before the start is an overnight shift) and put
+each person on one in Staff; anyone without a shift uses the company's late time. Late marks follow the person's shift,
+measured from its start (so 00:30 on a 22:00 shift is late; arriving up to 6 hours early is on time). Today shows the
+shift and "Left N min early" when someone checks out more than 5 minutes before it ends.
+
+Night shifts: until 20 hours after a check-in with no check-out, the app treats that record as current, so checking out
+after midnight closes yesterday's shift, and a new check-in is refused until it's closed.
+
+Half days: with "less than N hours worked = half day" set, a checked-out day under N hours is a half day ("H" on the
+sheet, half pay). Missed check-outs show as "No check-out" on past days; an admin can set the out time on Today.
+
 ## Location lock
 
 A company admin sets an office location and an allowed distance (Settings in the dashboard; `office: { lat, lng, radiusM }`
@@ -104,7 +120,7 @@ decides. A fake-GPS app on a rooted Android phone can still get around it; the s
 
 ## Database
 
-`supabase/migrations/` (001 to 006 applied). Row level security is on with no policies, so only the
+`supabase/migrations/` (001 to 007 applied). Row level security is on with no policies, so only the
 service-role key used here can read or write; the app never talks to Supabase directly.
 
 Add or change people directly when needed:

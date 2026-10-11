@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 const B = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
-const tables = { organizations: [], staff: [], otp_codes: [], attendance: [], call_logs: [], leave_requests: [] };
+const tables = { organizations: [], staff: [], otp_codes: [], attendance: [], call_logs: [], leave_requests: [], shifts: [] };
 const uploads = [];
 const sentEmails = [];
 
@@ -100,6 +100,25 @@ async function call(path, { method = 'GET', body, token, query = {} } = {}) {
 
 const selfie = Buffer.from('fake jpeg bytes').toString('base64');
 
+test('shift rules', async () => {
+  const { isLateFor, leftEarlyBy } = await import(`${B}/lib/shifts.js`);
+  const at = (t, d = '2026-10-12') => new Date(`${d}T${t}:00+05:30`);
+  const day = { start_minutes: 540, end_minutes: 1080, late_after_minutes: 555 };
+  const night = { start_minutes: 1320, end_minutes: 360, late_after_minutes: 1335 };
+  const who = (shift) => ({ shift, org: { late_after_minutes: 600 } });
+  assert.equal(isLateFor(at('08:50'), who(day)), false);
+  assert.equal(isLateFor(at('09:15'), who(day)), false);
+  assert.equal(isLateFor(at('09:16'), who(day)), true);
+  assert.equal(isLateFor(at('21:55'), who(night)), false);
+  assert.equal(isLateFor(at('22:20'), who(night)), true);
+  assert.equal(isLateFor(at('00:30'), who(night)), true); // after midnight, still the night shift
+  assert.equal(isLateFor(at('09:50'), who(null)), false); // company late time 10:00
+  assert.equal(leftEarlyBy(day, at('09:00'), at('17:00')), 60);
+  assert.equal(leftEarlyBy(day, at('09:00'), at('17:57')), 0); // 5 minutes' grace
+  assert.equal(leftEarlyBy(night, at('22:00'), at('05:00', '2026-10-13')), 60);
+  assert.equal(leftEarlyBy(null, at('09:00'), at('10:00')), 0);
+});
+
 test('pay rules', async () => {
   const { monthPay } = await import(`${B}/lib/payroll.js`);
   const totals = (o) => ({ present: 0, late: 0, absent: 0, off: 0, leave: 0, paidLeave: 0, unpaidLeave: 0, minutes: 0, ...o });
@@ -121,6 +140,11 @@ test('pay rules', async () => {
   // weekly rate: 7000 a week = 1000 a day
   p = monthPay({ salaryType: 'weekly', salary: 7000, daysInMonth: 28, totals: totals({ present: 24, off: 4 }) });
   assert.equal(p.pay, 28000);
+  // a half day pays half
+  p = monthPay({ salaryType: 'monthly', salary: 30000, daysInMonth: 30, totals: totals({ present: 25, half: 2, off: 4 }) });
+  assert.equal(p.payDays, 30); assert.equal(p.pay, 30000);
+  p = monthPay({ salaryType: 'daily', salary: 600, daysInMonth: 30, totals: totals({ present: 10, half: 1 }) });
+  assert.equal(p.pay, 6300);
   // no salary set
   p = monthPay({ salaryType: null, salary: null, daysInMonth: 30, totals: totals({ present: 3 }) });
   assert.equal(p.missing, true); assert.equal(p.pay, null);
@@ -446,6 +470,54 @@ test('full flow', async () => {
   const ashaPay = r.json.staff.find((x) => x.id === asha.id);
   assert.equal(ashaPay.pay, 0); assert.equal(ashaPay.payDays, 0); // joined after February
   await call('company', { method: 'PATCH', token, body: { lateCutEvery: null } });
+
+  // ---- shifts, night shifts, half days, missed check-out ----
+  assert.equal((await call('shifts/index', { token: aToken })).status, 403);
+  assert.equal((await call('shifts/index', { method: 'POST', token, body: { name: 'Bad', start: '25:00', end: '06:00' } })).status, 400);
+  r = await call('shifts/index', { method: 'POST', token, body: { name: 'Night', start: '22:00', end: '06:00' } });
+  assert.equal(r.status, 200); assert.equal(r.json.shift.lateAfter, '22:15'); assert.equal(r.json.shift.overnight, true);
+  const nightId = r.json.shift.id;
+  assert.equal((await call('shifts/index', { method: 'POST', token, body: { name: 'night', start: '21:00', end: '05:00' } })).status, 409);
+  r = await call('staff/[id]/index', { method: 'PATCH', token, query: { id: asha.id }, body: { shiftId: 'not-ours' } });
+  assert.equal(r.status, 400);
+  r = await call('staff/[id]/index', { method: 'PATCH', token, query: { id: asha.id }, body: { shiftId: nightId } });
+  assert.equal(r.json.staff.shiftId, nightId);
+  assert.equal((await call('shifts/index', { token })).json.shifts[0].staffCount, 1);
+  // a night shift that started yesterday evening is still "today" for the app, blocks a new check-in, and checks out
+  tables.attendance = tables.attendance.filter((x) => x.staff_id !== asha.id);
+  const istNow = new Date(Date.now() + 330 * 60000);
+  const yesterday = new Date(istNow.getTime() - 86400000).toISOString().slice(0, 10);
+  tables.attendance.push({ id: 'night1', org_id: 'org1', staff_id: asha.id, date: yesterday, status: 'present', approval: 'pending',
+    check_in_at: new Date(Date.now() - 8 * 3600000).toISOString(), check_out_at: null, worked_minutes: null });
+  r = await call('attendance/today', { token: aToken });
+  assert.equal(r.json.id, 'night1'); assert.equal(r.json.checkedOut, false);
+  assert.equal((await call('attendance/check-in', { method: 'POST', token: aToken, body: { selfie } })).status, 409);
+  assert.equal((await call('attendance/check-out', { method: 'POST', token: aToken, body: { selfie } })).status, 200);
+  const night1 = tables.attendance.find((x) => x.id === 'night1');
+  assert.ok(night1.check_out_at); assert.ok(night1.worked_minutes >= 479 && night1.worked_minutes <= 481);
+  // missed check-out: flagged, then an admin fills it in
+  tables.attendance.push({ id: 'miss1', org_id: 'org1', staff_id: asha.id, date: '2026-10-05', status: 'present', approval: 'pending',
+    check_in_at: '2026-10-05T03:30:00Z', check_out_at: null, worked_minutes: null }); // 09:00 IST
+  r = await call('reports/day', { token, query: { date: '2026-10-05' } });
+  assert.equal(r.json.staff.find((x) => x.id === asha.id).noCheckOut, true);
+  assert.equal((await call('attendance/[id]/index', { method: 'PATCH', token: aToken, query: { id: 'miss1' }, body: { checkOut: '13:00' } })).status, 403);
+  assert.equal((await call('attendance/[id]/index', { method: 'PATCH', token, query: { id: 'miss1' }, body: { checkOut: '1pm' } })).status, 400);
+  r = await call('attendance/[id]/index', { method: 'PATCH', token, query: { id: 'miss1' }, body: { checkOut: '12:00' } });
+  assert.equal(r.json.workedMinutes, 180);
+  // half day: under 4 hours
+  assert.equal((await call('company', { method: 'PATCH', token, body: { halfDayMinutes: 30 } })).status, 400);
+  assert.equal((await call('company', { method: 'PATCH', token, body: { halfDayMinutes: 240 } })).json.halfDayMinutes, 240);
+  r = await call('reports/day', { token, query: { date: '2026-10-05' } });
+  const fixed = r.json.staff.find((x) => x.id === asha.id);
+  assert.equal(fixed.status, 'half'); assert.equal(fixed.noCheckOut, false); assert.equal(fixed.checkOutSetByAdmin, true);
+  assert.equal(fixed.shift, 'Night');
+  r = await call('reports/month', { token, query: { month: '2026-10' } });
+  assert.equal(r.json.staff.find((x) => x.id === asha.id).days['2026-10-05'].status, 'half');
+  assert.equal(r.json.staff.find((x) => x.id === asha.id).totals.half, 1);
+  // deleting a shift moves people back to the company's late time
+  assert.equal((await call('shifts/[id]', { method: 'DELETE', token, query: { id: nightId } })).status, 200);
+  assert.equal(tables.staff.find((x) => x.id === asha.id).shift_id, null);
+  await call('company', { method: 'PATCH', token, body: { halfDayMinutes: null } });
 
   // pausing a company locks its users out
   const majafId = tables.organizations.find((o) => o.name === 'Majaf Fabrics').id;
