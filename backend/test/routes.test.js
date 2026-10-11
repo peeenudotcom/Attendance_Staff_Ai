@@ -100,6 +100,32 @@ async function call(path, { method = 'GET', body, token, query = {} } = {}) {
 
 const selfie = Buffer.from('fake jpeg bytes').toString('base64');
 
+test('pay rules', async () => {
+  const { monthPay } = await import(`${B}/lib/payroll.js`);
+  const totals = (o) => ({ present: 0, late: 0, absent: 0, off: 0, leave: 0, paidLeave: 0, unpaidLeave: 0, minutes: 0, ...o });
+  // monthly, full 30-day month: 22 present + 4 late + 4 Sundays = full salary
+  let p = monthPay({ salaryType: 'monthly', salary: 30000, daysInMonth: 30, totals: totals({ present: 22, late: 4, off: 4 }) });
+  assert.equal(p.pay, 30000); assert.equal(p.payDays, 30);
+  // 2 absent + 1 unpaid leave cut 3 days; 1 sick leave is paid
+  p = monthPay({ salaryType: 'monthly', salary: 30000, daysInMonth: 30, totals: totals({ present: 20, late: 2, off: 4, absent: 2, paidLeave: 1, unpaidLeave: 1 }) });
+  assert.equal(p.pay, 27000);
+  // every 3 lates = half day: 7 lates -> 1 day cut
+  p = monthPay({ salaryType: 'monthly', salary: 30000, daysInMonth: 30, lateCutEvery: 3, totals: totals({ present: 19, late: 7, off: 4 }) });
+  assert.equal(p.lateCutDays, 1); assert.equal(p.pay, 29000);
+  // daily: only days worked
+  p = monthPay({ salaryType: 'daily', salary: 600, daysInMonth: 31, totals: totals({ present: 20, late: 5, off: 4, paidLeave: 2 }) });
+  assert.equal(p.pay, 15000);
+  // hourly: hours between check-in and check-out; late cut does not apply
+  p = monthPay({ salaryType: 'hourly', salary: 100, daysInMonth: 31, lateCutEvery: 2, totals: totals({ present: 2, late: 4, minutes: 2880 }) });
+  assert.equal(p.pay, 4800); assert.equal(p.hours, 48);
+  // weekly rate: 7000 a week = 1000 a day
+  p = monthPay({ salaryType: 'weekly', salary: 7000, daysInMonth: 28, totals: totals({ present: 24, off: 4 }) });
+  assert.equal(p.pay, 28000);
+  // no salary set
+  p = monthPay({ salaryType: null, salary: null, daysInMonth: 30, totals: totals({ present: 3 }) });
+  assert.equal(p.missing, true); assert.equal(p.pay, null);
+});
+
 test('full flow', async () => {
   // health
   assert.equal((await call('health')).status, 200);
@@ -401,6 +427,25 @@ test('full flow', async () => {
   await call('leave/[id]/decide', { method: 'POST', token, query: { id: r.json.request.id }, body: { approve: true } });
   assert.equal((await call('leave/[id]/cancel', { method: 'POST', token: aToken, query: { id: r.json.request.id } })).status, 409);
   assert.ok(istToday());
+
+  // ---- salary ----
+  assert.equal((await call('reports/salary', { token: aToken })).status, 403);
+  r = await call('staff/[id]/index', { method: 'PATCH', token, query: { id: 'admin1' }, body: { salaryType: 'monthly', salary: 28000 } });
+  assert.equal(r.json.staff.salaryType, 'monthly');
+  assert.equal((await call('company', { method: 'PATCH', token, body: { lateCutEvery: 1 } })).status, 400);
+  assert.equal((await call('company', { method: 'PATCH', token, body: { lateCutEvery: 3 } })).json.lateCutEvery, 3);
+  r = await call('reports/salary', { token, query: { month: '2026-02' } });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const owner = r.json.staff.find((x) => x.id === 'admin1');
+  assert.equal(owner.payDays, 4); assert.equal(owner.pay, 4000); // Feb 2026: 4 Sundays paid, 24 days absent
+  // a future month counts nothing yet
+  const next = new Date(Date.now() + 330 * 60000 + 40 * 86400000).toISOString().slice(0, 7);
+  r = await call('reports/salary', { token, query: { month: next } });
+  assert.equal(r.json.staff.find((x) => x.id === 'admin1').pay, 0); // future Sundays are not paid yet
+  assert.equal(r.json.inProgress, false); assert.equal(r.json.lateCutEvery, 3);
+  const ashaPay = r.json.staff.find((x) => x.id === asha.id);
+  assert.equal(ashaPay.pay, 0); assert.equal(ashaPay.payDays, 0); // joined after February
+  await call('company', { method: 'PATCH', token, body: { lateCutEvery: null } });
 
   // pausing a company locks its users out
   const majafId = tables.organizations.find((o) => o.name === 'Majaf Fabrics').id;

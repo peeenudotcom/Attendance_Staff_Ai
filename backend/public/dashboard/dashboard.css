@@ -138,3 +138,6 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .pill.leave { background: #E6EEF7; color: #2F5A8A; }
 .badge { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 999px; background: var(--maroon); color: #fff; font-size: 11px; line-height: 18px; text-align: center; }
 h3.sub { font-size: 14px; color: var(--muted); margin: 18px 2px 8px; font-weight: 600; }
+
+.rules { flex-direction: column; gap: 4px; align-items: flex-start; }
+.rules b { color: var(--text); margin-right: 4px; }
