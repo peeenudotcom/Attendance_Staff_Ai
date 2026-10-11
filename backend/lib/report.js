@@ -31,7 +31,7 @@ export async function buildMonth(org, monthParam) {
   const { month, days } = monthDays(monthParam);
   const weeklyOff = org.weekly_off;
   const staff = must(await db().from('staff').select('*').eq('org_id', org.id).eq('active', true).order('name'));
-  const rows = must(await db().from('attendance').select('staff_id, date, status, check_in_at, check_out_at, worked_minutes')
+  const rows = must(await db().from('attendance').select('id, staff_id, date, status, check_in_at, check_out_at, worked_minutes, check_in_edited_by, check_out_edited_by, admin_note')
     .eq('org_id', org.id).gte('date', days[0]).lte('date', days[days.length - 1]));
   const leave = await approvedLeave(db(), org.id, days[0], days[days.length - 1]);
   const key = (staffId, date) => `${staffId}|${date}`;
@@ -54,7 +54,8 @@ export async function buildMonth(org, monthParam) {
         if (date <= today && status === 'leave') totals[leaveType === 'unpaid' ? 'unpaidLeave' : 'paidLeave'] += 1;
         if (r?.worked_minutes) totals.minutes += r.worked_minutes;
         cells[date] = r?.check_in_at
-          ? { status, in: fmtTime(r.check_in_at), out: fmtTime(r.check_out_at), minutes: r.worked_minutes }
+          ? { status, id: r.id, in: fmtTime(r.check_in_at), out: fmtTime(r.check_out_at), minutes: r.worked_minutes,
+            ...(r.check_in_edited_by || r.check_out_edited_by ? { edited: true } : {}), ...(r.admin_note ? { note: r.admin_note } : {}) }
           : status === 'leave' ? { status, leaveType } : { status };
       }
       return { staff: s, id: s.id, name: s.name, designation: s.designation, department: s.department, days: cells, totals };

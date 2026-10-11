@@ -145,6 +145,11 @@ h3.sub { font-size: 14px; color: var(--muted); margin: 18px 2px 8px; font-weight
 .cell.half { background: #F3E9F5; color: #7A3E8A; }
 .pill.half { background: #F3E9F5; color: #7A3E8A; }
 table.mini td { padding: 8px 4px; }
-.small-link { font-size: 12px; padding: 2px 0; }
+.small-link { display: block; font-size: 12px; padding: 2px 0; }
 table.mini .actions { flex-wrap: nowrap; }
 table.mini td.num { white-space: nowrap; color: var(--muted); font-size: 13px; }
+
+td.clickable { cursor: pointer; }
+td.clickable:hover { background: var(--soft); }
+.cell.edited { outline: 1.5px dashed currentColor; outline-offset: 1px; }
+.btn.ghost.danger { color: var(--red); }

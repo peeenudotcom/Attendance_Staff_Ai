@@ -519,6 +519,36 @@ test('full flow', async () => {
   assert.equal(tables.staff.find((x) => x.id === asha.id).shift_id, null);
   await call('company', { method: 'PATCH', token, body: { halfDayMinutes: null } });
 
+  // ---- admins add / correct / remove a day ----
+  assert.equal((await call('attendance/index', { method: 'POST', token: aToken, body: { staffId: asha.id, date: '2026-10-06', checkIn: '09:40' } })).status, 403);
+  assert.equal((await call('attendance/index', { method: 'POST', token, body: { staffId: asha.id, date: '2099-01-01', checkIn: '09:40' } })).status, 400);
+  assert.equal((await call('attendance/index', { method: 'POST', token, body: { staffId: 'm1x', date: '2026-10-06', checkIn: '09:40' } })).status, 404);
+  assert.equal((await call('attendance/index', { method: 'POST', token, body: { staffId: asha.id, date: '2026-10-06', checkIn: '9.40am' } })).status, 400);
+  r = await call('attendance/index', { method: 'POST', token, body: { staffId: asha.id, date: '2026-10-06', checkIn: '09:40', checkOut: '18:00', note: 'Phone battery dead' } });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.status, 'late'); assert.equal(r.json.workedMinutes, 500); // company late time 09:15
+  const addedId = r.json.id;
+  assert.equal((await call('attendance/index', { method: 'POST', token, body: { staffId: asha.id, date: '2026-10-06', checkIn: '09:00' } })).status, 409);
+  r = await call('reports/day', { token, query: { date: '2026-10-06' } });
+  let a6 = r.json.staff.find((x) => x.id === asha.id);
+  assert.equal(a6.addedByAdmin, true); assert.equal(a6.note, 'Phone battery dead'); assert.equal(a6.checkIn, '09:40');
+  r = await call('reports/month', { token, query: { month: '2026-10' } });
+  assert.equal(r.json.staff.find((x) => x.id === asha.id).days['2026-10-06'].id, addedId);
+  assert.equal(r.json.staff.find((x) => x.id === asha.id).days['2026-10-06'].edited, true);
+  // correct the check-in: on time now, hours worked out again
+  r = await call('attendance/[id]/index', { method: 'PATCH', token, query: { id: addedId }, body: { checkIn: '09:00' } });
+  assert.equal(r.json.status, 'present'); assert.equal(r.json.workedMinutes, 540);
+  // clear the check-out
+  r = await call('attendance/[id]/index', { method: 'PATCH', token, query: { id: addedId }, body: { checkOut: '' } });
+  assert.equal(tables.attendance.find((x) => x.id === addedId).check_out_at, null);
+  assert.equal((await call('attendance/[id]/index', { method: 'PATCH', token, query: { id: addedId }, body: {} })).status, 400);
+  // remove it
+  assert.equal((await call('attendance/[id]/index', { method: 'DELETE', token: aToken, query: { id: addedId } })).status, 403);
+  assert.equal((await call('attendance/[id]/index', { method: 'DELETE', token, query: { id: addedId } })).status, 200);
+  r = await call('reports/day', { token, query: { date: '2026-10-06' } });
+  assert.ok(!r.json.staff.some((x) => x.id === asha.id)); // gone again (she joined after that day)
+  assert.ok(!tables.attendance.some((x) => x.id === addedId));
+
   // pausing a company locks its users out
   const majafId = tables.organizations.find((o) => o.name === 'Majaf Fabrics').id;
   assert.equal((await call('companies/[id]', { method: 'PATCH', token, query: { id: majafId }, body: { active: false } })).status, 200);
