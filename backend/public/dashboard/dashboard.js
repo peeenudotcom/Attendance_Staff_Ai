@@ -3,8 +3,8 @@
 
 const TOKEN_KEY = 'haazri_dashboard_token';
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const STATUS_LABEL = { present: 'Present', late: 'Late', half: 'Half day', absent: 'Absent', pending: 'Not in yet', off: 'Weekly off', leave: 'On leave', holiday: 'Holiday', before: '' };
-const CELL = { present: 'P', late: 'L', half: 'H', absent: 'A', off: '·', leave: 'LV', holiday: 'HO', pending: '', before: '' };
+const STATUS_LABEL = { present: 'Present', late: 'Late', half: 'Half day', absent: 'Absent', pending: 'Not in yet', off: 'Weekly off', leave: 'On leave', holiday: 'Holiday', before: '', left: 'Left' };
+const CELL = { present: 'P', late: 'L', half: 'H', absent: 'A', off: '·', leave: 'LV', holiday: 'HO', pending: '', before: '', left: '' };
 
 const $ = (id) => document.getElementById(id);
 const state = { user: null, company: null, view: 'today', phone: '', shifts: [] };
@@ -259,7 +259,7 @@ async function viewMonth(root, month = istMonth()) {
     data.days.map((d) => {
       const c = s.days[d];
       const tip = c.in ? `${STATUS_LABEL[c.status]} · in ${c.in}${c.out && c.out !== '—' ? `, out ${c.out}` : ''}` : c.holiday ? `Holiday: ${c.holiday}` : STATUS_LABEL[c.status];
-      const editable = c.status !== 'before' && d <= istToday();
+      const editable = c.status !== 'before' && c.status !== 'left' && d <= istToday();
       return h('td', {
         title: `${niceDate(d)}${tip ? `: ${tip}` : ''}${c.note ? ` (${c.note})` : ''}${editable ? ' · click to add or change' : ''}`,
         class: editable ? 'clickable' : null,
@@ -307,20 +307,22 @@ const leaveDates = (r) => (r.from === r.to ? shortDate(r.from) : `${shortDate(r.
 
 async function refreshLeaveBadge(count) {
   try {
-    const n = count ?? (await api('/leave/company')).pending.length;
+    const n = count ?? ((await api('/leave/company')).pending.length + (await api('/corrections/company')).pending.length);
     $('leave-badge').textContent = n;
     $('leave-badge').classList.toggle('hidden', !n);
   } catch { /* the badge is a convenience */ }
 }
 
+const CORRECTION_PILL = LEAVE_PILL;
+
 async function viewLeave(root) {
   const body = h('div');
-  root.replaceChildren(h('div', { class: 'view-head' }, h('h2', {}, 'Leave'), h('div', { class: 'spacer' }),
-    h('span', { class: 'muted' }, 'Staff ask for leave in the Haazri app')), body);
+  root.replaceChildren(h('div', { class: 'view-head' }, h('h2', {}, 'Requests'), h('div', { class: 'spacer' }),
+    h('span', { class: 'muted' }, 'Staff ask for leave and attendance corrections in the Haazri app')), body);
   loading(body);
-  let data;
-  try { data = await api('/leave/company'); } catch (err) { return failed(body, err); }
-  refreshLeaveBadge(data.pending.length);
+  let data; let fixes;
+  try { [data, fixes] = await Promise.all([api('/leave/company'), api('/corrections/company')]); } catch (err) { return failed(body, err); }
+  refreshLeaveBadge(data.pending.length + fixes.pending.length);
 
   const decide = async (r, approve) => {
     let note = null;
@@ -334,25 +336,50 @@ async function viewLeave(root) {
       viewLeave(root);
     } catch (err) { toast(err.message); }
   };
+  const decideFix = async (r, approve) => {
+    let note = null;
+    if (!approve) {
+      note = prompt(`Not approving ${r.staffName}'s correction. Add a note for them (optional):`, '');
+      if (note === null) return;
+    }
+    try {
+      await api(`/corrections/${r.id}/decide`, { method: 'POST', body: { approve, note } });
+      toast(approve ? `Approved: ${r.staffName}'s attendance updated` : `${r.staffName}'s correction not approved`);
+      viewLeave(root);
+    } catch (err) { toast(err.message); }
+  };
+  const asked = (r) => `Asked ${new Date(r.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`;
   const row = (r, actions) => h('tr', {},
-    h('td', { class: 'person' }, h('b', {}, r.staffName), h('small', {}, `Asked ${new Date(r.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`)),
+    h('td', { class: 'person' }, h('b', {}, r.staffName), h('small', {}, asked(r))),
     h('td', {}, h('b', {}, leaveDates(r)), h('small', { class: 'dist' }, `${r.days} day${r.days === 1 ? '' : 's'} · ${r.typeLabel}`)),
     h('td', { class: 'place hide-sm' }, r.reason || '—', r.note ? h('small', { class: 'dist' }, `Note: ${r.note}`) : null),
     h('td', {}, h('span', { class: `pill ${LEAVE_PILL[r.status]}` }, LEAVE_WORD[r.status])),
     h('td', {}, h('div', { class: 'actions' }, actions)));
+  const fixTimes = (r) => [r.checkIn ? `In ${r.checkIn}` : null, r.checkOut ? `Out ${r.checkOut}` : null].filter(Boolean).join(' · ');
+  const fixRow = (r, actions) => h('tr', {},
+    h('td', { class: 'person' }, h('b', {}, r.staffName), h('small', {}, asked(r))),
+    h('td', {}, h('b', {}, shortDate(r.date)), h('small', { class: 'dist' }, `${r.label} · ${fixTimes(r)}`)),
+    h('td', { class: 'place hide-sm' }, r.reason, r.decisionNote ? h('small', { class: 'dist' }, `Note: ${r.decisionNote}`) : null),
+    h('td', {}, h('span', { class: `pill ${CORRECTION_PILL[r.status]}` }, LEAVE_WORD[r.status])),
+    h('td', {}, h('div', { class: 'actions' }, actions)));
+  const table = (rows, empty) => (rows.length ? h('div', { class: 'card scroll' }, h('table', {}, h('tbody', {}, rows))) : h('div', { class: 'card empty' }, empty));
 
-  const pending = data.pending.length
-    ? h('div', { class: 'card scroll' }, h('table', {}, h('tbody', {}, data.pending.map((r) => row(r, [
-      h('button', { class: 'btn small', onclick: () => decide(r, true) }, 'Approve'),
-      h('button', { class: 'btn ghost small', onclick: () => decide(r, false) }, 'Reject')])))))
-    : h('div', { class: 'card empty' }, 'No leave requests waiting.');
-  const recent = data.recent.length
-    ? h('div', { class: 'card scroll' }, h('table', {}, h('tbody', {}, data.recent.map((r) => row(r,
-      r.status === 'approved' ? h('button', { class: 'btn ghost small', onclick: () => confirm(`Withdraw approval for ${r.staffName}'s leave (${leaveDates(r)})?`) && decide(r, false) }, 'Withdraw')
-        : r.status === 'rejected' ? h('button', { class: 'btn ghost small', onclick: () => decide(r, true) }, 'Approve') : null)))))
-    : h('div', { class: 'card empty' }, 'Nothing yet.');
+  const fixPending = table(fixes.pending.map((r) => fixRow(r, [
+    h('button', { class: 'btn small', onclick: () => decideFix(r, true) }, 'Approve'),
+    h('button', { class: 'btn ghost small', onclick: () => decideFix(r, false) }, 'Reject')])), 'No corrections waiting.');
+  const pending = table(data.pending.map((r) => row(r, [
+    h('button', { class: 'btn small', onclick: () => decide(r, true) }, 'Approve'),
+    h('button', { class: 'btn ghost small', onclick: () => decide(r, false) }, 'Reject')])), 'No leave requests waiting.');
+  const recent = table(data.recent.map((r) => row(r,
+    r.status === 'approved' ? h('button', { class: 'btn ghost small', onclick: () => confirm(`Withdraw approval for ${r.staffName}'s leave (${leaveDates(r)})?`) && decide(r, false) }, 'Withdraw')
+      : r.status === 'rejected' ? h('button', { class: 'btn ghost small', onclick: () => decide(r, true) }, 'Approve') : null)), 'Nothing yet.');
+  const fixRecent = table(fixes.recent.map((r) => fixRow(r, null)), 'Nothing yet.');
 
-  body.replaceChildren(h('h3', { class: 'sub' }, `Waiting for you (${data.pending.length})`), pending, h('h3', { class: 'sub' }, 'Earlier'), recent);
+  body.replaceChildren(
+    h('h3', { class: 'sub' }, `Attendance corrections waiting (${fixes.pending.length})`), fixPending,
+    h('h3', { class: 'sub' }, `Leave waiting (${data.pending.length})`), pending,
+    h('h3', { class: 'sub' }, 'Earlier corrections'), fixRecent,
+    h('h3', { class: 'sub' }, 'Earlier leave'), recent);
 }
 
 // ---------- Salary ----------
@@ -364,6 +391,7 @@ const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 // 0.5 -> "½ day", 1 -> "1 day", 1.5 -> "1½ days"
 const halfDays = (n) => `${Math.floor(n) || ''}${n % 1 ? '½' : ''} day${n > 1 ? 's' : ''}`;
 
+const niceShort = (d) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 const signedRupees = (n) => (n > 0 ? `+${rupees(n)}` : n < 0 ? `−${rupees(-n)}` : '—');
 const monthLabel = (m) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 const whenText = (iso) => new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' });
@@ -413,7 +441,7 @@ async function viewSalary(root, month = istMonth()) {
       p.lateCutDays ? `${halfDays(p.lateCutDays)} for ${p.late} late marks` : null].filter(Boolean).join(', ');
     const adjTotal = p.adjustmentTotal ?? 0;
     return h('tr', {},
-      h('td', { class: 'person' }, h('b', {}, p.name), h('small', {}, p.designation || '')),
+      h('td', { class: 'person' }, h('b', {}, p.name), h('small', {}, p.leftOn ? `Left ${niceShort(p.leftOn)}` : (p.designation || ''))),
       h('td', {}, p.missing ? h('span', { class: 'muted' }, 'Not set') : [h('b', {}, `${rupees(p.salary)}${PER[p.salaryType]}`), h('small', { class: 'dist' }, PAY_TYPES[p.salaryType])]),
       h('td', { class: 'num hide-sm' }, p.worked), h('td', { class: 'num hide-sm', title: p.holiday ? `${p.off} weekly off + ${p.holiday} holiday` : null }, p.off + (p.holiday || 0)), h('td', { class: 'num hide-sm' }, p.paidLeave),
       h('td', { class: 'num hide-sm' }, p.salaryType === 'hourly' ? `${p.hours} h` : (p.payDays ?? '—')),
@@ -497,7 +525,8 @@ async function closeMonthForm(month, onDone) {
     fix ? h('small', { class: 'muted' }, fix) : null);
   const issues = [
     c.missingCheckOuts.length ? section('No check-out', c.missingCheckOuts, (x) => h('li', {}, `${x.name} · ${niceDate(x.date)}`), 'Fill these in on the Monthly sheet (click the day), or close anyway to pay them as recorded.') : null,
-    c.pendingLeave.length ? section('Leave still waiting', c.pendingLeave, (x) => h('li', {}, `${x.name} · ${x.from === x.to ? niceDate(x.from) : `${niceDate(x.from)} – ${niceDate(x.to)}`}`), 'Approve or reject these on the Leave page first; waiting leave counts as absent.') : null,
+    c.pendingLeave.length ? section('Leave still waiting', c.pendingLeave, (x) => h('li', {}, `${x.name} · ${x.from === x.to ? niceDate(x.from) : `${niceDate(x.from)} – ${niceDate(x.to)}`}`), 'Approve or reject these on the Requests page first; waiting leave counts as absent.') : null,
+    (c.pendingCorrections || []).length ? section('Correction requests waiting', c.pendingCorrections, (x) => h('li', {}, `${x.name} · ${niceDate(x.date)}`), 'Approve or reject these on the Requests page so the attendance is right.') : null,
     c.payNotSet.length ? section('Pay not set', c.payNotSet, (n) => h('li', {}, n), 'They will show no salary for this month.') : null,
   ].filter(Boolean);
   const go = h('button', { class: 'btn', onclick: async () => {

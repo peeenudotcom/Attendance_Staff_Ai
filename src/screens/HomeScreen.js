@@ -91,6 +91,7 @@ export default function HomeScreen({ navigation }) {
     ...(ENABLE_CALL_LOGS && Platform.OS === 'android' ? [{ icon: '◉', label: 'Calls', screen: 'CallLogs' }] : []),
     ...(SHOW_SAMPLE_DATA ? [{ icon: '◫', label: 'Gallery', screen: 'Gallery' }] : []),
     { icon: '◇', label: 'Leave', screen: 'Leave' },
+    { icon: '◷', label: 'Corrections', screen: 'Corrections' },
     ...(SHOW_SAMPLE_DATA ? [{ icon: '◈', label: 'Reports', screen: 'Reports' }] : []),
     ...(SHOW_SAMPLE_DATA && isAdmin ? [{ icon: '◆', label: 'Salary', screen: 'Salary' }] : []),
   ];

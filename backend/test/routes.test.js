@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 const B = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
-const tables = { organizations: [], staff: [], otp_codes: [], attendance: [], call_logs: [], leave_requests: [], shifts: [], push_tokens: [], holidays: [], pay_adjustments: [], month_closes: [], month_close_log: [] };
+const tables = { organizations: [], staff: [], otp_codes: [], attendance: [], call_logs: [], leave_requests: [], shifts: [], push_tokens: [], holidays: [], pay_adjustments: [], month_closes: [], month_close_log: [], correction_requests: [] };
 const uploads = [];
 const sentEmails = [];
 const sentPushes = [];
@@ -702,7 +702,7 @@ test('salary adjustments and closing a month', async () => {
   r = await call('reports/salary', { token, query: { month: '2026-09' } });
   let asha = r.json.staff.find((p) => p.id === 'mcA'); const bilal = r.json.staff.find((p) => p.id === 'mcB');
   assert.equal(asha.pay, 29000); assert.equal(asha.adjustmentTotal, -4000); assert.equal(asha.payable, 25000);
-  assert.deepEqual(asha.adjustments.map((a) => [a.kind, a.signed]), [['advance', -5000], ['bonus', 1000]]);
+  assert.deepEqual(asha.adjustments.map((a) => [a.kind, a.signed]).sort(), [['advance', -5000], ['bonus', 1000]]); // same-millisecond inserts may come back in either order
   assert.equal(bilal.pay, 6300); assert.equal(bilal.payable, 6300);
   assert.equal(r.json.payableTotal, 31300); assert.equal(r.json.closed, null);
 
@@ -745,4 +745,118 @@ test('salary adjustments and closing a month', async () => {
   // staff can't see salaries or close months
   assert.equal((await call('reports/salary', { token: issueToken('mcB'), query: { month: '2026-09' } })).status, 403);
   assert.equal((await call('month-close/index', { method: 'POST', token: issueToken('mcB'), body: { month: '2026-09' } })).status, 403);
+});
+
+test('salary examples checked by hand', async () => {
+  const { issueToken } = await import(`${B}/lib/auth.js`);
+  // August 2026: 31 days, Sundays 2, 9, 16, 23, 30. Weekly off Sunday, half day under 4 hours.
+  tables.organizations.push({ id: 'hc', name: 'Hand Check', late_after_minutes: 600, weekly_off: 0, half_day_minutes: 240, active: true });
+  tables.shifts.push({ id: 'night', org_id: 'hc', name: 'Night', start_minutes: 1320, end_minutes: 360, late_after_minutes: 1335 });
+  const person = (id, extra) => tables.staff.push({ id, org_id: 'hc', name: id, phone: `96666${String(tables.staff.length).padStart(5, '0')}`, role: 'staff', active: true, created_at: '2026-07-01T00:00:00Z', salary_type: 'monthly', salary: 31000, ...extra });
+  tables.staff.push({ id: 'hcAdmin', org_id: 'hc', name: 'Owner', phone: '9666600000', role: 'admin', active: true, created_at: '2026-07-01T00:00:00Z' });
+  person('Joiner', { created_at: '2026-08-17T04:00:00Z' });            // joined 17 Aug
+  person('Leaver', { active: false, left_on: '2026-08-10' });          // switched off 10 Aug
+  person('Halfday');
+  person('Night', { salary_type: 'daily', salary: 800, shift_id: 'night' });
+  const day = (id, date, inIst = '09:30', outIst = '18:00') => {
+    const inAt = new Date(`${date}T${inIst}:00+05:30`); let outAt = new Date(`${date}T${outIst}:00+05:30`);
+    if (outAt <= inAt) outAt = new Date(outAt.getTime() + 86_400_000);
+    tables.attendance.push({ id: `${id}-${date}`, org_id: 'hc', staff_id: id, date, status: 'present', check_in_at: inAt.toISOString(), check_out_at: outAt.toISOString(), worked_minutes: Math.round((outAt - inAt) / 60000) });
+  };
+  for (let d = 1; d <= 31; d++) {
+    const date = `2026-08-${String(d).padStart(2, '0')}`;
+    if (new Date(`${date}T00:00:00Z`).getUTCDay() === 0) continue;
+    if (d >= 17) day('Joiner', date);
+    if (d <= 10) day('Leaver', date);
+    day('Halfday', date, '09:30', d === 12 ? '12:50' : '18:00'); // 12 Aug: 3h 20m = half day
+  }
+  day('Night', '2026-08-03', '22:00', '06:00');
+  day('Night', '2026-08-04', '22:00', '06:00');
+  const token = issueToken('hcAdmin');
+  // a night shift added by the admin, 15 minutes after the late time: late, 7h 30m
+  let r = await call('attendance/index', { method: 'POST', token, body: { staffId: 'Night', date: '2026-08-05', checkIn: '22:30', checkOut: '06:00' } });
+  assert.equal(r.status, 200); assert.equal(r.json.status, 'late'); assert.equal(r.json.workedMinutes, 450);
+
+  r = await call('reports/salary', { token, query: { month: '2026-08' } });
+  const p = Object.fromEntries(r.json.staff.map((x) => [x.id, x]));
+  // Joiner: 17-31 Aug = 13 working days + 2 Sundays = 15 paid days × 31000/31 = 15,000; nothing before joining is absent
+  assert.equal(p.Joiner.payDays, 15); assert.equal(p.Joiner.absent, 0); assert.equal(p.Joiner.pay, 15000);
+  // Leaver: 1-10 Aug = 8 working days + 2 Sundays = 10 paid days = 10,000; days after leaving aren't absent
+  assert.equal(p.Leaver.payDays, 10); assert.equal(p.Leaver.absent, 0); assert.equal(p.Leaver.pay, 10000); assert.equal(p.Leaver.leftOn, '2026-08-10');
+  // Halfday: 25 full + 1 half = 25.5 worked + 5 Sundays = 30.5 paid days = 30,500
+  assert.equal(p.Halfday.half, 1); assert.equal(p.Halfday.payDays, 30.5); assert.equal(p.Halfday.pay, 30500);
+  // Night: 3 nights × ₹800 (one of them late, no late cut set) = 2,400
+  assert.equal(p.Night.worked, 3); assert.equal(p.Night.late, 1); assert.equal(p.Night.pay, 2400);
+  // the monthly sheet shows the leaver's days after leaving as "left", the joiner's before joining as "before"
+  r = await call('reports/month', { token, query: { month: '2026-08' } });
+  const sheet = Object.fromEntries(r.json.staff.map((x) => [x.id, x]));
+  assert.equal(sheet.Leaver.days['2026-08-11'].status, 'left'); assert.equal(sheet.Joiner.days['2026-08-16'].status, 'before');
+
+  // switching someone off records the day they left; switching back on clears it
+  r = await call('staff/[id]/index', { method: 'PATCH', token, query: { id: 'Halfday' }, body: { active: false } });
+  const istToday = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+  assert.equal(tables.staff.find((x) => x.id === 'Halfday').left_on, istToday);
+  await call('staff/[id]/index', { method: 'PATCH', token, query: { id: 'Halfday' }, body: { active: true } });
+  assert.equal(tables.staff.find((x) => x.id === 'Halfday').left_on, null);
+  // someone who left before the month isn't on it
+  r = await call('reports/salary', { token, query: { month: '2026-09' } });
+  assert.equal(r.json.staff.some((x) => x.id === 'Leaver'), false);
+});
+
+test('attendance correction requests', async () => {
+  const { issueToken } = await import(`${B}/lib/auth.js`);
+  const ist = (n) => new Date(Date.now() + 330 * 60000 + n * 86_400_000).toISOString().slice(0, 10);
+  tables.organizations.push({ id: 'cr', name: 'Correct Co', late_after_minutes: 600, weekly_off: null, active: true });
+  tables.staff.push({ id: 'crAdmin', org_id: 'cr', name: 'Boss', phone: '9555500000', email: 'boss@example.com', role: 'admin', active: true, created_at: '2026-01-01T00:00:00Z' });
+  tables.staff.push({ id: 'crStaff', org_id: 'cr', name: 'Ravi', phone: '9555500001', email: 'ravi@example.com', role: 'staff', active: true, created_at: '2026-01-01T00:00:00Z' });
+  const staff = issueToken('crStaff'); const admin = issueToken('crAdmin');
+  tables.push_tokens.push({ token: 'ExponentPushToken[ravi]', staff_id: 'crStaff' });
+  const y = ist(-1); const y2 = ist(-2); const y3 = ist(-3);
+  // yesterday: checked in, forgot to check out
+  tables.attendance.push({ id: 'cr-y', org_id: 'cr', staff_id: 'crStaff', date: y, status: 'late', check_in_at: new Date(`${y}T10:20:00+05:30`).toISOString(), check_out_at: null, worked_minutes: null });
+
+  const ask = (b, t = staff) => call('corrections/index', { method: 'POST', token: t, body: b });
+  assert.equal((await ask({ date: ist(1), kind: 'missed_check_in', checkIn: '09:00', reason: 'Forgot' })).status, 400); // future
+  assert.equal((await ask({ date: y, kind: 'missed_check_out', reason: 'Forgot' })).status, 400); // no time
+  assert.equal((await ask({ date: y, kind: 'missed_check_out', checkOut: '18:30', reason: 'x' })).status, 400); // no reason
+  assert.equal((await ask({ date: ist(-60), kind: 'missed_check_in', checkIn: '09:00', reason: 'Long ago' })).status, 400);
+  sentEmails.length = 0; sentPushes.length = 0;
+  let r = await ask({ date: y, kind: 'missed_check_out', checkOut: '18:30', reason: 'Phone battery died' });
+  assert.equal(r.status, 200); const outReq = r.json.request.id;
+  assert.ok(sentEmails.some((e) => e.to === 'boss@example.com' && /correction/.test(e.subject)));
+  assert.equal((await ask({ date: y, kind: 'wrong_time', checkIn: '10:00', reason: 'Again' })).status, 409); // one waiting per day
+  r = await ask({ date: y2, kind: 'missed_check_in', checkIn: '09:10', checkOut: '18:00', reason: 'App would not open' });
+  const inReq = r.json.request.id;
+  const cancelReq = (await ask({ date: y3, kind: 'missed_check_in', checkIn: '09:00', reason: 'Testing' })).json.request.id;
+
+  // the owner sees them; staff can't decide; other companies can't see them
+  r = await call('corrections/company', { token: admin });
+  assert.deepEqual(r.json.pending.map((x) => x.staffName), ['Ravi', 'Ravi', 'Ravi']);
+  assert.equal((await call('corrections/[id]/decide', { method: 'POST', token: staff, query: { id: outReq }, body: { approve: true } })).status, 403);
+  assert.equal((await call('corrections/[id]/decide', { method: 'POST', token: issueToken('mcA'), query: { id: outReq }, body: { approve: true } })).status, 404);
+  // they show up in the month-close check
+  r = await call('month-close/index', { token: admin, query: { month: y.slice(0, 7) } });
+  assert.ok(r.json.pendingCorrections.some((x) => x.date === y));
+
+  // approve the missed check-out: check-out added, check-in and late mark kept
+  r = await call('corrections/[id]/decide', { method: 'POST', token: admin, query: { id: outReq }, body: { approve: true } });
+  assert.equal(r.status, 200); assert.equal(r.json.request.status, 'approved');
+  const yRow = tables.attendance.find((a) => a.id === 'cr-y');
+  assert.equal(yRow.worked_minutes, 490); assert.equal(yRow.status, 'late'); assert.equal(yRow.check_out_edited_by, 'crAdmin');
+  assert.match(yRow.admin_note, /Correction: Phone battery died/);
+  assert.ok(sentPushes.some((m) => m.title === 'Correction approved'));
+  // approve the missed day: a new record is added
+  await call('corrections/[id]/decide', { method: 'POST', token: admin, query: { id: inReq }, body: { approve: true } });
+  const y2Row = tables.attendance.find((a) => a.staff_id === 'crStaff' && a.date === y2);
+  assert.equal(y2Row.worked_minutes, 530); assert.equal(y2Row.status, 'present'); assert.equal(y2Row.check_in_edited_by, 'crAdmin');
+  // decisions are final; withdraw only while waiting
+  assert.equal((await call('corrections/[id]/decide', { method: 'POST', token: admin, query: { id: inReq }, body: { approve: false } })).status, 409);
+  assert.equal((await call('corrections/[id]/cancel', { method: 'POST', token: staff, query: { id: inReq } })).status, 409);
+  assert.equal((await call('corrections/[id]/cancel', { method: 'POST', token: staff, query: { id: cancelReq } })).status, 200);
+  // reject with a note
+  const rej = (await ask({ date: y3, kind: 'missed_check_in', checkIn: '09:00', reason: 'Came in' })).json.request.id;
+  r = await call('corrections/[id]/decide', { method: 'POST', token: admin, query: { id: rej }, body: { approve: false, note: 'You were on leave' } });
+  assert.equal(r.json.request.status, 'rejected'); assert.equal(tables.attendance.some((a) => a.staff_id === 'crStaff' && a.date === y3), false);
+  r = await call('corrections/index', { token: staff });
+  assert.deepEqual(r.json.requests.map((x) => x.status).sort(), ['approved', 'approved', 'cancelled', 'rejected']);
 });

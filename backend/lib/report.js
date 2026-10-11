@@ -7,14 +7,16 @@ import { holidayMap } from './holidays.js';
  * What a day was for one person, given their attendance row (or none):
  * 'present' | 'late' (checked in), 'half' (checked out with fewer than `halfDayMinutes` worked),
  * 'off' (weekly off), 'holiday' (company holiday), 'before' (not yet joined), 'leave' (approved leave),
- * 'pending' (today or later, not checked in yet) or 'absent'. Checking in wins over leave.
+ * 'left' (after the day they were switched off), 'pending' (today or later, not checked in yet) or 'absent'.
+ * Checking in wins over leave.
  */
-export function dayStatus({ row, date, joinedOn, weeklyOff, onLeave = false, halfDayMinutes = null, holiday = false }) {
+export function dayStatus({ row, date, joinedOn, leftOn = null, weeklyOff, onLeave = false, halfDayMinutes = null, holiday = false }) {
   if (row?.check_in_at) {
     if (halfDayMinutes && row.check_out_at && (row.worked_minutes ?? 0) < halfDayMinutes) return 'half';
     return row.status;
   }
   if (date < joinedOn) return 'before';
+  if (leftOn && date > leftOn) return 'left';
   if (weeklyOff != null && weekday(date) === weeklyOff) return 'off';
   if (holiday) return 'holiday';
   if (onLeave) return 'leave';
@@ -24,17 +26,21 @@ export function dayStatus({ row, date, joinedOn, weeklyOff, onLeave = false, hal
 
 export const joinedOn = (s) => istDay(new Date(s.created_at));
 
+/** Was this person with the company at some point in [first, last]? Switched-off people count up to the day they left. */
+export const inMonth = (s, first, last) => (s.active || (s.left_on && s.left_on >= first)) && joinedOn(s) <= last;
+
 /**
- * A company's month (or, with `staffId`, one person's): every active staff member's status for each day, with totals.
+ * A company's month (or, with `staffId`, one person's): every staff member who was with the company that month (active,
+ * or switched off during or after it), their status for each day, with totals.
  * Cells: { status, in?, out?, minutes?, leaveType? }. Totals count present, late, half, absent, off, holiday and leave days up to today
  * (paidLeave/unpaidLeave split the leave) and worked minutes.
  */
 export async function buildMonth(org, monthParam, { staffId = null } = {}) {
   const { month, days } = monthDays(monthParam);
   const weeklyOff = org.weekly_off;
-  let staffQ = db().from('staff').select('*').eq('org_id', org.id).eq('active', true);
+  let staffQ = db().from('staff').select('*').eq('org_id', org.id);
   if (staffId) staffQ = staffQ.eq('id', staffId);
-  const staff = must(await staffQ.order('name'));
+  const staff = must(await staffQ.order('name')).filter((s) => inMonth(s, days[0], days[days.length - 1]));
   let rowsQ = db().from('attendance').select('id, staff_id, date, status, check_in_at, check_out_at, worked_minutes, check_in_edited_by, check_out_edited_by, admin_note')
     .eq('org_id', org.id).gte('date', days[0]).lte('date', days[days.length - 1]);
   if (staffId) rowsQ = rowsQ.eq('staff_id', staffId);
@@ -56,7 +62,7 @@ export async function buildMonth(org, monthParam, { staffId = null } = {}) {
       for (const date of days) {
         const r = byKey.get(key(s.id, date));
         const leaveType = leave.get(s.id)?.get(date);
-        const status = dayStatus({ row: r, date, joinedOn: joinedOn(s), weeklyOff, onLeave: !!leaveType, halfDayMinutes: org.half_day_minutes, holiday: holidays.has(date) });
+        const status = dayStatus({ row: r, date, joinedOn: joinedOn(s), leftOn: s.left_on ?? null, weeklyOff, onLeave: !!leaveType, halfDayMinutes: org.half_day_minutes, holiday: holidays.has(date) });
         // Totals only count days up to today, so a month in progress isn't paid for Sundays or leave still to come.
         if (date <= today && status in totals) totals[status] += 1;
         if (date <= today && status === 'leave') totals[leaveType === 'unpaid' ? 'unpaidLeave' : 'paidLeave'] += 1;
@@ -66,7 +72,7 @@ export async function buildMonth(org, monthParam, { staffId = null } = {}) {
             ...(r.check_in_edited_by || r.check_out_edited_by ? { edited: true } : {}), ...(r.admin_note ? { note: r.admin_note } : {}) }
           : status === 'leave' ? { status, leaveType } : status === 'holiday' ? { status, holiday: holidays.get(date) } : { status };
       }
-      return { staff: s, id: s.id, name: s.name, designation: s.designation, department: s.department, days: cells, totals };
+      return { staff: s, id: s.id, name: s.name, designation: s.designation, department: s.department, ...(s.active ? {} : { leftOn: s.left_on }), days: cells, totals };
     }),
   };
 }

@@ -1,7 +1,7 @@
 import { db, must } from './db.js';
 import { HttpError } from './http.js';
 import { istDay, monthDays } from './attendance.js';
-import { buildMonth } from './report.js';
+import { buildMonth, inMonth } from './report.js';
 import { monthPay } from './payroll.js';
 
 /** Salary adjustments an admin can record against a person's month, and whether each adds to or takes from pay. */
@@ -64,12 +64,12 @@ export async function salarySheet(org, monthParam) {
   const today = istDay(new Date());
   const adj = must(await db().from('pay_adjustments').select('id, staff_id, kind, amount, note, created_at')
     .eq('org_id', org.id).eq('month', m.month).order('created_at'));
-  const people = m.staff.map(({ staff: s, id, name, designation, totals }) => {
+  const people = m.staff.map(({ staff: s, id, name, designation, leftOn, totals }) => {
     const pay = monthPay({ salaryType: s.salary_type, salary: s.salary, totals, daysInMonth: m.days.length, lateCutEvery });
     const adjustments = adj.filter((a) => a.staff_id === id).map(adjustmentView);
     const adjustmentTotal = round2(adjustments.reduce((sum, a) => sum + a.signed, 0));
     return {
-      id, name, designation, salaryType: s.salary_type, salary: s.salary == null ? null : Number(s.salary), ...pay,
+      id, name, designation, ...(leftOn ? { leftOn } : {}), salaryType: s.salary_type, salary: s.salary == null ? null : Number(s.salary), ...pay,
       adjustments, adjustmentTotal, payable: pay.pay == null ? null : round2(pay.pay + adjustmentTotal),
     };
   });
@@ -89,17 +89,20 @@ export async function salarySheet(org, monthParam) {
 }
 
 /**
- * What to sort out before closing a month: check-ins with no check-out, leave requests still waiting, and people
- * with no pay set. A month can be closed only after it has ended.
+ * What to sort out before closing a month: check-ins with no check-out, leave and correction requests still waiting,
+ * and people with no pay set. A month can be closed only after it has ended.
  */
 export async function closeChecks(org, monthParam) {
   const { month, days } = monthDays(monthParam);
   const first = days[0]; const last = days[days.length - 1];
   const ended = last < istDay(new Date());
-  const staff = must(await db().from('staff').select('id, name, salary_type, salary').eq('org_id', org.id).eq('active', true));
+  const staff = must(await db().from('staff').select('id, name, salary_type, salary, active, left_on, created_at').eq('org_id', org.id))
+    .filter((s) => inMonth(s, first, last));
   const nameOf = new Map(staff.map((s) => [s.id, s.name]));
   const open = must(await db().from('attendance').select('staff_id, date, check_in_at, check_out_at')
     .eq('org_id', org.id).gte('date', first).lte('date', last));
+  const corrections = must(await db().from('correction_requests').select('staff_id, date, kind')
+    .eq('org_id', org.id).eq('status', 'pending').gte('date', first).lte('date', last));
   const pending = must(await db().from('leave_requests').select('staff_id, from_date, to_date, status')
     .eq('org_id', org.id).eq('status', 'pending').lte('from_date', last).gte('to_date', first));
   return {
@@ -110,6 +113,8 @@ export async function closeChecks(org, monthParam) {
       .sort((a, b) => (a.date === b.date ? a.name.localeCompare(b.name) : a.date < b.date ? -1 : 1)),
     pendingLeave: pending.filter((r) => nameOf.has(r.staff_id))
       .map((r) => ({ staffId: r.staff_id, name: nameOf.get(r.staff_id), from: r.from_date, to: r.to_date })),
+    pendingCorrections: corrections.filter((r) => nameOf.has(r.staff_id))
+      .map((r) => ({ staffId: r.staff_id, name: nameOf.get(r.staff_id), date: r.date, kind: r.kind })),
     payNotSet: staff.filter((s) => !s.salary_type || s.salary == null).map((s) => s.name).sort(),
   };
 }

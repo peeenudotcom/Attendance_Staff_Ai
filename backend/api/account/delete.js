@@ -1,6 +1,7 @@
 import { db, must } from '../../lib/db.js';
 import { route } from '../../lib/http.js';
 import { isReviewPhone } from '../../lib/otp.js';
+import { istDay } from '../../lib/attendance.js';
 import { eraseBy } from '../../lib/account-deletion.js';
 import { sendAccountDeletedEmail, sendAccountDeletionConfirmEmail } from '../../lib/email.js';
 
@@ -14,7 +15,7 @@ export default route({
     if (isReviewPhone(staff.phone)) return { ok: true, demo: true };
 
     const requestedAt = new Date().toISOString();
-    must(await db().from('staff').update({ active: false, deletion_requested_at: requestedAt }).eq('id', staff.id));
+    must(await db().from('staff').update({ active: false, deletion_requested_at: requestedAt, left_on: istDay(new Date()) }).eq('id', staff.id));
     must(await db().from('push_tokens').delete().eq('staff_id', staff.id));
 
     const by = eraseBy(requestedAt);

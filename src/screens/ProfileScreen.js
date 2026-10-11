@@ -66,6 +66,7 @@ export default function ProfileScreen({ navigation }) {
     { title: 'ACCOUNT', items: [
       { icon: '◷', label: 'My attendance', onPress: () => navigation.navigate('History') },
       { icon: '◇', label: 'My leave', onPress: () => navigation.navigate('Leave') },
+      { icon: '◷', label: 'Attendance corrections', onPress: () => navigation.navigate('Corrections') },
       { icon: '◈', label: 'Team today', admin: true, onPress: () => navigation.navigate('Team') },
       { icon: '◎', label: 'Staff', admin: true, onPress: () => navigation.navigate('StaffList') },
       { icon: '⬡', label: 'Web dashboard (reports, salary, settings)', admin: true, onPress: () => Linking.openURL('https://haazri.tarahutaibuilds.com/dashboard') },

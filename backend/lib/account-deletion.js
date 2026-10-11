@@ -28,6 +28,7 @@ export async function eraseStaff(staff) {
   }).eq('staff_id', staff.id));
   must(await db().from('leave_requests').update({ reason: null }).eq('staff_id', staff.id));
   must(await db().from('pay_adjustments').update({ note: null }).eq('staff_id', staff.id));
+  must(await db().from('correction_requests').update({ reason: '(erased)', decision_note: null }).eq('staff_id', staff.id));
   // Closed months keep a saved salary sheet; take the name out of those too.
   if (staff.org_id) {
     const closes = must(await db().from('month_closes').select('month, snapshot').eq('org_id', staff.org_id));

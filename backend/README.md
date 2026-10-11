@@ -116,6 +116,21 @@ after midnight closes yesterday's shift, and a new check-in is refused until it'
 Half days: with "less than N hours worked = half day" set, a checked-out day under N hours is a half day ("H" on the
 sheet, half pay). Missed check-outs show as "No check-out" on past days; an admin can set the out time on Today.
 
+## Attendance corrections
+
+Staff ask for a correction in the app (Corrections, a day in My attendance, or straight from a failed check-in):
+*forgot to check out*, *could not check in* or *wrong time*, with the right time(s) and a reason, for the last 45 days
+(`POST /api/corrections`; one waiting request per day; `POST /api/corrections/:id/cancel` withdraws it). Admins are
+emailed and notified; they approve or reject in the app or on the dashboard's Requests page
+(`GET /api/corrections/company`, `POST /api/corrections/:id/decide`). Approving adds or fixes the day like an admin edit
+(times given replace the recorded ones, hours and late mark worked out again from the shift, note "Correction: reason");
+decisions are final. Waiting corrections are listed in the month-close check, and a closed month refuses them.
+
+## Staff who leave
+
+Switching someone off records the day (`staff.left_on`; deleting an account does too, switching back on clears it).
+They stay on that month's sheet and salary, paid up to that day; later days show as *left*, not absent.
+
 ## Month close, advances and adjustments
 
 Admins record an **advance** already paid, a **bonus**, a **deduction** or an **other addition** against a person's
@@ -171,7 +186,7 @@ never switched off. To erase someone sooner, set their `deletion_requested_at` b
 
 ## Database
 
-`supabase/migrations/` (001 to 011 applied; 012 month close to apply). Row level security is on with no policies, so only the
+`supabase/migrations/` (001 to 011 applied; 012 month close and 013 corrections to apply). Row level security is on with no policies, so only the
 service-role key used here can read or write; the app never talks to Supabase directly.
 
 Add or change people directly when needed:

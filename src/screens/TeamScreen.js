@@ -22,7 +22,7 @@ export function normalizeTime(v) {
   const m = /^(\d{1,2}):?(\d{2})$/.exec(t);
   return m ? `${m[1].padStart(2, '0')}:${m[2]}` : t;
 }
-const TIME_KEYBOARD = Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'numeric';
+export const TIME_KEYBOARD = Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'numeric';
 const ORDER = { late: 0, half: 1, present: 2, pending: 3, absent: 4, leave: 5, holiday: 6, off: 7 };
 
 function TimeForm({ visible, person, date, record, onClose, onSaved, C }) {

@@ -166,3 +166,46 @@ export function sendAccountDeletionConfirmEmail({ to, name, eraseBy }) {
   <p>If you did not do this, reply to this email straight away.</p>`),
   });
 }
+
+/** Tells a company admin someone asked for an attendance correction. */
+export function sendCorrectionRequestEmail({ to, adminName, staffName, date, label, what, reason }) {
+  const url = `${SITE}/dashboard#leave`;
+  return send({
+    to,
+    subject: `${staffName} asked for an attendance correction: ${date}`,
+    text: [
+      `Hi ${firstName(adminName)},`,
+      '',
+      `${staffName}: ${label.toLowerCase()} on ${date} (${what}).`,
+      `Reason: ${reason}`,
+      '',
+      `Approve or reject it in the Haazri app (Corrections) or on the dashboard: ${url}`,
+    ].join('\n'),
+    html: wrap(`
+  <p>Hi ${escapeHtml(firstName(adminName))},</p>
+  <p><strong>${escapeHtml(staffName)}</strong>: ${escapeHtml(label.toLowerCase())} on <strong>${escapeHtml(date)}</strong> (${escapeHtml(what)}).</p>
+  <p>Reason: ${escapeHtml(reason)}</p>
+  <p>Approve or reject it in the Haazri app (Corrections) or on the <a href="${url}">dashboard</a>.</p>`),
+  });
+}
+
+/** Tells a staff member their correction was approved or rejected. */
+export function sendCorrectionDecisionEmail({ to, name, approved, date, what, note, by }) {
+  const word = approved ? 'approved' : 'not approved';
+  return send({
+    to,
+    subject: `Your attendance correction for ${date} was ${word}`,
+    text: [
+      `Hi ${firstName(name)},`,
+      '',
+      `${by} has ${word} your attendance correction for ${date} (${what}).`,
+      approved ? 'Your attendance has been updated.' : '',
+      note ? `Note: ${note}` : '',
+    ].filter(Boolean).join('\n'),
+    html: wrap(`
+  <p>Hi ${escapeHtml(firstName(name))},</p>
+  <p>${escapeHtml(by)} has <strong>${word}</strong> your attendance correction for <strong>${escapeHtml(date)}</strong> (${escapeHtml(what)}).</p>
+  ${approved ? '<p>Your attendance has been updated.</p>' : ''}
+  ${note ? `<p>Note: ${escapeHtml(note)}</p>` : ''}`),
+  });
+}
