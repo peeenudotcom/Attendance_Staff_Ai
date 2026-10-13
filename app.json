@@ -91,7 +91,8 @@
           "color": "#802534"
         }
       ],
-      "./plugins/with-adi-registration"
+      "./plugins/with-adi-registration",
+      "./plugins/with-android-abis"
     ],
     "extra": {
       "eas": {
