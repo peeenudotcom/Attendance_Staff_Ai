@@ -90,7 +90,8 @@
           "icon": "./assets/notification-icon.png",
           "color": "#802534"
         }
-      ]
+      ],
+      "./plugins/with-adi-registration"
     ],
     "extra": {
       "eas": {
