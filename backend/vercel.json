@@ -1,9 +1,21 @@
 {
   "cleanUrls": true,
   "functions": {
-    "api/**/*.js": { "maxDuration": 15 }
+    "api/**/*.js": {
+      "maxDuration": 15
+    }
   },
   "crons": [
-    { "path": "/api/cron/erase-accounts", "schedule": "30 21 * * *" }
+    {
+      "path": "/api/cron/erase-accounts",
+      "schedule": "30 21 * * *"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/android",
+      "destination": "https://expo.dev/artifacts/eas/bNFtAa3Hr2CfpECFDBvKSET0KDFOSGleunjDtFhfO9I.apk",
+      "permanent": false
+    }
   ]
 }
