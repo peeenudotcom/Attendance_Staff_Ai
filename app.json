@@ -99,6 +99,14 @@
         "projectId": "ec478f59-dfe9-4b75-9daf-e8f07f33b6a4"
       }
     },
-    "owner": "psukhija"
+    "owner": "psukhija",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ec478f59-dfe9-4b75-9daf-e8f07f33b6a4",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }
