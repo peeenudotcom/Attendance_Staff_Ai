@@ -221,6 +221,7 @@ async function viewToday(root, date = istToday()) {
       h('td', { class: 'person' }, h('b', {}, p.name), h('small', {}, [p.designation || p.department, p.shift].filter(Boolean).join(' · '))),
       h('td', {}, h('span', { class: `pill ${p.status}` }, STATUS_LABEL[p.status]),
         p.addedByAdmin ? h('small', { class: 'dist', title: p.note || '' }, `Added by admin${p.note ? `: ${p.note}` : ''}`) : null,
+        faceTag(p),
         h('button', { class: 'link-btn small-link', onclick: () => attendanceForm({ id: p.id, name: p.name }, date,
           p.attendanceId ? { id: p.attendanceId, in: p.checkIn, out: p.checkOut, note: p.note } : null, () => viewToday(root, date)) },
         p.attendanceId ? 'Edit day' : 'Add attendance')),
@@ -235,6 +236,27 @@ async function viewToday(root, date = istToday()) {
     h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Status'), h('th', { class: 'num' }, 'In'), h('th', { class: 'num' }, 'Out'),
       h('th', { class: 'num hide-sm' }, 'Hours'), h('th', { class: 'hide-sm' }, 'Check-in place'), h('th', {}, 'Selfies'))),
     h('tbody', {}, rows))));
+}
+
+// Face match result for a check-in selfie (null when face match is off or there was no check-in).
+function faceTag(p) {
+  const f = p.face;
+  if (!f) return null;
+  const compare = f.savedPhoto && p.checkInSelfie && f.result !== 'enrolled'
+    ? h('button', { class: 'link-btn small-link', onclick: () => openModal([h('h3', {}, `${p.name} · face check`),
+      h('div', { class: 'face-compare' },
+        h('figure', {}, h('img', { src: f.savedPhoto, alt: 'Saved photo' }), h('figcaption', {}, 'Saved photo')),
+        h('figure', {}, h('img', { src: p.checkInSelfie, alt: 'Check-in selfie' }), h('figcaption', {}, `Check-in ${p.checkIn}`))),
+      h('div', { class: 'foot' }, h('button', { class: 'btn ghost', onclick: closeModal }, 'Close'))]) }, 'Compare')
+    : null;
+  const label = {
+    match: ['Face matched', 'dist ok'],
+    mismatch: [`Face doesn't match${f.score != null ? ` (${Math.round(f.score)}%)` : ''}`, 'dist away'],
+    no_face: ['No clear face in selfie', 'dist away'],
+    enrolled: ['Face photo saved', 'dist'],
+    error: ['Face check not done', 'dist'],
+  }[f.result];
+  return label ? h('small', { class: label[1] }, label[0], compare ? ' · ' : '', compare) : null;
 }
 
 // ---------- Monthly sheet ----------
@@ -651,6 +673,14 @@ function staffForm(s, onDone) {
         state.shifts.map((sh) => h('option', { value: sh.id, selected: s?.shiftId === sh.id }, `${sh.name} · ${sh.start}–${sh.end}`)))),
     h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'locationFree', checked: !!s?.locationFree }),
       h('span', {}, h('b', {}, 'Can check in from anywhere'), h('small', {}, 'For field or sales staff. Others must be at the office when location lock is on.'))),
+    !isNew && state.company.faceMatch ? h('div', { class: 'field' }, h('span', {}, 'Face photo'),
+      s.faceSavedAt
+        ? h('div', {}, `Saved ${new Date(s.faceSavedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} from a check-in selfie. `,
+          h('button', { class: 'link-btn', type: 'button', onclick: async () => {
+            if (!confirm(`Forget ${s.name}'s saved face photo? Their next check-in selfie becomes the new one.`)) return;
+            try { await api(`/staff/${s.id}`, { method: 'PATCH', body: { faceReset: true } }); closeModal(); toast('Face photo reset'); onDone(); } catch (err) { msg.textContent = err.message; }
+          } }, 'Reset'))
+        : h('div', { class: 'muted' }, 'Not saved yet: their next check-in selfie becomes it.')) : null,
     msg,
     h('div', { class: 'foot' }, h('button', { class: 'btn ghost', type: 'button', onclick: closeModal }, 'Cancel'),
       h('button', { class: 'btn', type: 'submit' }, isNew ? 'Add and send invite' : 'Save')),
@@ -712,6 +742,8 @@ function viewSettings(root) {
       h('select', { name: 'paidLeave' }, h('option', { value: '', selected: c.paidLeavePerYear == null }, 'No limit'),
         [6, 8, 10, 12, 15, 18, 21, 24, 30].map((n) => h('option', { value: n, selected: c.paidLeavePerYear === n }, `${n} days a year (${Math.floor((n / 12) * 2) / 2} a month)`))),
       h('small', {}, 'Earned each month from January (or joining), reset every January. Casual, sick and paid leave use it; unpaid leave doesn’t.')),
+    h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'faceMatch', checked: !!c.faceMatch }),
+      h('span', {}, h('b', {}, 'Face match'), h('small', {}, 'Each check-in selfie is compared with the person’s saved photo (their first selfie after this is on). Today shows the result and you get a notification if it doesn’t match. Check-in is never blocked. Tell your staff before turning it on.'))),
     h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'summary', checked: !!c.dailySummary }),
       h('span', {}, 'Send admins a WhatsApp summary every morning (around 11 am): who has checked in, who is late, who is not in yet')),
     msg,
@@ -725,7 +757,7 @@ function viewSettings(root) {
       state.company = await api('/company', { method: 'PATCH', body: {
         name: v.name, lateAfterMinutes: hhmmToMinutes(v.late), weeklyOff: v.off === '' ? null : Number(v.off), lateCutEvery: v.lateCut === '' ? null : Number(v.lateCut),
         halfDayMinutes: v.halfDay === '' ? null : Number(v.halfDay), overtimeRate: v.otRate === '' ? null : Number(v.otRate),
-        overtimeAfterMinutes: Number(v.otAfter), paidLeavePerYear: v.paidLeave === '' ? null : Number(v.paidLeave), dailySummary: v.summary === 'on' } });
+        overtimeAfterMinutes: Number(v.otAfter), paidLeavePerYear: v.paidLeave === '' ? null : Number(v.paidLeave), dailySummary: v.summary === 'on', faceMatch: v.faceMatch === 'on' } });
       $('company-name').textContent = state.company.name;
       msg.className = 'msg ok'; msg.textContent = 'Saved.';
     } catch (err) { msg.textContent = err.message; } finally { btn.disabled = false; }

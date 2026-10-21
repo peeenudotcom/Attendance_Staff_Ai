@@ -54,12 +54,18 @@ export function eventTime(clientTimestamp) {
   return now;
 }
 
-/** Stores a base64 JPEG selfie in the private bucket and returns its path. */
-export async function uploadSelfie(base64, staffId, kind) {
+/** The JPEG bytes of a base64 selfie; throws a 4xx if it is missing, empty or too large. */
+export function selfieBytes(base64) {
   if (!base64) throw new HttpError(400, 'A selfie is required');
   const buffer = Buffer.from(String(base64).replace(/^data:image\/\w+;base64,/, ''), 'base64');
   if (!buffer.length) throw new HttpError(400, 'The selfie could not be read');
   if (buffer.length > MAX_SELFIE_BYTES) throw new HttpError(413, 'The selfie is too large');
+  return buffer;
+}
+
+/** Stores a base64 JPEG selfie in the private bucket and returns its path. */
+export async function uploadSelfie(base64, staffId, kind) {
+  const buffer = selfieBytes(base64);
   const path = `${staffId}/${istDay(new Date())}-${kind}-${randomUUID()}.jpg`;
   const { error } = await db().storage.from(BUCKET).upload(path, buffer, { contentType: 'image/jpeg' });
   if (error) throw new Error(`Selfie upload failed: ${error.message}`);

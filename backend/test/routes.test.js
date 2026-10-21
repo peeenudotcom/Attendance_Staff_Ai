@@ -73,7 +73,8 @@ const fakeClient = {
   from: (t) => new Q(t),
   storage: { from: () => ({
     remove: async (paths) => { removed.push(...paths); return { error: null }; },
-    upload: async (path, buf) => { uploads.push({ path, size: buf.length }); return { error: null }; },
+    upload: async (path, buf) => { uploads.push({ path, size: buf.length }); stored.set(path, buf); return { error: null }; },
+    download: async (path) => (stored.has(path) ? { data: new Blob([stored.get(path)]), error: null } : { data: null, error: { message: 'not found' } }),
     createSignedUrl: async (path) => ({ data: { signedUrl: `https://signed.example/${path}` } }),
     createSignedUrls: async (paths) => ({ data: paths.map((path) => ({ path, signedUrl: `https://signed.example/${path}` })) }),
   }) },
@@ -90,8 +91,16 @@ process.env.REVIEW_PHONE = '9000000001, 90000 00002';
 process.env.REVIEW_CODE = '4826';
 
 const sentWhatsApps = [];
+const stored = new Map();
+const rekognitionCalls = [];
+let rekognitionReply = { FaceMatches: [{ Similarity: 98.6 }], UnmatchedFaces: [] };
 let whatsAppDown = false;
 globalThis.fetch = async (url, init) => {
+  if (String(url).includes('rekognition.')) {
+    rekognitionCalls.push({ url: String(url), headers: init.headers, body: JSON.parse(init.body) });
+    if (rekognitionReply.status) return { ok: false, status: rekognitionReply.status, text: async () => JSON.stringify(rekognitionReply.body) };
+    return { ok: true, status: 200, text: async () => JSON.stringify(rekognitionReply) };
+  }
   if (String(url).includes('graph.facebook.com')) {
     if (whatsAppDown) return { ok: false, status: 400, text: async () => 'bad number' };
     const m = JSON.parse(init.body);
@@ -1072,5 +1081,69 @@ test('overtime, leave balance, payslips and daily summary', async () => {
     assert.deepEqual(msgs[0].template.components[0].parameters.map((p) => p.text).filter((_, i) => i !== 1), ['Feature Co', '1', '0', '3', '0']);
   } finally {
     for (const k of ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_ID', 'WHATSAPP_TEMPLATE', 'WHATSAPP_SUMMARY_TEMPLATE']) delete process.env[k];
+  }
+});
+
+test('face match on check-in', async () => {
+  const { issueToken } = await import(`${B}/lib/auth.js`);
+  tables.organizations.push({ id: 'fm', name: 'Face Co', late_after_minutes: 1439, weekly_off: null, active: true, face_match: true });
+  tables.staff.push(
+    { id: 'fmAdmin', org_id: 'fm', name: 'Face Admin', phone: '9822200001', email: 'fa@example.com', role: 'admin', active: true, created_at: '2026-01-01T00:00:00Z' },
+    { id: 'fmStaff', org_id: 'fm', name: 'Face Staff', phone: '9822200002', email: 'fs@example.com', role: 'staff', active: true, created_at: '2026-01-01T00:00:00Z' },
+  );
+  const admin = issueToken('fmAdmin'); const staff = issueToken('fmStaff');
+  const pic = (t) => Buffer.from(`jpeg ${t}`).toString('base64');
+  const checkIn = (t) => call('attendance/check-in', { method: 'POST', token: staff, body: { selfie: pic(t), latitude: 30.7, longitude: 76.7, address: 'Test' } });
+  const reset = () => { tables.attendance = tables.attendance.filter((a) => a.staff_id !== 'fmStaff'); };
+  const row = () => tables.attendance.find((a) => a.staff_id === 'fmStaff');
+
+  // keys not set: no check, nothing recorded
+  let r = await checkIn('one');
+  assert.equal(r.status, 200); assert.equal(row().check_in_face, undefined); assert.equal(rekognitionCalls.length, 0);
+  reset();
+  Object.assign(process.env, { REKOGNITION_ACCESS_KEY_ID: 'AKIATEST', REKOGNITION_SECRET_ACCESS_KEY: 'secret' });
+  try {
+    // first selfie becomes the saved photo
+    r = await checkIn('first');
+    assert.equal(r.status, 200); assert.equal(row().check_in_face, 'enrolled'); assert.equal(rekognitionCalls.length, 0);
+    const me = tables.staff.find((s) => s.id === 'fmStaff');
+    assert.equal(me.face_ref, 'fmStaff/face-reference.jpg'); assert.equal(stored.get(me.face_ref).toString(), 'jpeg first');
+    // a match
+    reset(); r = await checkIn('second');
+    assert.equal(row().check_in_face, 'match'); assert.equal(row().check_in_face_score, 98.6);
+    const c = rekognitionCalls.at(-1);
+    assert.equal(c.url, 'https://rekognition.ap-south-1.amazonaws.com/'); assert.equal(c.headers['x-amz-target'], 'RekognitionService.CompareFaces');
+    assert.match(c.headers.Authorization, /^AWS4-HMAC-SHA256 Credential=AKIATEST\/\d{8}\/ap-south-1\/rekognition\/aws4_request, SignedHeaders=content-type;host;x-amz-date;x-amz-target, Signature=[0-9a-f]{64}$/);
+    assert.equal(Buffer.from(c.body.SourceImage.Bytes, 'base64').toString(), 'jpeg first');
+    assert.equal(Buffer.from(c.body.TargetImage.Bytes, 'base64').toString(), 'jpeg second');
+    // someone else: recorded, admins notified, check-in still goes through
+    rekognitionReply = { FaceMatches: [{ Similarity: 41.2 }], UnmatchedFaces: [{}] };
+    tables.push_tokens.push({ id: 'fmTok', staff_id: 'fmAdmin', token: 'ExponentPushToken[fm-admin]' });
+    reset(); const pushes = sentPushes.length; r = await checkIn('other');
+    assert.equal(r.status, 200); assert.equal(row().check_in_face, 'mismatch'); assert.equal(row().check_in_face_score, 41.2);
+    assert.ok(sentPushes.slice(pushes).some((m) => m.title === 'Face did not match' && m.to === 'ExponentPushToken[fm-admin]'));
+    // no face, and a Rekognition failure: still checked in
+    rekognitionReply = { FaceMatches: [], UnmatchedFaces: [] };
+    reset(); await checkIn('wall'); assert.equal(row().check_in_face, 'no_face');
+    rekognitionReply = { status: 400, body: { __type: 'com.amazonaws#InvalidParameterException', message: 'no face in source' } };
+    reset(); await checkIn('x'); assert.equal(row().check_in_face, 'no_face');
+    rekognitionReply = { status: 500, body: { message: 'boom' } };
+    reset(); r = await checkIn('y'); assert.equal(r.status, 200); assert.equal(row().check_in_face, 'error');
+    rekognitionReply = { FaceMatches: [{ Similarity: 99 }], UnmatchedFaces: [] };
+    // the admin sees the result on Today
+    r = await call('reports/day', { token: admin });
+    const p = r.json.staff.find((x) => x.id === 'fmStaff');
+    assert.equal(p.face.result, 'error'); assert.match(p.face.savedPhoto, /face-reference\.jpg$/);
+    assert.ok(r.json.staff.find((x) => x.id === 'fmAdmin').face === null);
+    // admin resets the saved photo: the next selfie becomes the new one
+    r = await call('staff/[id]/index', { method: 'PATCH', token: admin, query: { id: 'fmStaff' }, body: { faceReset: true } });
+    assert.equal(r.status, 200); assert.equal(r.json.staff.faceSavedAt, null);
+    assert.equal(tables.staff.find((s) => s.id === 'fmStaff').face_ref, null);
+    reset(); await checkIn('new'); assert.equal(row().check_in_face, 'enrolled');
+    // settings
+    r = await call('company', { method: 'PATCH', token: admin, body: { faceMatch: false } });
+    assert.equal(r.json.faceMatch, false);
+  } finally {
+    delete process.env.REKOGNITION_ACCESS_KEY_ID; delete process.env.REKOGNITION_SECRET_ACCESS_KEY;
   }
 });

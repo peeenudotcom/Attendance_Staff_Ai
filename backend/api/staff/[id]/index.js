@@ -16,8 +16,9 @@ export default route({
     return adminView(await findInCompany(req.query.id, admin.org_id));
   },
 
-  // PATCH /api/staff/:id { name?, phone?, email?, department?, designation?, salaryType?, salary?, role?, active? }
-  // (Bearer, admin). Switching someone off (active: false) blocks their sign-in; nothing is deleted.
+  // PATCH /api/staff/:id { name?, phone?, email?, department?, designation?, salaryType?, salary?, role?, active?,
+  //   faceReset? } (Bearer, admin). Switching someone off (active: false) blocks their sign-in; nothing is deleted.
+  // faceReset forgets the saved face photo: their next check-in selfie becomes the new one.
   async PATCH(req, { staff: admin }) {
     const target = await findInCompany(req.query.id, admin.org_id);
     if (target.deletion_requested_at) throw new HttpError(409, 'This person deleted their account, so it can no longer be changed');
@@ -30,6 +31,7 @@ export default route({
       if (target.active && !patch.active) patch.left_on = istDay(new Date());
       if (patch.active) patch.left_on = null;
     }
+    if (b.faceReset === true) Object.assign(patch, { face_ref: null, face_ref_at: null });
     if (!Object.keys(patch).length) throw new HttpError(400, 'Nothing to update');
 
     const losingAdmin = target.role === 'admin' && (patch.role === 'staff' || patch.active === false);
@@ -42,6 +44,7 @@ export default route({
     const { data, error } = await db().from('staff').update(patch).eq('id', target.id).select('*').single();
     if (error?.code === '23505') throw new HttpError(409, 'This phone number is already registered');
     if (error) throw new Error(error.message);
+    if (b.faceReset === true && target.face_ref) await db().storage.from('selfies').remove([target.face_ref]);
     return { ok: true, staff: adminView(data) };
   },
 }, { admin: true });

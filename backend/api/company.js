@@ -12,6 +12,7 @@ const view = (o) => ({
   overtimeAfterMinutes: o.overtime_after_minutes ?? null,
   paidLeavePerYear: o.paid_leave_per_year ?? null,
   dailySummary: !!o.daily_summary,
+  faceMatch: !!o.face_match,
 });
 
 export default route({
@@ -29,7 +30,7 @@ export default route({
   //   halfDayMinutes? (fewer worked minutes = half day, 60-720, or null for no half days),
   //   overtimeRate? (1-3 × the hourly rate, or null for no overtime pay), overtimeAfterMinutes? (normal day for people
   //   without a shift, 240-960, or null for 8 hours), paidLeavePerYear? (0-60, or null for no limit),
-  //   dailySummary? (WhatsApp summary to admins each morning) } (company admin) -> their own company's settings
+  //   dailySummary? (WhatsApp summary to admins each morning), faceMatch? (compare check-in selfies with a saved photo) } (company admin) -> their own company's settings
   async PATCH(req, { staff }) {
     if (staff.role !== 'admin') throw new HttpError(403, 'Only admins can do this');
     const b = body(req);
@@ -75,6 +76,7 @@ export default route({
       patch.paid_leave_per_year = n;
     }
     if (b.dailySummary !== undefined) patch.daily_summary = !!b.dailySummary;
+    if (b.faceMatch !== undefined) patch.face_match = !!b.faceMatch;
     if (b.office !== undefined) {
       if (b.office === null) {
         Object.assign(patch, { office_lat: null, office_lng: null, office_radius_m: null });

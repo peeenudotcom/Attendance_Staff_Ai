@@ -57,6 +57,7 @@ export function adminView(s) {
     salary: s.salary,
     active: s.active,
     locationFree: !!s.location_free,
+    faceSavedAt: s.face_ref ? s.face_ref_at ?? null : null,
     shiftId: s.shift_id ?? null,
     lastLoginAt: s.last_login_at,
     deletedAt: s.deletion_requested_at ?? null,
