@@ -89,7 +89,13 @@ process.env.EMAIL_REPLY_TO = 'support@example.com';
 process.env.REVIEW_PHONE = '9000000001, 90000 00002';
 process.env.REVIEW_CODE = '4826';
 
+const sentWhatsApps = [];
+let whatsAppDown = false;
 globalThis.fetch = async (url, init) => {
+  if (String(url).includes('graph.facebook.com')) {
+    if (whatsAppDown) return { ok: false, status: 400, text: async () => 'bad number' };
+    sentWhatsApps.push({ url: String(url), auth: init.headers.Authorization, ...JSON.parse(init.body) }); return { ok: true, text: async () => '' };
+  }
   if (String(url).includes('exp.host')) {
     const msgs = JSON.parse(init.body); sentPushes.push(...msgs);
     return { ok: true, json: async () => ({ data: msgs.map((m) => (m.to.includes('gone') ? { status: 'error', details: { error: 'DeviceNotRegistered' } } : { status: 'ok' })) }) };
@@ -896,4 +902,40 @@ test('self sign-up', async () => {
   for (let i = 0; i < 20; i++) tables.organizations.push({ id: `flood${i}`, name: 'F', created_at: now });
   assert.equal((await su({ company: 'Late', name: 'Late', phone: '9855555555', email: 'l@example.com' })).status, 429);
   tables.organizations = tables.organizations.filter((o) => !o.id.startsWith('flood'));
+});
+
+test('sign-in code on WhatsApp', async () => {
+  process.env.WHATSAPP_TOKEN = 'wa-token'; process.env.WHATSAPP_PHONE_ID = '1234'; process.env.WHATSAPP_TEMPLATE = 'haazri_code';
+  try {
+    tables.staff.push({ id: 'wa1', org_id: 'org1', name: 'Wa Staff', phone: '9866666666', email: 'wa@example.com', role: 'staff', active: true });
+    tables.staff.push({ id: 'wa2', org_id: 'org1', name: 'No Mail', phone: '9877777777', email: null, role: 'staff', active: true });
+    const mails = sentEmails.length;
+    // both channels: WhatsApp and email carry the same code
+    let r = await call('auth/login', { method: 'POST', body: { phone: '9866666666' } });
+    assert.equal(r.status, 200); assert.equal(r.json.channel, 'whatsapp+email');
+    assert.equal(r.json.sentTo, 'WhatsApp +91 ******6666 and wa**@example.com');
+    const msg = sentWhatsApps.at(-1);
+    assert.equal(msg.url, 'https://graph.facebook.com/v23.0/1234/messages'); assert.equal(msg.auth, 'Bearer wa-token');
+    assert.equal(msg.to, '919866666666'); assert.equal(msg.template.name, 'haazri_code');
+    const code = msg.template.components[0].parameters[0].text;
+    assert.equal(msg.template.components[1].parameters[0].text, code);
+    assert.equal(sentEmails.length, mails + 1); assert.match(sentEmails.at(-1).subject, new RegExp(`^${code} is your`));
+    assert.equal((await call('auth/verify-otp', { method: 'POST', body: { phone: '9866666666', otp: code } })).status, 200);
+    // no email saved: WhatsApp alone is enough
+    r = await call('auth/login', { method: 'POST', body: { phone: '9877777777' } });
+    assert.equal(r.status, 200); assert.equal(r.json.channel, 'whatsapp'); assert.equal(r.json.sentTo, 'WhatsApp +91 ******7777');
+    // WhatsApp refused: email still delivers; with no email either, the request fails
+    whatsAppDown = true;
+    r = await call('auth/login', { method: 'POST', body: { phone: '9866666666' } });
+    assert.equal(r.status, 200); assert.equal(r.json.channel, 'email');
+    assert.equal((await call('auth/login', { method: 'POST', body: { phone: '9877777777' } })).status, 502);
+    // review accounts never get a message
+    const waCount = sentWhatsApps.length;
+    whatsAppDown = false;
+    r = await call('auth/login', { method: 'POST', body: { phone: '9000000001' } });
+    assert.equal(r.json.channel, 'review'); assert.equal(sentWhatsApps.length, waCount);
+  } finally {
+    whatsAppDown = false;
+    delete process.env.WHATSAPP_TOKEN; delete process.env.WHATSAPP_PHONE_ID; delete process.env.WHATSAPP_TEMPLATE;
+  }
 });
