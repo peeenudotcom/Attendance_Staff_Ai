@@ -3,16 +3,20 @@ import { db, must } from './db.js';
 import { HttpError } from './http.js';
 import { isReviewPhone } from './otp.js';
 import { notify } from './push.js';
+import { distance, faceDescriptor, verdict } from './face-local.js';
 
-// Face match with Amazon Rekognition CompareFaces (Mumbai region by default). Set REKOGNITION_ACCESS_KEY_ID and
-// REKOGNITION_SECRET_ACCESS_KEY (an IAM user allowed only rekognition:CompareFaces); REKOGNITION_REGION is optional.
-// Vercel reserves the usual AWS_* names, hence these. Images are sent for the comparison only; Rekognition does not
-// keep them for CompareFaces.
+// Two face-matching engines. The default ('local') runs free open-source models on our own server (lib/face-local.js).
+// FACE_PROVIDER=rekognition uses Amazon Rekognition CompareFaces instead (Mumbai region by default): set
+// REKOGNITION_ACCESS_KEY_ID and REKOGNITION_SECRET_ACCESS_KEY (an IAM user allowed only rekognition:CompareFaces);
+// REKOGNITION_REGION is optional. Vercel reserves the usual AWS_* names, hence these. Rekognition does not keep the
+// images for CompareFaces.
 const BUCKET = 'selfies';
 export const MATCH_AT = 90; // similarity (0-100) needed to count as the same person
 const TIMEOUT_MS = 6000;
 
-export const faceEnabled = () => Boolean(process.env.REKOGNITION_ACCESS_KEY_ID && process.env.REKOGNITION_SECRET_ACCESS_KEY);
+export const faceProvider = () => (process.env.FACE_PROVIDER === 'rekognition' ? 'rekognition' : 'local');
+export const faceEnabled = () => faceProvider() === 'local'
+  || Boolean(process.env.REKOGNITION_ACCESS_KEY_ID && process.env.REKOGNITION_SECRET_ACCESS_KEY);
 
 const sha256 = (s) => createHash('sha256').update(s).digest('hex');
 const hmac = (key, s) => createHmac('sha256', key).update(s).digest();
@@ -72,6 +76,8 @@ export async function compareFaces(reference, selfie) {
 }
 
 const refPath = (staffId) => `${staffId}/face-reference.jpg`;
+// Local engine: the saved photo's face numbers, kept in memory while the server is warm (never stored).
+const refCache = new Map();
 
 /**
  * Face check for a selfie (`selfie` is the JPEG bytes). With no reference photo yet (or the file is gone), a check-in
@@ -80,13 +86,24 @@ const refPath = (staffId) => `${staffId}/face-reference.jpg`;
  */
 export async function faceCheck(staff, selfie, { enrol = true } = {}) {
   try {
-    let reference = null;
+    const local = faceProvider() === 'local';
+    const mine = local ? await faceDescriptor(selfie) : null;
+    let reference = null; let refFace = null;
     if (staff.face_ref) {
-      const { data } = await db().storage.from(BUCKET).download(staff.face_ref);
-      if (data) reference = Buffer.from(await data.arrayBuffer());
+      const key = `${staff.face_ref}|${staff.face_ref_at}`;
+      if (local && refCache.has(key)) refFace = refCache.get(key);
+      else {
+        const { data } = await db().storage.from(BUCKET).download(staff.face_ref);
+        if (data) reference = Buffer.from(await data.arrayBuffer());
+        if (reference && local) {
+          refFace = await faceDescriptor(reference); // a saved photo with no clear face is replaced below
+          if (refFace) { if (refCache.size > 500) refCache.clear(); refCache.set(key, refFace); }
+        }
+      }
     }
-    if (!reference) {
+    if (local ? !refFace : !reference) {
       if (!enrol) return null;
+      if (local && !mine) return { result: 'no_face', score: null }; // the saved photo must show a face
       const path = refPath(staff.id);
       const { error } = await db().storage.from(BUCKET).upload(path, selfie, { contentType: 'image/jpeg', upsert: true });
       if (error) throw new Error(`Reference upload failed: ${error.message}`);
@@ -94,6 +111,7 @@ export async function faceCheck(staff, selfie, { enrol = true } = {}) {
       if (e2) throw new Error(e2.message);
       return { result: 'enrolled', score: null };
     }
+    if (local) return mine ? verdict(distance(mine, refFace)) : { result: 'no_face', score: null };
     return await compareFaces(reference, selfie);
   } catch (err) {
     console.error('[face] check failed:', err.message);

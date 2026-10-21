@@ -206,6 +206,10 @@ async function viewToday(root, date = istToday()) {
     s.leave ? chip(s.leave, 'On leave', 'lv') : null,
     date === istToday() ? chip(s.notYet, 'Not in yet') : null, chip(s.checkedOut, 'Checked out'), chip(s.total, 'Staff'));
 
+  const faceWarning = data.faceErrors
+    ? h('div', { class: 'close-bar warn' }, h('div', {}, h('b', {}, 'Face match is not working'),
+      h('span', {}, `${data.faceErrors === 1 ? '1 person was' : `${data.faceErrors} people were`} let through without a face check because Amazon's face service refused the request. Check the AWS account (plan and permissions), or ask support@tarahutaibuilds.com.`)))
+    : null;
   if (!data.staff.length) {
     return body.replaceChildren(chips, h('div', { class: 'card empty' }, s.off ? 'Weekly off.' : 'No staff yet. Add people in the Staff tab.'));
   }
@@ -232,7 +236,7 @@ async function viewToday(root, date = istToday()) {
         p.checkOutSelfie ? h('img', { src: p.checkOutSelfie, alt: 'Check-out selfie', title: 'Check-out selfie', onclick: () => showPhoto(p.checkOutSelfie, `${p.name} · check-out ${p.checkOut}`) }) : null)),
     );
   });
-  body.replaceChildren(chips, h('div', { class: 'card scroll' }, h('table', {},
+  body.replaceChildren(...(faceWarning ? [faceWarning] : []), chips, h('div', { class: 'card scroll' }, h('table', {},
     h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Status'), h('th', { class: 'num' }, 'In'), h('th', { class: 'num' }, 'Out'),
       h('th', { class: 'num hide-sm' }, 'Hours'), h('th', { class: 'hide-sm' }, 'Check-in place'), h('th', {}, 'Selfies'))),
     h('tbody', {}, rows))));

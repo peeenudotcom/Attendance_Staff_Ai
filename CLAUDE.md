@@ -44,8 +44,11 @@ Hosting and accounts (IDs are not secrets):
   WhatsApp summary to admins (cron `/api/cron/daily-summary` ~11:00 IST, needs Utility template in
   WHATSAPP_SUMMARY_TEMPLATE with 6 body variables: company, date, checked in, late, not in yet, on leave).
 - Face match (Settings → Face match, per company): each check-in selfie is compared with the person's saved photo
-  (first selfie after it was turned on; admin can reset it in Staff) by Amazon Rekognition CompareFaces in Mumbai
-  (`backend/lib/face.js`, hand-signed SigV4, no AWS SDK). 90%+ = match. Check-in and check-out selfies are both
+  (first selfie with a face after it was turned on; admin can reset it in Staff). Default engine is free and runs on
+  our server (`backend/lib/face-local.js`: @vladmandic/face-api on TensorFlow WASM, distance < 0.55 = match; models
+  and .wasm bundled via `includeFiles` in vercel.json; check a deployment at `/api/face-selftest`). Set Vercel env
+  FACE_PROVIDER=rekognition to use Amazon Rekognition CompareFaces in Mumbai instead (`backend/lib/face.js`,
+  hand-signed SigV4, 90%+ = match; the AWS account must be on a paid plan, the Free plan denies Rekognition). Check-in and check-out selfies are both
   checked: a mismatch or no face is refused (422, code 'face', "try N of 3", nothing saved); the 3rd failed try in a
   row (within 30 min) goes through flagged and admins get a push. Review accounts are flagged, never refused; a
   Rekognition outage never blocks. Today shows In/Out results with a Compare view. Needs Vercel env REKOGNITION_ACCESS_KEY_ID and
@@ -55,7 +58,7 @@ Hosting and accounts (IDs are not secrets):
   snapshot, account deletion (switch off now, erase after 30 days by cron `/api/cron/erase-accounts`).
 - Vercel env vars (values are secret, never print them): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, AUTH_TOKEN_SECRET,
   RESEND_API_KEY, EMAIL_FROM, EMAIL_REPLY_TO, REVIEW_PHONE, REVIEW_CODE, CRON_SECRET, WHATSAPP_TOKEN,
-  WHATSAPP_PHONE_ID, WHATSAPP_TEMPLATE, WHATSAPP_VERIFY_TOKEN, WHATSAPP_SUMMARY_TEMPLATE, REKOGNITION_ACCESS_KEY_ID, REKOGNITION_SECRET_ACCESS_KEY (optional WHATSAPP_LANGUAGE, default `en`). After changing one, redeploy.
+  WHATSAPP_PHONE_ID, WHATSAPP_TEMPLATE, WHATSAPP_VERIFY_TOKEN, WHATSAPP_SUMMARY_TEMPLATE, REKOGNITION_ACCESS_KEY_ID, REKOGNITION_SECRET_ACCESS_KEY, FACE_PROVIDER (optional WHATSAPP_LANGUAGE, default `en`). After changing one, redeploy.
 
 ## Working rules
 - Never print or commit secrets (keys, REVIEW_CODE, CRON_SECRET, keystores, google-services.json, service accounts).

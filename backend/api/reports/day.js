@@ -51,6 +51,8 @@ export default route({
       holiday,
       office: officeOf(admin.org),
       summary: { ...daySummary(day), checkedOut: people.filter((p) => p.checkOut !== '—').length },
+      // Face checks that could not run (e.g. Amazon refused the key): these went through unchecked.
+      faceErrors: day.filter(({ row: r }) => r?.check_in_face === 'error' || r?.check_out_face === 'error').length,
       staff: people,
     };
   },
