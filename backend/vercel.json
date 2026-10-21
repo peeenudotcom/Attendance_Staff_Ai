@@ -2,7 +2,8 @@
   "cleanUrls": true,
   "functions": {
     "api/**/*.js": {
-      "maxDuration": 15
+      "maxDuration": 15,
+      "includeFiles": "{lib/face-selftest.jpg,node_modules/@vladmandic/face-api/model/{ssd_mobilenetv1,face_landmark_68,face_recognition}_model*,node_modules/@tensorflow/tfjs-backend-wasm/dist/*.wasm}"
     }
   },
   "crons": [

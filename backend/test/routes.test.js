@@ -1097,7 +1097,8 @@ test('face match on check-in', async () => {
   const reset = () => { tables.attendance = tables.attendance.filter((a) => a.staff_id !== 'fmStaff'); };
   const row = () => tables.attendance.find((a) => a.staff_id === 'fmStaff');
 
-  // keys not set: no check, nothing recorded
+  // Amazon chosen but keys not set: no check, nothing recorded
+  process.env.FACE_PROVIDER = 'rekognition';
   let r = await checkIn('one');
   assert.equal(r.status, 200); assert.equal(row().check_in_face, undefined); assert.equal(rekognitionCalls.length, 0);
   reset();
@@ -1179,6 +1180,39 @@ test('face match on check-in', async () => {
     r = await call('company', { method: 'PATCH', token: admin, body: { faceMatch: false } });
     assert.equal(r.json.faceMatch, false);
   } finally {
-    delete process.env.REKOGNITION_ACCESS_KEY_ID; delete process.env.REKOGNITION_SECRET_ACCESS_KEY;
+    delete process.env.REKOGNITION_ACCESS_KEY_ID; delete process.env.REKOGNITION_SECRET_ACCESS_KEY; delete process.env.FACE_PROVIDER;
   }
+});
+
+test('free face match on our own server', async () => {
+  const fs = await import('node:fs');
+  const { issueToken } = await import(`${B}/lib/auth.js`);
+  const face = (f) => fs.readFileSync(`${B}/test/faces/${f}.jpg`).toString('base64'); // a1, a2: same man; b1 another man; c1 a woman
+  tables.organizations.push({ id: 'lf', name: 'Local Face Co', late_after_minutes: 1439, weekly_off: null, active: true, face_match: true });
+  tables.staff.push({ id: 'lfStaff', org_id: 'lf', name: 'Local Staff', phone: '9833300001', email: 'ls@example.com', role: 'staff', active: true, created_at: '2026-01-01T00:00:00Z' });
+  const token = issueToken('lfStaff');
+  const send = (kind, f) => call(`attendance/${kind}`, { method: 'POST', token, body: { selfie: face(f), latitude: 30.7, longitude: 76.7 } });
+  const reset = () => { tables.attendance = tables.attendance.filter((a) => a.staff_id !== 'lfStaff'); };
+  const row = () => tables.attendance.find((a) => a.staff_id === 'lfStaff');
+  const calls = rekognitionCalls.length;
+
+  // a photo with no face can't become the saved photo
+  let r = await send('check-in', 'none');
+  assert.equal(r.status, 422); assert.match(r.json.message, /couldn't see your face/);
+  tables.staff.find((s) => s.id === 'lfStaff').face_fails = 0;
+  r = await send('check-in', 'a1'); assert.equal(r.status, 200); assert.equal(row().check_in_face, 'enrolled');
+  reset(); r = await send('check-in', 'a2');
+  assert.equal(r.status, 200, JSON.stringify(r.json)); assert.equal(row().check_in_face, 'match'); assert.ok(row().check_in_face_score > 45);
+  // a woman checking out on his account, and another man, are refused
+  r = await send('check-out', 'c1'); assert.equal(r.status, 422); assert.equal(r.json.code, 'face');
+  r = await send('check-out', 'b1'); assert.equal(r.status, 422); assert.equal(r.json.tries, 2);
+  tables.staff.find((s) => s.id === 'lfStaff').face_fails = 0;
+  r = await send('check-out', 'a1'); assert.equal(r.status, 200); assert.equal(row().check_out_face, 'match');
+  assert.equal(rekognitionCalls.length, calls); // nothing went to Amazon
+
+  // the self-test page used to check a deployment
+  const st = await import(`${B}/api/face-selftest.js`);
+  let status = 0, json;
+  await st.default({}, { status(x) { status = x; return this; }, json(j) { json = j; return this; } });
+  assert.equal(status, 200); assert.equal(json.ok, true); assert.equal(json.provider, 'local');
 });
