@@ -12,7 +12,7 @@ export default route({
 
     const { people: day, holiday, shifts } = await dayPeople(admin.org, date);
     const today = istDay(new Date());
-    const urls = await selfieUrls(day.flatMap(({ s, row: r }) => (r ? [r.check_in_selfie, r.check_out_selfie, r.check_in_face ? s.face_ref : null] : [])));
+    const urls = await selfieUrls(day.flatMap(({ s, row: r }) => (r ? [r.check_in_selfie, r.check_out_selfie, r.check_in_face || r.check_out_face ? s.face_ref : null] : [])));
 
     const people = day.map(({ s, row: r, status }) => {
       return {
@@ -40,8 +40,9 @@ export default route({
         checkInLocation: r?.check_in_lat != null ? { lat: r.check_in_lat, lng: r.check_in_lng } : null,
         checkInSelfie: urls[r?.check_in_selfie] ?? null,
         checkOutSelfie: urls[r?.check_out_selfie] ?? null,
-        // Face match on the check-in selfie: match | mismatch | no_face | enrolled (became the saved photo) | error
+        // Face match on the check-in and check-out selfies: match | mismatch | no_face | enrolled (became the saved photo) | error
         face: r?.check_in_face ? { result: r.check_in_face, score: r.check_in_face_score == null ? null : Number(r.check_in_face_score), savedPhoto: urls[s.face_ref] ?? null } : null,
+        faceOut: r?.check_out_face ? { result: r.check_out_face, score: r.check_out_face_score == null ? null : Number(r.check_out_face_score), savedPhoto: urls[s.face_ref] ?? null } : null,
       };
     });
 

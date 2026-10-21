@@ -104,7 +104,7 @@ export default function MarkAttendanceScreen({ route, navigation }) {
     } catch (e) {
       // fetch fails with a TypeError when there is no connection; a captive Wi-Fi page returns HTML, not our JSON.
       const network = e instanceof TypeError || /network|non-JSON|timed? ?out|failed to fetch/i.test(e.message || '');
-      setResult({ ok: false, network, message: network ? 'No internet connection, so nothing was saved.' : (e.message || 'Something went wrong.') });
+      setResult({ ok: false, network, face: e.code === 'face', message: network ? 'No internet connection, so nothing was saved.' : (e.message || 'Something went wrong.') });
     } finally {
       setLoading(false);
     }
@@ -233,8 +233,8 @@ export default function MarkAttendanceScreen({ route, navigation }) {
                 </Text>
               )}
               <View style={styles.resultActions}>
-                <TouchableOpacity style={[styles.refreshBtn, { flex: 1 }]} onPress={() => setResult(null)} activeOpacity={0.8}>
-                  <Text style={styles.refreshText}>Try again</Text>
+                <TouchableOpacity style={[styles.refreshBtn, { flex: 1 }]} onPress={() => { if (result.face) setSelfie(null); setResult(null); }} activeOpacity={0.8}>
+                  <Text style={styles.refreshText}>{result.face ? 'Retake selfie' : 'Try again'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.ghostBtn, { borderColor: C.border, flex: 1 }]} onPress={askCorrection} activeOpacity={0.8}>
                   <Text style={[styles.ghostText, { color: C.textAccent }]}>Ask for a correction</Text>

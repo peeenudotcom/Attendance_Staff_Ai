@@ -1116,30 +1116,64 @@ test('face match on check-in', async () => {
     assert.match(c.headers.Authorization, /^AWS4-HMAC-SHA256 Credential=AKIATEST\/\d{8}\/ap-south-1\/rekognition\/aws4_request, SignedHeaders=content-type;host;x-amz-date;x-amz-target, Signature=[0-9a-f]{64}$/);
     assert.equal(Buffer.from(c.body.SourceImage.Bytes, 'base64').toString(), 'jpeg first');
     assert.equal(Buffer.from(c.body.TargetImage.Bytes, 'base64').toString(), 'jpeg second');
-    // someone else: recorded, admins notified, check-in still goes through
+    // someone else: refused twice (no photo kept), the 3rd try in a row goes through flagged and admins are told
     rekognitionReply = { FaceMatches: [{ Similarity: 41.2 }], UnmatchedFaces: [{}] };
     tables.push_tokens.push({ id: 'fmTok', staff_id: 'fmAdmin', token: 'ExponentPushToken[fm-admin]' });
-    reset(); const pushes = sentPushes.length; r = await checkIn('other');
+    reset(); const pushes = sentPushes.length; const files = stored.size;
+    r = await checkIn('other');
+    assert.equal(r.status, 422); assert.equal(r.json.code, 'face'); assert.equal(r.json.tries, 1); assert.match(r.json.message, /try 1 of 3/);
+    assert.equal(row(), undefined); assert.equal(stored.size, files);
+    r = await checkIn('other'); assert.equal(r.status, 422); assert.equal(r.json.tries, 2);
+    assert.equal(sentPushes.length, pushes);
+    r = await checkIn('other');
     assert.equal(r.status, 200); assert.equal(row().check_in_face, 'mismatch'); assert.equal(row().check_in_face_score, 41.2);
-    assert.ok(sentPushes.slice(pushes).some((m) => m.title === 'Face did not match' && m.to === 'ExponentPushToken[fm-admin]'));
-    // no face, and a Rekognition failure: still checked in
+    assert.ok(sentPushes.slice(pushes).some((m) => m.title === 'Face did not match' && m.to === 'ExponentPushToken[fm-admin]' && /after 3 tries/.test(m.body)));
+    assert.equal(tables.staff.find((s) => s.id === 'fmStaff').face_fails, 0);
+    // a match in between starts the count again
+    reset(); await checkIn('other'); rekognitionReply = { FaceMatches: [{ Similarity: 97 }], UnmatchedFaces: [] };
+    r = await checkIn('me'); assert.equal(r.status, 200); assert.equal(tables.staff.find((s) => s.id === 'fmStaff').face_fails, 0);
+    // a check-out never saves the reference photo: with none saved, it isn't checked
+    tables.staff.find((s) => s.id === 'fmStaff').face_ref = null;
+    const calls = rekognitionCalls.length;
+    r = await call('attendance/check-out', { method: 'POST', token: staff, body: { selfie: pic('stranger'), latitude: 30.7, longitude: 76.7 } });
+    assert.equal(r.status, 200); assert.equal(row().check_out_face, undefined); assert.equal(rekognitionCalls.length, calls);
+    assert.equal(tables.staff.find((s) => s.id === 'fmStaff').face_ref, null);
+    tables.staff.find((s) => s.id === 'fmStaff').face_ref = 'fmStaff/face-reference.jpg';
+    row().check_out_at = undefined; row().check_out_selfie = undefined;
+    // check-out is checked too
     rekognitionReply = { FaceMatches: [], UnmatchedFaces: [] };
-    reset(); await checkIn('wall'); assert.equal(row().check_in_face, 'no_face');
+    const checkOut = () => call('attendance/check-out', { method: 'POST', token: staff, body: { selfie: pic('out'), latitude: 30.7, longitude: 76.7 } });
+    r = await checkOut(); assert.equal(r.status, 422); assert.match(r.json.message, /couldn't see your face/); assert.equal(row().check_out_at, undefined);
+    rekognitionReply = { FaceMatches: [{ Similarity: 95 }], UnmatchedFaces: [] };
+    r = await checkOut(); assert.equal(r.status, 200); assert.equal(row().check_out_face, 'match');
+    // no face (or a saved photo Rekognition rejects) counts as a failed try; a Rekognition outage never blocks
     rekognitionReply = { status: 400, body: { __type: 'com.amazonaws#InvalidParameterException', message: 'no face in source' } };
-    reset(); await checkIn('x'); assert.equal(row().check_in_face, 'no_face');
+    reset(); r = await checkIn('x'); assert.equal(r.status, 422);
+    tables.staff.find((s) => s.id === 'fmStaff').face_fails = 0;
     rekognitionReply = { status: 500, body: { message: 'boom' } };
     reset(); r = await checkIn('y'); assert.equal(r.status, 200); assert.equal(row().check_in_face, 'error');
     rekognitionReply = { FaceMatches: [{ Similarity: 99 }], UnmatchedFaces: [] };
     // the admin sees the result on Today
     r = await call('reports/day', { token: admin });
     const p = r.json.staff.find((x) => x.id === 'fmStaff');
-    assert.equal(p.face.result, 'error'); assert.match(p.face.savedPhoto, /face-reference\.jpg$/);
+    assert.equal(p.face.result, 'error'); assert.match(p.face.savedPhoto, /face-reference\.jpg$/); assert.equal(p.faceOut, null);
     assert.ok(r.json.staff.find((x) => x.id === 'fmAdmin').face === null);
     // admin resets the saved photo: the next selfie becomes the new one
     r = await call('staff/[id]/index', { method: 'PATCH', token: admin, query: { id: 'fmStaff' }, body: { faceReset: true } });
     assert.equal(r.status, 200); assert.equal(r.json.staff.faceSavedAt, null);
     assert.equal(tables.staff.find((s) => s.id === 'fmStaff').face_ref, null);
     reset(); await checkIn('new'); assert.equal(row().check_in_face, 'enrolled');
+    // the store review account is flagged but never refused
+    tables.organizations.find((o) => o.id === 'demo').face_match = true;
+    tables.attendance = tables.attendance.filter((a) => a.staff_id !== 'rev1');
+    rekognitionReply = { FaceMatches: [{ Similarity: 12 }], UnmatchedFaces: [{}] };
+    tables.staff.find((s) => s.id === 'rev1').face_ref = null;
+    r = await call('attendance/check-in', { method: 'POST', token: issueToken('rev1'), body: { selfie: pic('reviewer a'), latitude: 30.7, longitude: 76.7 } });
+    assert.equal(r.status, 200); // first selfie saved
+    tables.attendance = tables.attendance.filter((a) => a.staff_id !== 'rev1');
+    r = await call('attendance/check-in', { method: 'POST', token: issueToken('rev1'), body: { selfie: pic('reviewer b'), latitude: 30.7, longitude: 76.7 } });
+    assert.equal(r.status, 200); assert.equal(tables.attendance.find((a) => a.staff_id === 'rev1').check_in_face, 'mismatch');
+    tables.organizations.find((o) => o.id === 'demo').face_match = false;
     // settings
     r = await call('company', { method: 'PATCH', token: admin, body: { faceMatch: false } });
     assert.equal(r.json.faceMatch, false);

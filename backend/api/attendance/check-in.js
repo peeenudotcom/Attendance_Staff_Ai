@@ -1,15 +1,14 @@
 import { db, must } from '../../lib/db.js';
 import { route, body, HttpError } from '../../lib/http.js';
 import { coord, currentRecord, eventTime, istDay, selfieBytes, uploadSelfie } from '../../lib/attendance.js';
-import { faceCheck, faceEnabled } from '../../lib/face.js';
-import { notify } from '../../lib/push.js';
+import { faceGate } from '../../lib/face.js';
 import { isLateFor } from '../../lib/shifts.js';
 import { officeDistance } from '../../lib/geo.js';
 
 // POST /api/attendance/check-in { selfie (base64), latitude, longitude, accuracy?, address, timestamp } (Bearer)
 // With location lock on, refused unless within the company's office radius (or the person may check in anywhere).
-// With face match on, the selfie is compared with the person's reference photo; admins see the result (and get a
-// notification when it doesn't match), but check-in is never refused because of it.
+// With face match on, the selfie is compared with the person's saved photo first: a mismatch is refused for a retake,
+// and the 3rd failed try in a row goes through flagged (see lib/face.js faceGate).
 export default route({
   async POST(req, { staff }) {
     const { selfie, latitude, longitude, accuracy, address, timestamp } = body(req);
@@ -25,8 +24,8 @@ export default route({
     const distance = officeDistance(staff, { lat, lng, accuracy }, { enforce: true });
 
     const status = isLateFor(at, staff) ? 'late' : 'present';
+    const face = await faceGate(staff, selfieBytes(selfie), 'check-in'); // before saving: a refused try keeps no photo
     const selfiePath = await uploadSelfie(selfie, staff.id, 'checkin');
-    const face = staff.org.face_match && faceEnabled() ? await faceCheck(staff, selfieBytes(selfie)) : null;
     const record = must(await db().from('attendance').insert({
       staff_id: staff.id,
       org_id: staff.org_id,
@@ -40,15 +39,6 @@ export default route({
       check_in_selfie: selfiePath,
       ...(face ? { check_in_face: face.result, check_in_face_score: face.score } : {}),
     }).select('id').single());
-
-    if (face?.result === 'mismatch' || face?.result === 'no_face') {
-      const admins = must(await db().from('staff').select('id').eq('org_id', staff.org_id).eq('role', 'admin').eq('active', true));
-      await notify(admins.map((a) => a.id).filter((id) => id !== staff.id), {
-        title: face.result === 'mismatch' ? 'Face did not match' : 'No face in selfie',
-        body: `${staff.name} checked in, but the selfie ${face.result === 'mismatch' ? "doesn't look like their saved photo" : 'shows no clear face'}. See Today on the web dashboard.`,
-        data: { screen: 'Team' },
-      });
-    }
 
     return { ok: true, attendance: { id: record.id, status, checkInAt: at.toISOString() } };
   },

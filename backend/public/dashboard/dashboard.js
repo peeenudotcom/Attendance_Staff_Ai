@@ -238,25 +238,27 @@ async function viewToday(root, date = istToday()) {
     h('tbody', {}, rows))));
 }
 
-// Face match result for a check-in selfie (null when face match is off or there was no check-in).
+// Face match results for the check-in and check-out selfies (nothing when face match is off).
 function faceTag(p) {
-  const f = p.face;
-  if (!f) return null;
-  const compare = f.savedPhoto && p.checkInSelfie && f.result !== 'enrolled'
-    ? h('button', { class: 'link-btn small-link', onclick: () => openModal([h('h3', {}, `${p.name} · face check`),
-      h('div', { class: 'face-compare' },
-        h('figure', {}, h('img', { src: f.savedPhoto, alt: 'Saved photo' }), h('figcaption', {}, 'Saved photo')),
-        h('figure', {}, h('img', { src: p.checkInSelfie, alt: 'Check-in selfie' }), h('figcaption', {}, `Check-in ${p.checkIn}`))),
-      h('div', { class: 'foot' }, h('button', { class: 'btn ghost', onclick: closeModal }, 'Close'))]) }, 'Compare')
-    : null;
-  const label = {
-    match: ['Face matched', 'dist ok'],
-    mismatch: [`Face doesn't match${f.score != null ? ` (${Math.round(f.score)}%)` : ''}`, 'dist away'],
-    no_face: ['No clear face in selfie', 'dist away'],
-    enrolled: ['Face photo saved', 'dist'],
-    error: ['Face check not done', 'dist'],
-  }[f.result];
-  return label ? h('small', { class: label[1] }, label[0], compare ? ' · ' : '', compare) : null;
+  const one = (f, label, selfie, time) => {
+    if (!f) return null;
+    const compare = f.savedPhoto && selfie && f.result !== 'enrolled'
+      ? h('button', { class: 'link-btn small-link', onclick: () => openModal([h('h3', {}, `${p.name} · face check (${label.toLowerCase()})`),
+        h('div', { class: 'face-compare' },
+          h('figure', {}, h('img', { src: f.savedPhoto, alt: 'Saved photo' }), h('figcaption', {}, 'Saved photo')),
+          h('figure', {}, h('img', { src: selfie, alt: `${label} selfie` }), h('figcaption', {}, `${label} ${time}`))),
+        h('div', { class: 'foot' }, h('button', { class: 'btn ghost', onclick: closeModal }, 'Close'))]) }, 'Compare')
+      : null;
+    const text = {
+      match: ['Face matched', 'dist ok'],
+      mismatch: [`Face doesn't match${f.score != null ? ` (${Math.round(f.score)}%)` : ''}`, 'dist away'],
+      no_face: ['No clear face in selfie', 'dist away'],
+      enrolled: ['Face photo saved', 'dist'],
+      error: ['Face check not done', 'dist'],
+    }[f.result];
+    return text ? h('small', { class: text[1] }, `${label}: ${text[0]}`, compare ? ' · ' : '', compare) : null;
+  };
+  return [one(p.face, 'In', p.checkInSelfie, p.checkIn), one(p.faceOut, 'Out', p.checkOutSelfie, p.checkOut)];
 }
 
 // ---------- Monthly sheet ----------

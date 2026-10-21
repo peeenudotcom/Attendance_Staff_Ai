@@ -1,5 +1,8 @@
 import { createHash, createHmac } from 'node:crypto';
-import { db } from './db.js';
+import { db, must } from './db.js';
+import { HttpError } from './http.js';
+import { isReviewPhone } from './otp.js';
+import { notify } from './push.js';
 
 // Face match with Amazon Rekognition CompareFaces (Mumbai region by default). Set REKOGNITION_ACCESS_KEY_ID and
 // REKOGNITION_SECRET_ACCESS_KEY (an IAM user allowed only rekognition:CompareFaces); REKOGNITION_REGION is optional.
@@ -71,10 +74,11 @@ export async function compareFaces(reference, selfie) {
 const refPath = (staffId) => `${staffId}/face-reference.jpg`;
 
 /**
- * Face check for a check-in selfie (`selfie` is the JPEG bytes). With no reference photo yet (or the file is gone),
- * this selfie becomes the reference ('enrolled'). Never throws: problems come back as 'error' so check-in goes on.
+ * Face check for a selfie (`selfie` is the JPEG bytes). With no reference photo yet (or the file is gone), a check-in
+ * selfie becomes the reference ('enrolled'); with `enrol: false` (check-out) it returns null instead, so a photo that
+ * was never compared can't become the reference. Never throws: problems come back as 'error' so check-in goes on.
  */
-export async function faceCheck(staff, selfie) {
+export async function faceCheck(staff, selfie, { enrol = true } = {}) {
   try {
     let reference = null;
     if (staff.face_ref) {
@@ -82,6 +86,7 @@ export async function faceCheck(staff, selfie) {
       if (data) reference = Buffer.from(await data.arrayBuffer());
     }
     if (!reference) {
+      if (!enrol) return null;
       const path = refPath(staff.id);
       const { error } = await db().storage.from(BUCKET).upload(path, selfie, { contentType: 'image/jpeg', upsert: true });
       if (error) throw new Error(`Reference upload failed: ${error.message}`);
@@ -94,4 +99,45 @@ export async function faceCheck(staff, selfie) {
     console.error('[face] check failed:', err.message);
     return { result: 'error', score: null };
   }
+}
+
+export const MAX_TRIES = 3;
+const TRIES_WINDOW_MS = 30 * 60 * 1000; // failed tries older than this start the count again
+
+/**
+ * Face match for a check-in or check-out selfie, before anything is saved. Returns null when face match is off,
+ * else { result, score, flagged }. A selfie that doesn't match (or shows no clear face) is refused with a 422 asking
+ * for a retake, saying which try it was; the 3rd failed try in a row goes through, flagged, and the admins are
+ * notified. The App Store / Play review accounts are flagged but never refused (different reviewers use them).
+ * If Rekognition itself fails, the attempt goes through ('error'), so an outage can't lock everyone out.
+ */
+export async function faceGate(staff, selfie, kind) {
+  if (!staff.org?.face_match || !faceEnabled()) return null;
+  // Only a check-in may save the reference photo; a check-out with none to compare against is not checked.
+  const face = await faceCheck(staff, selfie, { enrol: kind === 'check-in' });
+  if (!face) return null;
+  const failed = face.result === 'mismatch' || face.result === 'no_face';
+  if (!failed) {
+    if (staff.face_fails) must(await db().from('staff').update({ face_fails: 0, face_fails_at: null }).eq('id', staff.id));
+    return { ...face, flagged: false };
+  }
+  const recent = staff.face_fails_at && Date.now() - new Date(staff.face_fails_at).getTime() < TRIES_WINDOW_MS;
+  const tries = (recent ? staff.face_fails ?? 0 : 0) + 1;
+  const review = isReviewPhone(staff.phone);
+  if (tries < MAX_TRIES && !review) {
+    must(await db().from('staff').update({ face_fails: tries, face_fails_at: new Date().toISOString() }).eq('id', staff.id));
+    const why = face.result === 'mismatch' ? "your face didn't match your saved photo" : "we couldn't see your face clearly";
+    const err = new HttpError(422, `Your selfie was not accepted: ${why}. Retake it facing the camera in good light (try ${tries} of ${MAX_TRIES}).`);
+    err.extra = { code: 'face', tries, maxTries: MAX_TRIES };
+    throw err;
+  }
+  must(await db().from('staff').update({ face_fails: 0, face_fails_at: null }).eq('id', staff.id));
+  const admins = must(await db().from('staff').select('id').eq('org_id', staff.org_id).eq('role', 'admin').eq('active', true));
+  const action = kind === 'check-out' ? 'checked out' : 'checked in';
+  await notify(admins.map((a) => a.id).filter((id) => id !== staff.id), {
+    title: face.result === 'mismatch' ? 'Face did not match' : 'No face in selfie',
+    body: `${staff.name} ${action}${review ? '' : ` after ${MAX_TRIES} tries`}, but the selfie ${face.result === 'mismatch' ? "doesn't look like their saved photo" : 'shows no clear face'}. See Today on the web dashboard.`,
+    data: { screen: 'Team' },
+  });
+  return { ...face, flagged: true };
 }
