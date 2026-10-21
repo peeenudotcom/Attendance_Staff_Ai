@@ -94,7 +94,9 @@ let whatsAppDown = false;
 globalThis.fetch = async (url, init) => {
   if (String(url).includes('graph.facebook.com')) {
     if (whatsAppDown) return { ok: false, status: 400, text: async () => 'bad number' };
-    sentWhatsApps.push({ url: String(url), auth: init.headers.Authorization, ...JSON.parse(init.body) }); return { ok: true, text: async () => '' };
+    const m = JSON.parse(init.body);
+    sentWhatsApps.push({ url: String(url), auth: init.headers.Authorization, ...m });
+    return { ok: true, text: async () => JSON.stringify({ messaging_product: 'whatsapp', contacts: [{ input: m.to, wa_id: m.to }], messages: [{ id: 'wamid.test' }] }) };
   }
   if (String(url).includes('exp.host')) {
     const msgs = JSON.parse(init.body); sentPushes.push(...msgs);
@@ -937,5 +939,25 @@ test('sign-in code on WhatsApp', async () => {
   } finally {
     whatsAppDown = false;
     delete process.env.WHATSAPP_TOKEN; delete process.env.WHATSAPP_PHONE_ID; delete process.env.WHATSAPP_TEMPLATE;
+  }
+});
+
+test('WhatsApp webhook', async () => {
+  const mod = await import(`${B}/api/whatsapp/webhook.js`);
+  const hit = async (req) => {
+    let status = 0, sent;
+    const res = { setHeader() {}, status(s) { status = s; return this; }, send(b) { sent = b; return this; } };
+    await mod.default({ headers: {}, query: {}, ...req }, res);
+    return { status, sent };
+  };
+  process.env.WHATSAPP_VERIFY_TOKEN = 'verify-me';
+  try {
+    const ok = await hit({ method: 'GET', query: { 'hub.mode': 'subscribe', 'hub.verify_token': 'verify-me', 'hub.challenge': '42' } });
+    assert.equal(ok.status, 200); assert.equal(ok.sent, '42');
+    assert.equal((await hit({ method: 'GET', query: { 'hub.mode': 'subscribe', 'hub.verify_token': 'nope', 'hub.challenge': '42' } })).status, 403);
+    const body = { entry: [{ changes: [{ value: { statuses: [{ id: 'wamid.x', status: 'failed', recipient_id: '919915424411', errors: [{ code: 131026, title: 'Message undeliverable' }] }] } }] }] };
+    assert.equal((await hit({ method: 'POST', body })).status, 200);
+  } finally {
+    delete process.env.WHATSAPP_VERIFY_TOKEN;
   }
 });
