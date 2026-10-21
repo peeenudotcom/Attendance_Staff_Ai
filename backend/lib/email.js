@@ -46,10 +46,11 @@ export function sendOtpEmail({ to, name, code }) {
 }
 
 /** Tells a newly added person they have an account and how to get the app. */
-export function sendWelcomeEmail({ to, name, phone, company, addedBy }) {
+export function sendWelcomeEmail({ to, name, phone, company, addedBy, owner }) {
   const hi = firstName(name);
   const installUrl = `${SITE}/get`;
   const who = addedBy ? `${addedBy} has added you` : 'You have been added';
+  const dashboardUrl = `${SITE}/dashboard`;
   return send({
     to,
     subject: `You've been added to ${company} on ${PRODUCT}`,
@@ -61,6 +62,7 @@ export function sendWelcomeEmail({ to, name, phone, company, addedBy }) {
       `1. Install the app: ${installUrl}`,
       `2. Open it and sign in with your phone number ${phone}.`,
       `3. We'll email a 4-digit code to this address. Enter it and you're in.`,
+      ...(owner ? ['', `You are the admin of ${company}. Add your staff (name, phone and email) in the app or on the web dashboard: ${dashboardUrl}`] : []),
       '',
       'Questions? Just reply to this email.',
     ].join('\n'),
@@ -71,8 +73,21 @@ export function sendWelcomeEmail({ to, name, phone, company, addedBy }) {
     <li><a href="${installUrl}">Install the app</a></li>
     <li>Open it and sign in with your phone number <strong>${escapeHtml(phone)}</strong>.</li>
     <li>We'll email a 4-digit code to this address. Enter it and you're in.</li>
-  </ol>
+  </ol>${owner ? `
+  <p>You are the admin of <strong>${escapeHtml(company)}</strong>. Add your staff (name, phone and email) in the app or on the <a href="${dashboardUrl}">web dashboard</a>.</p>` : ''}
   <p>Questions? Just reply to this email.</p>`),
+  });
+}
+
+/** Tells TARAhut support a business has signed up by itself. */
+export function sendSignupNoticeEmail({ to, company, name, phone, email }) {
+  return send({
+    to,
+    subject: `New sign-up: ${company}`,
+    text: `${company} signed up for ${PRODUCT}.\n\nAdmin: ${name}\nPhone: ${phone}\nEmail: ${email}`,
+    html: wrap(`
+  <p><strong>${escapeHtml(company)}</strong> signed up for ${PRODUCT}.</p>
+  <p>Admin: ${escapeHtml(name)}<br>Phone: ${escapeHtml(phone)}<br>Email: ${escapeHtml(email)}</p>`),
   });
 }
 

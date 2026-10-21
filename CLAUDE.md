@@ -1,8 +1,8 @@
 # TARAhut Haazri: handover for Claude
 
 Staff attendance app sold to companies (B2B). Owner: Parveen Sukhija. Legal entity **SUKHIJA TECHNO AID**, brand
-**TARAhut AI Builds** (tarahutaibuilds.com). Status on 20 Oct 2026: iOS 1.0 (build 15) submitted to App Review,
-Android 1.0 (version code 7) in Play Console production, being sent for review. Pilot companies: TARAhutAIBuilds
+**TARAhut AI Builds** (tarahutaibuilds.com). Status on 20 Oct 2026: iOS 1.0 (build 15) and Android 1.0 (version code 7,
+production track, India) are both submitted for store review. Pilot companies: TARAhutAIBuilds
 (own staff) and My Visa Guide (admin Rohit Sethi).
 
 ## What is where
@@ -54,9 +54,9 @@ Hosting and accounts (IDs are not secrets):
 
 ## Open items (as of 20 Oct 2026)
 1. Watch both store reviews; answer reviewer messages; keep demo accounts unchanged.
-2. Branch `claude/sweet-babbage-35phsw` has unmerged work (instant updates, Android button on /get page with
-   `/android` redirect, store.config.js, App Store screenshots). Merge when the owner says "merge". Next store builds
-   should come from main after that merge so they include instant updates.
+2. Main now has instant updates (Expo Updates). The next store builds (1.0.1) should be made from main so they can
+   receive instant fixes; raise `version` in app.json for that release. `/android` (redirect in backend/vercel.json)
+   points at the current preview APK: update it when a new preview build replaces it.
 3. Optional: Firebase (`google-services.json` via EAS env) so Android receives push notifications.
 4. Ideas parked: office Wi-Fi check-in (server checks request IP), "Get sign-in code" button for admins (share code by
    WhatsApp instead of email), company plans/billing (charge companies outside the app; no in-app purchases).
