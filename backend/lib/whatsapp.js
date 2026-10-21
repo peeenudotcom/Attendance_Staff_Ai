@@ -24,10 +24,12 @@ export async function sendOtpWhatsApp({ phone, code }) {
       },
     }),
   });
-  if (!response.ok) {
-    const details = await response.text().catch(() => '');
-    throw new Error(`WhatsApp failed: ${response.status} ${details.slice(0, 300)}`);
-  }
+  const details = await response.text().catch(() => '');
+  if (!response.ok) throw new Error(`WhatsApp failed: ${response.status} ${details.slice(0, 300)}`);
+  // Accepted is not delivered: delivery (or failure) is reported later to /api/whatsapp/webhook.
+  let sent = {};
+  try { sent = JSON.parse(details); } catch { /* keep going */ }
+  console.log(`[whatsapp] accepted id=${sent.messages?.[0]?.id ?? '?'} status=${sent.messages?.[0]?.message_status ?? '?'} wa_id=${sent.contacts?.[0]?.wa_id ?? '?'} to=${maskPhone(phone)}`);
 }
 
 export const maskPhone = (phone) => `+91 ******${String(phone).slice(-4)}`;
