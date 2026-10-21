@@ -74,10 +74,11 @@ export async function compareFaces(reference, selfie) {
 const refPath = (staffId) => `${staffId}/face-reference.jpg`;
 
 /**
- * Face check for a check-in selfie (`selfie` is the JPEG bytes). With no reference photo yet (or the file is gone),
- * this selfie becomes the reference ('enrolled'). Never throws: problems come back as 'error' so check-in goes on.
+ * Face check for a selfie (`selfie` is the JPEG bytes). With no reference photo yet (or the file is gone), a check-in
+ * selfie becomes the reference ('enrolled'); with `enrol: false` (check-out) it returns null instead, so a photo that
+ * was never compared can't become the reference. Never throws: problems come back as 'error' so check-in goes on.
  */
-export async function faceCheck(staff, selfie) {
+export async function faceCheck(staff, selfie, { enrol = true } = {}) {
   try {
     let reference = null;
     if (staff.face_ref) {
@@ -85,6 +86,7 @@ export async function faceCheck(staff, selfie) {
       if (data) reference = Buffer.from(await data.arrayBuffer());
     }
     if (!reference) {
+      if (!enrol) return null;
       const path = refPath(staff.id);
       const { error } = await db().storage.from(BUCKET).upload(path, selfie, { contentType: 'image/jpeg', upsert: true });
       if (error) throw new Error(`Reference upload failed: ${error.message}`);
@@ -111,7 +113,9 @@ const TRIES_WINDOW_MS = 30 * 60 * 1000; // failed tries older than this start th
  */
 export async function faceGate(staff, selfie, kind) {
   if (!staff.org?.face_match || !faceEnabled()) return null;
-  const face = await faceCheck(staff, selfie);
+  // Only a check-in may save the reference photo; a check-out with none to compare against is not checked.
+  const face = await faceCheck(staff, selfie, { enrol: kind === 'check-in' });
+  if (!face) return null;
   const failed = face.result === 'mismatch' || face.result === 'no_face';
   if (!failed) {
     if (staff.face_fails) must(await db().from('staff').update({ face_fails: 0, face_fails_at: null }).eq('id', staff.id));

@@ -1132,6 +1132,14 @@ test('face match on check-in', async () => {
     // a match in between starts the count again
     reset(); await checkIn('other'); rekognitionReply = { FaceMatches: [{ Similarity: 97 }], UnmatchedFaces: [] };
     r = await checkIn('me'); assert.equal(r.status, 200); assert.equal(tables.staff.find((s) => s.id === 'fmStaff').face_fails, 0);
+    // a check-out never saves the reference photo: with none saved, it isn't checked
+    tables.staff.find((s) => s.id === 'fmStaff').face_ref = null;
+    const calls = rekognitionCalls.length;
+    r = await call('attendance/check-out', { method: 'POST', token: staff, body: { selfie: pic('stranger'), latitude: 30.7, longitude: 76.7 } });
+    assert.equal(r.status, 200); assert.equal(row().check_out_face, undefined); assert.equal(rekognitionCalls.length, calls);
+    assert.equal(tables.staff.find((s) => s.id === 'fmStaff').face_ref, null);
+    tables.staff.find((s) => s.id === 'fmStaff').face_ref = 'fmStaff/face-reference.jpg';
+    row().check_out_at = undefined; row().check_out_selfie = undefined;
     // check-out is checked too
     rekognitionReply = { FaceMatches: [], UnmatchedFaces: [] };
     const checkOut = () => call('attendance/check-out', { method: 'POST', token: staff, body: { selfie: pic('out'), latitude: 30.7, longitude: 76.7 } });
