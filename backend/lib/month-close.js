@@ -64,8 +64,9 @@ export async function salarySheet(org, monthParam) {
   const today = istDay(new Date());
   const adj = must(await db().from('pay_adjustments').select('id, staff_id, kind, amount, note, created_at')
     .eq('org_id', org.id).eq('month', m.month).order('created_at'));
-  const people = m.staff.map(({ staff: s, id, name, designation, leftOn, totals }) => {
-    const pay = monthPay({ salaryType: s.salary_type, salary: s.salary, totals, daysInMonth: m.days.length, lateCutEvery });
+  const overtimeRate = org.overtime_rate == null ? null : Number(org.overtime_rate);
+  const people = m.staff.map(({ staff: s, normalDayMinutes, id, name, designation, leftOn, totals }) => {
+    const pay = monthPay({ salaryType: s.salary_type, salary: s.salary == null ? null : Number(s.salary), totals, daysInMonth: m.days.length, lateCutEvery, overtimeRate, normalDayMinutes });
     const adjustments = adj.filter((a) => a.staff_id === id).map(adjustmentView);
     const adjustmentTotal = round2(adjustments.reduce((sum, a) => sum + a.signed, 0));
     return {
@@ -78,6 +79,8 @@ export async function salarySheet(org, monthParam) {
     daysInMonth: m.days.length,
     inProgress: m.days[m.days.length - 1] >= today && m.days[0] <= today,
     lateCutEvery,
+    overtimeRate,
+    overtimeAfterMinutes: org.overtime_after_minutes ?? 480,
     weeklyOff: org.weekly_off ?? null,
     halfDayMinutes: org.half_day_minutes ?? null,
     total: people.reduce((sum, p) => sum + (p.pay ?? 0), 0),

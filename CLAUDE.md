@@ -13,7 +13,7 @@ production track, India) are both submitted for store review. Pilot companies: T
 | Backend API (Vercel functions, Node 24) | `backend/api/**`, shared logic in `backend/lib/` | Deployed at https://haazri.tarahutaibuilds.com/api |
 | Web dashboard (admins) | `backend/public/dashboard/` (plain JS) | https://haazri.tarahutaibuilds.com/dashboard |
 | Public pages | `backend/public/` (privacy, support, delete-account, get) | Required by the stores |
-| Database | Supabase project `oilkvoexlvhkjthpvgfr`, migrations `backend/supabase/migrations/001…013` | Apply new migrations in order; all 13 applied |
+| Database | Supabase project `oilkvoexlvhkjthpvgfr`, migrations `backend/supabase/migrations/001…014` | Apply new migrations in order; all 14 applied |
 | Store material | `docs/PLAY_STORE_LISTING.md`, `docs/APP_STORE_*.md`, `store.config.js` (App Store listing as code), `assets/store/` | Screenshots: `screenshots/` (Play 1080x1920), `ios-screenshots-6.3/` (App Store 1206x2622) |
 | Instant app updates | Expo Updates, guide in `docs/APP_UPDATES.md` | Only builds made after it was merged have it (store 1.0 builds do NOT) |
 | Config plugins | `plugins/with-adi-registration.js` (Android developer verification token), `plugins/with-android-abis.js` (ARM only) | |
@@ -37,12 +37,18 @@ Hosting and accounts (IDs are not secrets):
 - Store review accounts: phones in Vercel env `REVIEW_PHONE` (9000000001 staff, 9000000002 admin, both in "Demo
   Company", no location lock) accept the fixed code in Vercel env `REVIEW_CODE` (hidden; owner knows it). Never change
   or delete these while a store review is open.
+- Salary extras (Settings in the dashboard): overtime (time beyond the shift, or a normal day for staff without one,
+  15+ min a day, paid at 1×/1.5×/2× the hourly rate), paid leave per year (earned monthly, resets in January; casual,
+  sick and paid leave use it, requests over the balance are refused), payslips (dashboard Salary → Payslip, signed
+  90-day link `/payslip?t=…` to send on WhatsApp; staff see closed months in the app under You → My payslips), daily
+  WhatsApp summary to admins (cron `/api/cron/daily-summary` ~11:00 IST, needs Utility template in
+  WHATSAPP_SUMMARY_TEMPLATE with 6 body variables: company, date, checked in, late, not in yet, on leave).
 - Check-in: selfie + location (optional location lock per company). Leave requests, attendance correction requests,
   holidays, shifts, salary from attendance, pay adjustments (advance/bonus/deduction/addition), month close with
   snapshot, account deletion (switch off now, erase after 30 days by cron `/api/cron/erase-accounts`).
 - Vercel env vars (values are secret, never print them): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, AUTH_TOKEN_SECRET,
   RESEND_API_KEY, EMAIL_FROM, EMAIL_REPLY_TO, REVIEW_PHONE, REVIEW_CODE, CRON_SECRET, WHATSAPP_TOKEN,
-  WHATSAPP_PHONE_ID, WHATSAPP_TEMPLATE, WHATSAPP_VERIFY_TOKEN (optional WHATSAPP_LANGUAGE, default `en`). After changing one, redeploy.
+  WHATSAPP_PHONE_ID, WHATSAPP_TEMPLATE, WHATSAPP_VERIFY_TOKEN, WHATSAPP_SUMMARY_TEMPLATE (optional WHATSAPP_LANGUAGE, default `en`). After changing one, redeploy.
 
 ## Working rules
 - Never print or commit secrets (keys, REVIEW_CODE, CRON_SECRET, keystores, google-services.json, service accounts).
@@ -67,6 +73,8 @@ Hosting and accounts (IDs are not secrets):
 3. Optional: Firebase (`google-services.json` via EAS env) so Android receives push notifications.
 4. Ideas parked: office Wi-Fi check-in (server checks request IP), company plans/billing (charge companies outside the
    app; no in-app purchases; never mention prices in the iOS app). Planned for 1.0.1: new layout (owner is planning
-   it), then English/Punjabi/Hindi app screens (emails stay English), email optional when adding staff.
+   it), then English/Punjabi/Hindi app screens (emails stay English), email optional when adding staff. The app parts
+   of leave balance and My payslips are in the code and ship with 1.0.1. Face match (selfie vs staff photo) is
+   waiting on the owner choosing a face-recognition service.
 6. Apple: replied to a Guideline 2.1 info request on 21 Oct with a screen recording; build 15 is back in review.
 5. Duplicate "Vishu" staff entries in TARAhutAIBuilds (numbers ending 3184 and 4697): owner to switch one off.

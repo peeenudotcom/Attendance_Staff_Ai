@@ -9,8 +9,12 @@
  * Absent days and unpaid leave are not paid. With `lateCutEvery` (say 3), every 3 late marks cut half a day
  * (not for hourly pay, which already pays only the hours worked). Days before joining, and days still to come in
  * the current month, are not counted, so a month in progress shows pay so far.
+ *
+ * Overtime (`totals.overtimeMinutes`, worked beyond `normalDayMinutes` on each day) is paid at `overtimeRate` × the
+ * hourly rate: salary ÷ the month's (or week's) days ÷ the normal day's hours, the daily rate ÷ those hours, or the
+ * hourly rate. Hourly pay already includes every hour once, so it only adds the extra (rate − 1).
  */
-export function monthPay({ salaryType, salary, totals, daysInMonth, lateCutEvery }) {
+export function monthPay({ salaryType, salary, totals, daysInMonth, lateCutEvery, overtimeRate = null, normalDayMinutes = 480 }) {
   const t = totals;
   const half = t.half ?? 0;
   const worked = t.present + t.late + half / 2;
@@ -24,8 +28,9 @@ export function monthPay({ salaryType, salary, totals, daysInMonth, lateCutEvery
     holiday: t.holiday ?? 0,
     late: t.late,
     hours: Math.round((t.minutes / 60) * 10) / 10,
+    overtimeHours: Math.round(((t.overtimeMinutes ?? 0) / 60) * 10) / 10,
   };
-  if (!salaryType || salary == null) return { ...base, rate: null, payDays: null, lateCutDays: 0, pay: null, missing: true };
+  if (!salaryType || salary == null) return { ...base, rate: null, payDays: null, lateCutDays: 0, overtimePay: 0, pay: null, missing: true };
 
   const lateCutDays = salaryType !== 'hourly' && lateCutEvery ? Math.floor(t.late / lateCutEvery) * 0.5 : 0;
   let rate; let payDays = null; let pay;
@@ -41,5 +46,14 @@ export function monthPay({ salaryType, salary, totals, daysInMonth, lateCutEvery
     payDays = Math.max(0, worked + t.off + (t.holiday ?? 0) + t.paidLeave - lateCutDays);
     pay = rate * payDays;
   }
-  return { ...base, rate: Math.round(rate * 100) / 100, payDays, lateCutDays, pay: Math.round(pay), missing: false };
+  let overtimePay = 0;
+  if (overtimeRate && t.overtimeMinutes) {
+    const otHours = t.overtimeMinutes / 60;
+    const dayHours = normalDayMinutes / 60;
+    overtimePay = salaryType === 'hourly' ? (overtimeRate - 1) * salary * otHours
+      : salaryType === 'daily' ? overtimeRate * (salary / dayHours) * otHours
+        : overtimeRate * (rate / dayHours) * otHours;
+    overtimePay = Math.round(overtimePay);
+  }
+  return { ...base, rate: Math.round(rate * 100) / 100, payDays, lateCutDays, overtimePay, pay: Math.round(pay) + overtimePay, missing: false };
 }

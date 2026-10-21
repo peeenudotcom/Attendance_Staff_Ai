@@ -22,6 +22,7 @@ a { color: var(--maroon); }
 .field input, .field select { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
 .field input:focus, .field select:focus { outline: 2px solid rgba(128, 37, 52, .25); border-color: var(--maroon); }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 16px; border-radius: 10px; border: 1px solid transparent; background: var(--maroon); color: var(--cream); font-weight: 600; cursor: pointer; white-space: nowrap; }
+a.btn { text-decoration: none; }
 .btn:hover { background: var(--maroon-dark); }
 .btn:disabled { opacity: .5; cursor: default; }
 .btn.block { width: 100%; padding: 12px; }

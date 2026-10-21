@@ -62,3 +62,27 @@ export function publicUser(s) {
     ...(s.is_platform_admin ? { platformAdmin: true } : {}),
   };
 }
+
+// Signed links (payslips shared on WhatsApp): a separate key, so a link can never be used as a sign-in token.
+const linkSign = (payload) => createHmac('sha256', `${secret()}:link`).update(payload).digest();
+
+/** A token for a link that opens `data` without signing in, valid for `ttlMs`. */
+export function signLink(data, ttlMs) {
+  const payload = Buffer.from(JSON.stringify({ ...data, exp: Date.now() + ttlMs })).toString('base64url');
+  return `${payload}.${linkSign(payload).toString('base64url')}`;
+}
+
+/** The data in a signed link token, or null if it was altered or has expired. */
+export function readLink(token) {
+  const [payload, signature] = String(token || '').split('.');
+  if (!payload || !signature) return null;
+  const provided = Buffer.from(signature, 'base64url');
+  const expected = linkSign(payload);
+  if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return Number.isFinite(data.exp) && data.exp > Date.now() ? data : null;
+  } catch {
+    return null;
+  }
+}
