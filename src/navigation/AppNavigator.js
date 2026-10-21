@@ -27,6 +27,7 @@ import ChatScreen from '../screens/ChatScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import TeamScreen from '../screens/TeamScreen';
 import StaffListScreen from '../screens/StaffListScreen';
+import PayslipsScreen from '../screens/PayslipsScreen';
 import { onNotificationTap, registerForPush } from '../services/notifications';
 
 const navigationRef = createNavigationContainerRef();
@@ -156,6 +157,7 @@ export default function AppNavigator() {
             <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="Leave" component={LeaveScreen} />
             <Stack.Screen name="Corrections" component={CorrectionsScreen} />
+            <Stack.Screen name="Payslips" component={PayslipsScreen} />
             {/* Admin-only screens are not registered for staff, so no shortcut or chat action can open them. */}
             {isAdmin && <Stack.Screen name="AddStaff" component={AddStaffScreen} />}
             {isAdmin && <Stack.Screen name="StaffList" component={StaffListScreen} />}

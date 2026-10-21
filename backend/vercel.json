@@ -9,6 +9,10 @@
     {
       "path": "/api/cron/erase-accounts",
       "schedule": "30 21 * * *"
+    },
+    {
+      "path": "/api/cron/daily-summary",
+      "schedule": "30 5 * * *"
     }
   ],
   "redirects": [
@@ -16,6 +20,12 @@
       "source": "/android",
       "destination": "https://expo.dev/artifacts/eas/bNFtAa3Hr2CfpECFDBvKSET0KDFOSGleunjDtFhfO9I.apk",
       "permanent": false
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/payslip",
+      "destination": "/api/payslips/view"
     }
   ]
 }

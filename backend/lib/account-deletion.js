@@ -16,7 +16,7 @@ export function eraseBy(requestedAt) {
  */
 export async function eraseStaff(staff) {
   const records = must(await db().from('attendance').select('id, check_in_selfie, check_out_selfie').eq('staff_id', staff.id));
-  const files = records.flatMap((r) => [r.check_in_selfie, r.check_out_selfie]).filter(Boolean);
+  const files = [...records.flatMap((r) => [r.check_in_selfie, r.check_out_selfie]), staff.face_ref].filter(Boolean);
   for (let i = 0; i < files.length; i += 100) {
     const { error } = await db().storage.from(BUCKET).remove(files.slice(i, i + 100));
     if (error) throw new Error(`Could not remove selfies: ${error.message}`);
@@ -44,7 +44,7 @@ export async function eraseStaff(staff) {
   must(await db().from('staff').update({
     name: 'Deleted user',
     phone: `deleted-${staff.id}`, // phone is required and unique; this can never match a sign-in
-    email: null, department: null, designation: null,
+    email: null, department: null, designation: null, face_ref: null, face_ref_at: null,
     active: false, erased_at: new Date().toISOString(),
   }).eq('id', staff.id));
 }

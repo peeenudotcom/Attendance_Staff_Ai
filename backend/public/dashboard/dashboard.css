@@ -22,6 +22,7 @@ a { color: var(--maroon); }
 .field input, .field select { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
 .field input:focus, .field select:focus { outline: 2px solid rgba(128, 37, 52, .25); border-color: var(--maroon); }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 16px; border-radius: 10px; border: 1px solid transparent; background: var(--maroon); color: var(--cream); font-weight: 600; cursor: pointer; white-space: nowrap; }
+a.btn { text-decoration: none; }
 .btn:hover { background: var(--maroon-dark); }
 .btn:disabled { opacity: .5; cursor: default; }
 .btn.block { width: 100%; padding: 12px; }
@@ -127,6 +128,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .loc-actions:last-child { margin: 0; }
 .dist { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 .dist.away { color: var(--red); font-weight: 600; }
+.dist.ok { color: var(--teal); font-weight: 600; }
+.face-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.face-compare figure { margin: 0; }
+.face-compare img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 10px; background: var(--soft); }
+.face-compare figcaption { font-size: 13px; color: var(--muted); margin-top: 4px; text-align: center; }
 .tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: 11px; }
 .check { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 6px; cursor: pointer; }
 .check input { margin-top: 3px; accent-color: var(--maroon); }

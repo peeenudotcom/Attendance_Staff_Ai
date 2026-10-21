@@ -1,11 +1,8 @@
-import { db, must } from '../../lib/db.js';
 import { route, HttpError } from '../../lib/http.js';
 import { fmtHours, fmtTime, istDay, selfieUrls } from '../../lib/attendance.js';
-import { dayStatus, joinedOn } from '../../lib/report.js';
 import { officeOf } from '../../lib/geo.js';
-import { approvedLeave } from '../../lib/leave.js';
-import { holidayMap } from '../../lib/holidays.js';
 import { leftEarlyBy } from '../../lib/shifts.js';
+import { dayPeople, daySummary } from '../../lib/day.js';
 
 // GET /api/reports/day?date=YYYY-MM-DD (Bearer, admin) -> everyone's attendance for one day (default: today, IST)
 export default route({
@@ -13,23 +10,17 @@ export default route({
     const date = String(req.query.date || istDay(new Date()));
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpError(400, 'Invalid date, use YYYY-MM-DD');
 
-    const staff = must(await db().from('staff').select('*').eq('org_id', admin.org_id).eq('active', true).order('name'));
-    const rows = must(await db().from('attendance').select('*').eq('org_id', admin.org_id).eq('date', date));
-    const byStaff = new Map(rows.map((r) => [r.staff_id, r]));
-    const leave = await approvedLeave(db(), admin.org_id, date, date);
-    const holiday = (await holidayMap(admin.org_id, date, date)).get(date) ?? null;
-    const shifts = new Map(must(await db().from('shifts').select('*').eq('org_id', admin.org_id)).map((x) => [x.id, x]));
+    const { people: day, holiday, shifts } = await dayPeople(admin.org, date);
     const today = istDay(new Date());
-    const urls = await selfieUrls(rows.flatMap((r) => [r.check_in_selfie, r.check_out_selfie]));
+    const urls = await selfieUrls(day.flatMap(({ s, row: r }) => (r ? [r.check_in_selfie, r.check_out_selfie, r.check_in_face ? s.face_ref : null] : [])));
 
-    const people = staff.map((s) => {
-      const r = byStaff.get(s.id);
+    const people = day.map(({ s, row: r, status }) => {
       return {
         id: s.id,
         name: s.name,
         designation: s.designation,
         department: s.department,
-        status: dayStatus({ row: r, date, joinedOn: joinedOn(s), weeklyOff: admin.org.weekly_off, onLeave: !!leave.get(s.id)?.has(date), halfDayMinutes: admin.org.half_day_minutes, holiday: !!holiday }),
+        status,
         shift: shifts.get(s.shift_id)?.name ?? null,
         leftEarlyBy: leftEarlyBy(shifts.get(s.shift_id), r?.check_in_at, r?.check_out_at),
         noCheckOut: !!(r?.check_in_at && !r.check_out_at && date < today),
@@ -49,26 +40,16 @@ export default route({
         checkInLocation: r?.check_in_lat != null ? { lat: r.check_in_lat, lng: r.check_in_lng } : null,
         checkInSelfie: urls[r?.check_in_selfie] ?? null,
         checkOutSelfie: urls[r?.check_out_selfie] ?? null,
+        // Face match on the check-in selfie: match | mismatch | no_face | enrolled (became the saved photo) | error
+        face: r?.check_in_face ? { result: r.check_in_face, score: r.check_in_face_score == null ? null : Number(r.check_in_face_score), savedPhoto: urls[s.face_ref] ?? null } : null,
       };
-    }).filter((p) => p.status !== 'before');
+    });
 
-    const count = (st) => people.filter((p) => p.status === st).length;
     return {
       date,
       holiday,
       office: officeOf(admin.org),
-      summary: {
-        total: people.length,
-        present: count('present') + count('half'),
-        late: count('late'),
-        absent: count('absent'),
-        notYet: count('pending'),
-        off: count('off'),
-        leave: count('leave'),
-        half: count('half'),
-        holiday: count('holiday'),
-        checkedOut: people.filter((p) => p.checkOut !== '—').length,
-      },
+      summary: { ...daySummary(day), checkedOut: people.filter((p) => p.checkOut !== '—').length },
       staff: people,
     };
   },

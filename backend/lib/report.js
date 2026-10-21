@@ -26,6 +26,18 @@ export function dayStatus({ row, date, joinedOn, leftOn = null, weeklyOff, onLea
 
 export const joinedOn = (s) => istDay(new Date(s.created_at));
 
+const OVERTIME_GRACE = 15; // fewer extra minutes than this in a day are not overtime
+/** A person's normal working day in minutes: their shift's length, else the company's setting, else 8 hours. */
+export function normalDayMinutes(shift, org) {
+  if (shift) return ((shift.end_minutes - shift.start_minutes + 1440) % 1440) || 1440;
+  return org.overtime_after_minutes ?? 480;
+}
+/** Overtime minutes in one day's attendance row for someone whose normal day is `normal` minutes. */
+export function overtimeMinutes(row, normal) {
+  const extra = (row?.check_out_at ? row.worked_minutes ?? 0 : 0) - normal;
+  return extra >= OVERTIME_GRACE ? extra : 0;
+}
+
 /** Was this person with the company at some point in [first, last]? Switched-off people count up to the day they left. */
 export const inMonth = (s, first, last) => (s.active || (s.left_on && s.left_on >= first)) && joinedOn(s) <= last;
 
@@ -33,7 +45,7 @@ export const inMonth = (s, first, last) => (s.active || (s.left_on && s.left_on 
  * A company's month (or, with `staffId`, one person's): every staff member who was with the company that month (active,
  * or switched off during or after it), their status for each day, with totals.
  * Cells: { status, in?, out?, minutes?, leaveType? }. Totals count present, late, half, absent, off, holiday and leave days up to today
- * (paidLeave/unpaidLeave split the leave) and worked minutes.
+ * (paidLeave/unpaidLeave split the leave), worked minutes and overtime minutes (beyond the person's normal day).
  */
 export async function buildMonth(org, monthParam, { staffId = null } = {}) {
   const { month, days } = monthDays(monthParam);
@@ -47,6 +59,7 @@ export async function buildMonth(org, monthParam, { staffId = null } = {}) {
   const rows = must(await rowsQ);
   const leave = await approvedLeave(db(), org.id, days[0], days[days.length - 1]);
   const holidays = await holidayMap(org.id, days[0], days[days.length - 1]);
+  const shifts = new Map(must(await db().from('shifts').select('*').eq('org_id', org.id)).map((x) => [x.id, x]));
   const key = (sid, date) => `${sid}|${date}`;
   const byKey = new Map(rows.map((r) => [key(r.staff_id, r.date), r]));
   const today = istDay(new Date());
@@ -57,7 +70,8 @@ export async function buildMonth(org, monthParam, { staffId = null } = {}) {
     weeklyOff,
     holidays: Object.fromEntries(holidays),
     staff: staff.map((s) => {
-      const totals = { present: 0, late: 0, half: 0, absent: 0, off: 0, holiday: 0, leave: 0, paidLeave: 0, unpaidLeave: 0, minutes: 0 };
+      const totals = { present: 0, late: 0, half: 0, absent: 0, off: 0, holiday: 0, leave: 0, paidLeave: 0, unpaidLeave: 0, minutes: 0, overtimeMinutes: 0 };
+      const normal = normalDayMinutes(shifts.get(s.shift_id), org);
       const cells = {};
       for (const date of days) {
         const r = byKey.get(key(s.id, date));
@@ -67,12 +81,13 @@ export async function buildMonth(org, monthParam, { staffId = null } = {}) {
         if (date <= today && status in totals) totals[status] += 1;
         if (date <= today && status === 'leave') totals[leaveType === 'unpaid' ? 'unpaidLeave' : 'paidLeave'] += 1;
         if (r?.worked_minutes) totals.minutes += r.worked_minutes;
+        totals.overtimeMinutes += overtimeMinutes(r, normal);
         cells[date] = r?.check_in_at
           ? { status, id: r.id, in: fmtTime(r.check_in_at), out: fmtTime(r.check_out_at), minutes: r.worked_minutes,
             ...(r.check_in_edited_by || r.check_out_edited_by ? { edited: true } : {}), ...(r.admin_note ? { note: r.admin_note } : {}) }
           : status === 'leave' ? { status, leaveType } : status === 'holiday' ? { status, holiday: holidays.get(date) } : { status };
       }
-      return { staff: s, id: s.id, name: s.name, designation: s.designation, department: s.department, ...(s.active ? {} : { leftOn: s.left_on }), days: cells, totals };
+      return { staff: s, normalDayMinutes: normal, id: s.id, name: s.name, designation: s.designation, department: s.department, ...(s.active ? {} : { leftOn: s.left_on }), days: cells, totals };
     }),
   };
 }

@@ -2,6 +2,7 @@ import { db, must } from '../../lib/db.js';
 import { route, body, HttpError } from '../../lib/http.js';
 import { monthDays } from '../../lib/attendance.js';
 import { closeChecks, closeRecord, monthName, salarySheet } from '../../lib/month-close.js';
+import { notify } from '../../lib/push.js';
 
 export default route({
   // GET /api/month-close?month=YYYY-MM (Bearer, admin) -> what to sort out before closing: missing check-outs,
@@ -28,6 +29,10 @@ export default route({
       { onConflict: 'org_id,month' },
     ));
     must(await db().from('month_close_log').insert({ org_id: admin.org_id, month, action: 'closed', by_staff: admin.id, by_name: admin.name, at }));
+    // Everyone paid this month can now open their salary slip in the app.
+    await notify(snapshot.staff.filter((p) => p.payable != null).map((p) => p.id), {
+      title: 'Salary slip ready', body: `Your ${monthName(month)} salary slip is ready.`, data: { screen: 'Payslips' },
+    }).catch((err) => console.error('[month-close] notify failed:', err.message));
     return { ok: true, month, payableTotal: snapshot.payableTotal };
   },
 }, { admin: true });

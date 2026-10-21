@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   if (!secret || req.headers.authorization !== `Bearer ${secret}`) return res.status(401).json({ message: 'Unauthorized' });
   try {
     const cutoff = new Date(Date.now() - ERASE_AFTER_DAYS * 86_400_000).toISOString();
-    const due = must(await db().from('staff').select('id, phone, org_id').lt('deletion_requested_at', cutoff).is('erased_at', null));
+    const due = must(await db().from('staff').select('id, phone, org_id, face_ref').lt('deletion_requested_at', cutoff).is('erased_at', null));
     let erased = 0;
     for (const s of due) {
       try { await eraseStaff(s); erased++; } catch (err) { console.error(`[cron/erase-accounts] ${s.id}:`, err.message); }

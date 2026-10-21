@@ -73,7 +73,8 @@ const fakeClient = {
   from: (t) => new Q(t),
   storage: { from: () => ({
     remove: async (paths) => { removed.push(...paths); return { error: null }; },
-    upload: async (path, buf) => { uploads.push({ path, size: buf.length }); return { error: null }; },
+    upload: async (path, buf) => { uploads.push({ path, size: buf.length }); stored.set(path, buf); return { error: null }; },
+    download: async (path) => (stored.has(path) ? { data: new Blob([stored.get(path)]), error: null } : { data: null, error: { message: 'not found' } }),
     createSignedUrl: async (path) => ({ data: { signedUrl: `https://signed.example/${path}` } }),
     createSignedUrls: async (paths) => ({ data: paths.map((path) => ({ path, signedUrl: `https://signed.example/${path}` })) }),
   }) },
@@ -90,8 +91,16 @@ process.env.REVIEW_PHONE = '9000000001, 90000 00002';
 process.env.REVIEW_CODE = '4826';
 
 const sentWhatsApps = [];
+const stored = new Map();
+const rekognitionCalls = [];
+let rekognitionReply = { FaceMatches: [{ Similarity: 98.6 }], UnmatchedFaces: [] };
 let whatsAppDown = false;
 globalThis.fetch = async (url, init) => {
+  if (String(url).includes('rekognition.')) {
+    rekognitionCalls.push({ url: String(url), headers: init.headers, body: JSON.parse(init.body) });
+    if (rekognitionReply.status) return { ok: false, status: rekognitionReply.status, text: async () => JSON.stringify(rekognitionReply.body) };
+    return { ok: true, status: 200, text: async () => JSON.stringify(rekognitionReply) };
+  }
   if (String(url).includes('graph.facebook.com')) {
     if (whatsAppDown) return { ok: false, status: 400, text: async () => 'bad number' };
     const m = JSON.parse(init.body);
@@ -959,5 +968,182 @@ test('WhatsApp webhook', async () => {
     assert.equal((await hit({ method: 'POST', body })).status, 200);
   } finally {
     delete process.env.WHATSAPP_VERIFY_TOKEN;
+  }
+});
+
+test('overtime, leave balance, payslips and daily summary', async () => {
+  const { issueToken } = await import(`${B}/lib/auth.js`);
+  const { monthPay } = await import(`${B}/lib/payroll.js`);
+  // hourly pay already covers every hour once: overtime adds only the extra (rate − 1)
+  const t = { present: 1, late: 0, half: 0, absent: 0, off: 0, holiday: 0, paidLeave: 0, unpaidLeave: 0, minutes: 600, overtimeMinutes: 120 };
+  assert.equal(monthPay({ salaryType: 'hourly', salary: 100, totals: t, daysInMonth: 30, overtimeRate: 2 }).overtimePay, 200);
+  assert.equal(monthPay({ salaryType: 'daily', salary: 800, totals: t, daysInMonth: 30, overtimeRate: 1.5 }).overtimePay, 300);
+  assert.equal(monthPay({ salaryType: 'daily', salary: 800, totals: t, daysInMonth: 30 }).overtimePay, 0);
+
+  tables.organizations.push({ id: 'ft', name: 'Feature Co', late_after_minutes: 555, weekly_off: null, active: true });
+  tables.shifts.push({ id: 'ftDay', org_id: 'ft', name: 'Day', start_minutes: 540, end_minutes: 1080, late_after_minutes: 555 });
+  tables.staff.push(
+    { id: 'ftAdmin', org_id: 'ft', name: 'Feature Admin', phone: '9811100001', email: 'fa@example.com', role: 'admin', active: true, created_at: '2026-01-01T00:00:00Z' },
+    { id: 'ftWorker', org_id: 'ft', name: 'Worker One', phone: '9811100002', email: 'w1@example.com', role: 'staff', active: true, created_at: '2026-01-01T00:00:00Z', salary_type: 'monthly', salary: 30000 },
+    { id: 'ftShift', org_id: 'ft', name: 'Shift Worker', phone: '9811100003', email: 'w2@example.com', role: 'staff', active: true, created_at: '2026-01-01T00:00:00Z', salary_type: 'daily', salary: 900, shift_id: 'ftDay' },
+    { id: 'ftNew', org_id: 'ft', name: 'New Joiner', phone: '9811100004', email: 'w3@example.com', role: 'staff', active: true, created_at: '2026-07-15T00:00:00Z' },
+  );
+  const admin = issueToken('ftAdmin'); const worker = issueToken('ftWorker'); const newbie = issueToken('ftNew');
+  const att = (id, staff, date, minutes) => tables.attendance.push({ id, org_id: 'ft', staff_id: staff, date, status: 'present', approval: 'approved',
+    check_in_at: `${date}T03:30:00Z`, check_out_at: `${date}T13:00:00Z`, worked_minutes: minutes });
+  att('ot1', 'ftWorker', '2026-09-01', 600); // 2 h over 8 h
+  att('ot2', 'ftWorker', '2026-09-02', 490); // 10 min: under the 15-minute grace
+  att('ot3', 'ftWorker', '2026-09-03', 540); // 1 h
+  att('ot4', 'ftShift', '2026-09-01', 600); // 1 h over the 9-hour shift
+
+  // ---- overtime settings and pay ----
+  assert.equal((await call('company', { method: 'PATCH', token: admin, body: { overtimeRate: 5 } })).status, 400);
+  assert.equal((await call('company', { method: 'PATCH', token: worker, body: { overtimeRate: 1.5 } })).status, 403);
+  let r = await call('company', { method: 'PATCH', token: admin, body: { overtimeRate: 1.5, overtimeAfterMinutes: 480, paidLeavePerYear: 12, dailySummary: true } });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.overtimeRate, 1.5); assert.equal(r.json.paidLeavePerYear, 12); assert.equal(r.json.dailySummary, true);
+  r = await call('reports/salary', { token: admin, query: { month: '2026-09' } });
+  const w = r.json.staff.find((p) => p.id === 'ftWorker');
+  assert.equal(w.overtimeHours, 3);
+  assert.equal(w.overtimePay, 563); // 30000 ÷ 30 days ÷ 8 h = 125/h × 1.5 × 3 h
+  assert.equal(w.pay, Math.round(1000 * w.payDays) + 563);
+  const sw = r.json.staff.find((p) => p.id === 'ftShift');
+  assert.equal(sw.overtimeHours, 1); assert.equal(sw.overtimePay, 150); // 900 ÷ 9 h × 1.5
+  assert.equal(r.json.overtimeRate, 1.5);
+
+  // ---- paid leave balance ----
+  const today = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+  const month = Number(today.slice(5, 7));
+  const addDays = (d, n) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+  r = await call('leave/index', { token: worker });
+  assert.equal(r.json.balance.limited, true); assert.equal(r.json.balance.earned, month); assert.equal(r.json.balance.available, month);
+  r = await call('leave/index', { token: newbie });
+  const joinedThisYear = today.slice(0, 4) === '2026';
+  assert.equal(r.json.balance.earned, joinedThisYear ? Math.max(0, month - 6) : month);
+  // more paid leave than earned is refused; unpaid leave is not limited
+  r = await call('leave/index', { method: 'POST', token: worker, body: { from: addDays(today, 1), to: addDays(today, month + 1), type: 'casual' } });
+  assert.equal(r.status, 400); assert.match(r.json.message, /paid leave days? left/);
+  assert.equal((await call('leave/index', { method: 'POST', token: worker, body: { from: addDays(today, 1), to: addDays(today, month + 1), type: 'unpaid' } })).status, 200);
+  r = await call('leave/index', { method: 'POST', token: worker, body: { from: addDays(today, month + 3), to: addDays(today, month + 3), type: 'sick' } });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  r = await call('leave/index', { token: worker });
+  const pendingThisYear = addDays(today, month + 3).slice(0, 4) === today.slice(0, 4) ? 1 : 0;
+  assert.equal(r.json.balance.pending, pendingThisYear); assert.equal(r.json.balance.available, month - pendingThisYear);
+  r = await call('leave/company', { token: admin });
+  assert.ok(r.json.pending.every((p) => p.balance && p.balance.limited));
+
+  // ---- payslips ----
+  r = await call('payslips/index', { token: worker, query: { month: '2026-09' } });
+  assert.equal(r.status, 404); // staff see slips only for closed months
+  r = await call('payslips/index', { token: admin, query: { month: '2026-09', staffId: 'ftWorker' } });
+  assert.equal(r.status, 200); assert.equal(r.json.slip.closed, false); assert.equal(r.json.slip.overtimePay, 563);
+  assert.equal((await call('payslips/index', { token: admin, query: { month: '2026-09', staffId: 'admin1' } })).status, 404); // other company
+  assert.equal((await call('month-close/index', { method: 'POST', token: admin, body: { month: '2026-09' } })).status, 200);
+  r = await call('payslips/index', { token: worker });
+  assert.deepEqual(r.json.payslips.map((p) => p.month), ['2026-09']); assert.equal(r.json.payslips[0].payable, w.payable);
+  r = await call('payslips/index', { token: worker, query: { month: '2026-09', staffId: 'ftShift' } }); // staff can't open someone else's
+  assert.equal(r.json.slip.staffId, 'ftWorker'); assert.equal(r.json.slip.closed, true);
+  assert.equal(r.json.slip.earned + r.json.slip.overtimePay, w.pay);
+  const link = r.json.link; assert.match(link, /^https:\/\/haazri\.tarahutaibuilds\.com\/payslip\?t=/);
+  const token = new URL(link).searchParams.get('t');
+  const view = await import(`${B}/api/payslips/view.js`);
+  const open = async (t) => {
+    let status = 0, html = '';
+    await view.default({ query: { t } }, { setHeader() {}, status(s) { status = s; return this; }, send(b) { html = b; return this; } });
+    return { status, html };
+  };
+  let v = await open(token);
+  assert.equal(v.status, 200); assert.match(v.html, /Worker One/); assert.match(v.html, /Overtime/); assert.match(v.html, /Net payable/);
+  assert.match(v.html, /\+91 \*\*\*\*\*\*0002/); assert.doesNotMatch(v.html, /9811100002/);
+  assert.equal((await open(`${token.slice(0, -2)}xx`)).status, 404); // altered
+  assert.equal((await open(worker)).status, 404); // a sign-in token is not a payslip link
+  assert.equal((await call('auth/profile', { token })).status, 401); // and a payslip link is not a sign-in token
+
+  // ---- daily WhatsApp summary ----
+  const cron = await import(`${B}/api/cron/daily-summary.js`);
+  const runCron = async (auth) => {
+    let status = 0, json;
+    await cron.default({ headers: auth ? { authorization: auth } : {} }, { status(s) { status = s; return this; }, json(j) { json = j; return this; } });
+    return { status, json };
+  };
+  process.env.CRON_SECRET = 'c'.repeat(32);
+  assert.equal((await runCron()).status, 401);
+  assert.match((await runCron(`Bearer ${process.env.CRON_SECRET}`)).json.skipped, /template not set/);
+  Object.assign(process.env, { WHATSAPP_TOKEN: 'wa-token', WHATSAPP_PHONE_ID: '1234', WHATSAPP_TEMPLATE: 'haazri_code', WHATSAPP_SUMMARY_TEMPLATE: 'haazri_daily_summary' });
+  try {
+    att('today1', 'ftWorker', today, 0);
+    tables.attendance.find((a) => a.id === 'today1').check_out_at = null;
+    const before = sentWhatsApps.length;
+    r = await runCron(`Bearer ${process.env.CRON_SECRET}`);
+    assert.equal(r.status, 200, JSON.stringify(r.json)); assert.equal(r.json.sent, 1);
+    const msgs = sentWhatsApps.slice(before);
+    assert.equal(msgs.length, 1); assert.equal(msgs[0].to, '919811100001'); assert.equal(msgs[0].template.name, 'haazri_daily_summary');
+    assert.deepEqual(msgs[0].template.components[0].parameters.map((p) => p.text).filter((_, i) => i !== 1), ['Feature Co', '1', '0', '3', '0']);
+  } finally {
+    for (const k of ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_ID', 'WHATSAPP_TEMPLATE', 'WHATSAPP_SUMMARY_TEMPLATE']) delete process.env[k];
+  }
+});
+
+test('face match on check-in', async () => {
+  const { issueToken } = await import(`${B}/lib/auth.js`);
+  tables.organizations.push({ id: 'fm', name: 'Face Co', late_after_minutes: 1439, weekly_off: null, active: true, face_match: true });
+  tables.staff.push(
+    { id: 'fmAdmin', org_id: 'fm', name: 'Face Admin', phone: '9822200001', email: 'fa@example.com', role: 'admin', active: true, created_at: '2026-01-01T00:00:00Z' },
+    { id: 'fmStaff', org_id: 'fm', name: 'Face Staff', phone: '9822200002', email: 'fs@example.com', role: 'staff', active: true, created_at: '2026-01-01T00:00:00Z' },
+  );
+  const admin = issueToken('fmAdmin'); const staff = issueToken('fmStaff');
+  const pic = (t) => Buffer.from(`jpeg ${t}`).toString('base64');
+  const checkIn = (t) => call('attendance/check-in', { method: 'POST', token: staff, body: { selfie: pic(t), latitude: 30.7, longitude: 76.7, address: 'Test' } });
+  const reset = () => { tables.attendance = tables.attendance.filter((a) => a.staff_id !== 'fmStaff'); };
+  const row = () => tables.attendance.find((a) => a.staff_id === 'fmStaff');
+
+  // keys not set: no check, nothing recorded
+  let r = await checkIn('one');
+  assert.equal(r.status, 200); assert.equal(row().check_in_face, undefined); assert.equal(rekognitionCalls.length, 0);
+  reset();
+  Object.assign(process.env, { REKOGNITION_ACCESS_KEY_ID: 'AKIATEST', REKOGNITION_SECRET_ACCESS_KEY: 'secret' });
+  try {
+    // first selfie becomes the saved photo
+    r = await checkIn('first');
+    assert.equal(r.status, 200); assert.equal(row().check_in_face, 'enrolled'); assert.equal(rekognitionCalls.length, 0);
+    const me = tables.staff.find((s) => s.id === 'fmStaff');
+    assert.equal(me.face_ref, 'fmStaff/face-reference.jpg'); assert.equal(stored.get(me.face_ref).toString(), 'jpeg first');
+    // a match
+    reset(); r = await checkIn('second');
+    assert.equal(row().check_in_face, 'match'); assert.equal(row().check_in_face_score, 98.6);
+    const c = rekognitionCalls.at(-1);
+    assert.equal(c.url, 'https://rekognition.ap-south-1.amazonaws.com/'); assert.equal(c.headers['x-amz-target'], 'RekognitionService.CompareFaces');
+    assert.match(c.headers.Authorization, /^AWS4-HMAC-SHA256 Credential=AKIATEST\/\d{8}\/ap-south-1\/rekognition\/aws4_request, SignedHeaders=content-type;host;x-amz-date;x-amz-target, Signature=[0-9a-f]{64}$/);
+    assert.equal(Buffer.from(c.body.SourceImage.Bytes, 'base64').toString(), 'jpeg first');
+    assert.equal(Buffer.from(c.body.TargetImage.Bytes, 'base64').toString(), 'jpeg second');
+    // someone else: recorded, admins notified, check-in still goes through
+    rekognitionReply = { FaceMatches: [{ Similarity: 41.2 }], UnmatchedFaces: [{}] };
+    tables.push_tokens.push({ id: 'fmTok', staff_id: 'fmAdmin', token: 'ExponentPushToken[fm-admin]' });
+    reset(); const pushes = sentPushes.length; r = await checkIn('other');
+    assert.equal(r.status, 200); assert.equal(row().check_in_face, 'mismatch'); assert.equal(row().check_in_face_score, 41.2);
+    assert.ok(sentPushes.slice(pushes).some((m) => m.title === 'Face did not match' && m.to === 'ExponentPushToken[fm-admin]'));
+    // no face, and a Rekognition failure: still checked in
+    rekognitionReply = { FaceMatches: [], UnmatchedFaces: [] };
+    reset(); await checkIn('wall'); assert.equal(row().check_in_face, 'no_face');
+    rekognitionReply = { status: 400, body: { __type: 'com.amazonaws#InvalidParameterException', message: 'no face in source' } };
+    reset(); await checkIn('x'); assert.equal(row().check_in_face, 'no_face');
+    rekognitionReply = { status: 500, body: { message: 'boom' } };
+    reset(); r = await checkIn('y'); assert.equal(r.status, 200); assert.equal(row().check_in_face, 'error');
+    rekognitionReply = { FaceMatches: [{ Similarity: 99 }], UnmatchedFaces: [] };
+    // the admin sees the result on Today
+    r = await call('reports/day', { token: admin });
+    const p = r.json.staff.find((x) => x.id === 'fmStaff');
+    assert.equal(p.face.result, 'error'); assert.match(p.face.savedPhoto, /face-reference\.jpg$/);
+    assert.ok(r.json.staff.find((x) => x.id === 'fmAdmin').face === null);
+    // admin resets the saved photo: the next selfie becomes the new one
+    r = await call('staff/[id]/index', { method: 'PATCH', token: admin, query: { id: 'fmStaff' }, body: { faceReset: true } });
+    assert.equal(r.status, 200); assert.equal(r.json.staff.faceSavedAt, null);
+    assert.equal(tables.staff.find((s) => s.id === 'fmStaff').face_ref, null);
+    reset(); await checkIn('new'); assert.equal(row().check_in_face, 'enrolled');
+    // settings
+    r = await call('company', { method: 'PATCH', token: admin, body: { faceMatch: false } });
+    assert.equal(r.json.faceMatch, false);
+  } finally {
+    delete process.env.REKOGNITION_ACCESS_KEY_ID; delete process.env.REKOGNITION_SECRET_ACCESS_KEY;
   }
 });

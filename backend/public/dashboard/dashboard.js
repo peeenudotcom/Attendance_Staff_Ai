@@ -221,6 +221,7 @@ async function viewToday(root, date = istToday()) {
       h('td', { class: 'person' }, h('b', {}, p.name), h('small', {}, [p.designation || p.department, p.shift].filter(Boolean).join(' · '))),
       h('td', {}, h('span', { class: `pill ${p.status}` }, STATUS_LABEL[p.status]),
         p.addedByAdmin ? h('small', { class: 'dist', title: p.note || '' }, `Added by admin${p.note ? `: ${p.note}` : ''}`) : null,
+        faceTag(p),
         h('button', { class: 'link-btn small-link', onclick: () => attendanceForm({ id: p.id, name: p.name }, date,
           p.attendanceId ? { id: p.attendanceId, in: p.checkIn, out: p.checkOut, note: p.note } : null, () => viewToday(root, date)) },
         p.attendanceId ? 'Edit day' : 'Add attendance')),
@@ -235,6 +236,27 @@ async function viewToday(root, date = istToday()) {
     h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Status'), h('th', { class: 'num' }, 'In'), h('th', { class: 'num' }, 'Out'),
       h('th', { class: 'num hide-sm' }, 'Hours'), h('th', { class: 'hide-sm' }, 'Check-in place'), h('th', {}, 'Selfies'))),
     h('tbody', {}, rows))));
+}
+
+// Face match result for a check-in selfie (null when face match is off or there was no check-in).
+function faceTag(p) {
+  const f = p.face;
+  if (!f) return null;
+  const compare = f.savedPhoto && p.checkInSelfie && f.result !== 'enrolled'
+    ? h('button', { class: 'link-btn small-link', onclick: () => openModal([h('h3', {}, `${p.name} · face check`),
+      h('div', { class: 'face-compare' },
+        h('figure', {}, h('img', { src: f.savedPhoto, alt: 'Saved photo' }), h('figcaption', {}, 'Saved photo')),
+        h('figure', {}, h('img', { src: p.checkInSelfie, alt: 'Check-in selfie' }), h('figcaption', {}, `Check-in ${p.checkIn}`))),
+      h('div', { class: 'foot' }, h('button', { class: 'btn ghost', onclick: closeModal }, 'Close'))]) }, 'Compare')
+    : null;
+  const label = {
+    match: ['Face matched', 'dist ok'],
+    mismatch: [`Face doesn't match${f.score != null ? ` (${Math.round(f.score)}%)` : ''}`, 'dist away'],
+    no_face: ['No clear face in selfie', 'dist away'],
+    enrolled: ['Face photo saved', 'dist'],
+    error: ['Face check not done', 'dist'],
+  }[f.result];
+  return label ? h('small', { class: label[1] }, label[0], compare ? ' · ' : '', compare) : null;
 }
 
 // ---------- Monthly sheet ----------
@@ -351,7 +373,8 @@ async function viewLeave(root) {
   const asked = (r) => `Asked ${new Date(r.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`;
   const row = (r, actions) => h('tr', {},
     h('td', { class: 'person' }, h('b', {}, r.staffName), h('small', {}, asked(r))),
-    h('td', {}, h('b', {}, leaveDates(r)), h('small', { class: 'dist' }, `${r.days} day${r.days === 1 ? '' : 's'} · ${r.typeLabel}`)),
+    h('td', {}, h('b', {}, leaveDates(r)), h('small', { class: 'dist' }, `${r.days} day${r.days === 1 ? '' : 's'} · ${r.typeLabel}`),
+      r.balance?.limited && r.type !== 'unpaid' ? h('small', { class: 'dist' }, `Paid leave: ${r.balance.earned - r.balance.used} left of ${r.balance.earned} earned this year · ${r.balance.pending} asked for, incl. this`) : null),
     h('td', { class: 'place hide-sm' }, r.reason || '—', r.note ? h('small', { class: 'dist' }, `Note: ${r.note}`) : null),
     h('td', {}, h('span', { class: `pill ${LEAVE_PILL[r.status]}` }, LEAVE_WORD[r.status])),
     h('td', {}, h('div', { class: 'actions' }, actions)));
@@ -437,6 +460,7 @@ async function viewSalary(root, month = istMonth()) {
       if (full) staffForm(full, reload);
     } }, p.missing ? 'Set pay' : 'Edit pay');
     const adjust = h('button', { class: 'btn ghost small', onclick: () => adjustmentsForm(p, data, reload) }, closed ? 'Details' : 'Adjust');
+    const slip = p.missing ? null : h('button', { class: 'btn ghost small', onclick: () => payslipForm(p, data) }, 'Payslip');
     const cut = [p.half ? `${plural(p.half, 'half day')}` : null, p.absent ? `${plural(p.absent, 'absent day')}` : null, p.unpaidLeave ? `${p.unpaidLeave} unpaid leave` : null,
       p.lateCutDays ? `${halfDays(p.lateCutDays)} for ${p.late} late marks` : null].filter(Boolean).join(', ');
     const adjTotal = p.adjustmentTotal ?? 0;
@@ -445,11 +469,13 @@ async function viewSalary(root, month = istMonth()) {
       h('td', {}, p.missing ? h('span', { class: 'muted' }, 'Not set') : [h('b', {}, `${rupees(p.salary)}${PER[p.salaryType]}`), h('small', { class: 'dist' }, PAY_TYPES[p.salaryType])]),
       h('td', { class: 'num hide-sm' }, p.worked), h('td', { class: 'num hide-sm', title: p.holiday ? `${p.off} weekly off + ${p.holiday} holiday` : null }, p.off + (p.holiday || 0)), h('td', { class: 'num hide-sm' }, p.paidLeave),
       h('td', { class: 'num hide-sm' }, p.salaryType === 'hourly' ? `${p.hours} h` : (p.payDays ?? '—')),
+      h('td', { class: 'num hide-sm', title: p.overtimePay ? `${rupees(p.overtimePay)} overtime pay (included in Earned)` : null },
+        p.overtimeHours ? `${p.overtimeHours} h` : '—', p.overtimePay ? h('small', { class: 'dist' }, rupees(p.overtimePay)) : null),
       h('td', { class: 'place hide-sm' }, cut || '—'),
       h('td', { class: 'num hide-sm' }, p.pay == null ? '—' : rupees(p.pay)),
       h('td', { class: `num ${adjTotal < 0 ? 'neg' : ''}`, title: (p.adjustments || []).map((a) => `${a.label} ${rupees(a.amount)}${a.note ? ` (${a.note})` : ''}`).join('\n') || null }, signedRupees(adjTotal)),
       h('td', { class: 'num' }, p.payable == null ? '—' : h('b', {}, rupees(p.payable))),
-      h('td', {}, h('div', { class: 'actions' }, adjust, setPay)));
+      h('td', {}, h('div', { class: 'actions' }, slip, adjust, setPay)));
   });
 
   const rules = h('div', { class: 'legend rules' },
@@ -459,6 +485,9 @@ async function viewSalary(root, month = istMonth()) {
     h('span', {}, h('b', {}, 'Hourly:'), ' rate × hours between check-in and check-out.'),
     h('span', {}, 'Half days pay half. Absent days and unpaid leave are not paid. ',
       data.lateCutEvery ? `Every ${data.lateCutEvery} late marks cut half a day (Settings).` : 'Late marks do not cut pay (change in Settings).'),
+    h('span', {}, h('b', {}, 'Overtime:'), data.overtimeRate
+      ? ` time worked beyond a person's shift (or ${durText(data.overtimeAfterMinutes ?? 480)} without a shift), 15 minutes or more a day, paid at ${data.overtimeRate}× their hourly rate and included in Earned.`
+      : ' shown in hours but not paid (turn on in Settings).'),
     h('span', {}, h('b', {}, 'Balance payable:'), ' earned + bonuses and additions − advances and deductions.'));
 
   const history = (data.log || []).length
@@ -468,9 +497,9 @@ async function viewSalary(root, month = istMonth()) {
 
   body.replaceChildren(bar, chips, h('div', { class: 'card scroll' }, h('table', {},
     h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Pay'), h('th', { class: 'num hide-sm' }, 'Worked'), h('th', { class: 'num hide-sm' }, 'Off'),
-      h('th', { class: 'num hide-sm' }, 'Paid leave'), h('th', { class: 'num hide-sm' }, 'Pay days'), h('th', { class: 'hide-sm' }, 'Cut for'),
+      h('th', { class: 'num hide-sm' }, 'Paid leave'), h('th', { class: 'num hide-sm' }, 'Pay days'), h('th', { class: 'num hide-sm' }, 'Overtime'), h('th', { class: 'hide-sm' }, 'Cut for'),
       h('th', { class: 'num hide-sm' }, 'Earned'), h('th', { class: 'num' }, 'Adjustments'), h('th', { class: 'num' }, 'Payable'), h('th', {}))),
-    h('tbody', {}, rows))), rules, history);
+    h('tbody', {}, rows))), rules, ...(history ? [history] : []));
   dl.disabled = false;
   dl.onclick = () => downloadSalaryCsv(data);
 }
@@ -554,16 +583,37 @@ function reopenForm(month, onDone) {
   openModal([h('h3', {}, `Reopen ${monthLabel(month)}`), form]);
 }
 
+// One person's salary slip: open it (print / save as PDF) or send the link on WhatsApp.
+async function payslipForm(p, data) {
+  openModal([h('h3', {}, `Payslip · ${p.name}`), h('div', { class: 'empty' }, 'Preparing the slip…')]);
+  let r;
+  try { r = await api(`/payslips?month=${data.month}&staffId=${p.id}`); } catch (err) { return openModal([h('h3', {}, `Payslip · ${p.name}`), h('p', { class: 'msg' }, err.message)]); }
+  const text = `Hi ${p.name.split(' ')[0]}, your salary slip for ${monthLabel(data.month)} from ${state.company.name}: ${r.link}`;
+  const wa = r.slip.phone ? `https://wa.me/91${r.slip.phone}?text=${encodeURIComponent(text)}` : null;
+  openModal([h('h3', {}, `Payslip · ${p.name} · ${monthLabel(data.month)}`),
+    h('div', { class: 'adj-sum' },
+      h('span', {}, 'Earned', h('b', {}, r.slip.earned == null ? '—' : rupees(r.slip.earned))),
+      h('span', {}, 'Overtime', h('b', {}, rupees(r.slip.overtimePay || 0))),
+      h('span', {}, 'Net payable', h('b', {}, r.slip.payable == null ? '—' : rupees(r.slip.payable)))),
+    r.slip.closed ? h('p', { class: 'muted' }, 'The month is closed, so these figures are final.')
+      : h('p', { class: 'msg' }, 'This month is not closed yet: the slip shows live figures and says so. Close the month first to send a final slip.'),
+    h('p', { class: 'muted' }, 'The link works for 90 days without signing in. Staff also see their slips in the app once a month is closed.'),
+    h('div', { class: 'foot' },
+      h('button', { class: 'btn ghost', onclick: closeModal }, 'Close'),
+      h('a', { class: 'btn ghost', href: r.link, target: '_blank', rel: 'noopener' }, 'Open slip'),
+      wa ? h('a', { class: 'btn', href: wa, target: '_blank', rel: 'noopener' }, 'Send on WhatsApp') : null)]);
+}
+
 function downloadSalaryCsv(data) {
   const esc = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
   const lines = [['Name', 'Designation', 'Pay type', 'Rate', 'Days worked', 'Weekly off', 'Paid leave', 'Unpaid leave', 'Absent',
-    'Late marks', 'Late cut (days)', 'Hours', 'Pay days', 'Earned', 'Adjustments', 'Balance payable', 'Adjustment details'].map(esc).join(',')];
+    'Late marks', 'Late cut (days)', 'Hours', 'Pay days', 'Overtime hours', 'Overtime pay', 'Earned', 'Adjustments', 'Balance payable', 'Adjustment details'].map(esc).join(',')];
   for (const p of data.staff) {
     const details = (p.adjustments || []).map((a) => `${a.label} ${a.signed < 0 ? '-' : '+'}${a.amount}${a.note ? ` (${a.note})` : ''}`).join('; ');
     lines.push([p.name, p.designation || '', PAY_TYPES[p.salaryType] || 'Not set', p.salary ?? '', p.worked, p.off, p.paidLeave, p.unpaidLeave,
-      p.absent, p.late, p.lateCutDays, p.hours, p.payDays ?? '', p.pay ?? '', p.adjustmentTotal ?? 0, p.payable ?? '', details].map(esc).join(','));
+      p.absent, p.late, p.lateCutDays, p.hours, p.payDays ?? '', p.overtimeHours ?? 0, p.overtimePay ?? 0, p.pay ?? '', p.adjustmentTotal ?? 0, p.payable ?? '', details].map(esc).join(','));
   }
-  lines.push(['Total', '', '', '', '', '', '', '', '', '', '', '', '', data.total, data.adjustmentTotal ?? 0, data.payableTotal ?? data.total, ''].map(esc).join(','));
+  lines.push(['Total', '', '', '', '', '', '', '', '', '', '', '', '', '', '', data.total, data.adjustmentTotal ?? 0, data.payableTotal ?? data.total, ''].map(esc).join(','));
   if (data.closed) lines.push(esc(`Closed${data.closed.by ? ` by ${data.closed.by}` : ''} on ${whenText(data.closed.at)}`));
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = h('a', { href: URL.createObjectURL(blob), download: `haazri-salary-${state.company.name.replace(/[^\w]+/g, '-').toLowerCase()}-${data.month}.csv` });
@@ -623,6 +673,14 @@ function staffForm(s, onDone) {
         state.shifts.map((sh) => h('option', { value: sh.id, selected: s?.shiftId === sh.id }, `${sh.name} · ${sh.start}–${sh.end}`)))),
     h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'locationFree', checked: !!s?.locationFree }),
       h('span', {}, h('b', {}, 'Can check in from anywhere'), h('small', {}, 'For field or sales staff. Others must be at the office when location lock is on.'))),
+    !isNew && state.company.faceMatch ? h('div', { class: 'field' }, h('span', {}, 'Face photo'),
+      s.faceSavedAt
+        ? h('div', {}, `Saved ${new Date(s.faceSavedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} from a check-in selfie. `,
+          h('button', { class: 'link-btn', type: 'button', onclick: async () => {
+            if (!confirm(`Forget ${s.name}'s saved face photo? Their next check-in selfie becomes the new one.`)) return;
+            try { await api(`/staff/${s.id}`, { method: 'PATCH', body: { faceReset: true } }); closeModal(); toast('Face photo reset'); onDone(); } catch (err) { msg.textContent = err.message; }
+          } }, 'Reset'))
+        : h('div', { class: 'muted' }, 'Not saved yet: their next check-in selfie becomes it.')) : null,
     msg,
     h('div', { class: 'foot' }, h('button', { class: 'btn ghost', type: 'button', onclick: closeModal }, 'Cancel'),
       h('button', { class: 'btn', type: 'submit' }, isNew ? 'Add and send invite' : 'Save')),
@@ -672,6 +730,22 @@ function viewSettings(root) {
     h('label', { class: 'field' }, h('span', {}, 'Late marks and salary'),
       h('select', { name: 'lateCut' }, h('option', { value: '', selected: c.lateCutEvery == null }, 'No salary cut for late marks'),
         [2, 3, 4, 5].map((n) => h('option', { value: n, selected: c.lateCutEvery === n }, `Every ${n} late marks = half-day cut`)))),
+    h('div', { class: 'row2' },
+      h('label', { class: 'field' }, h('span', {}, 'Overtime pay'),
+        h('select', { name: 'otRate' }, h('option', { value: '', selected: c.overtimeRate == null }, 'No overtime pay'),
+          [[1, '1× hourly rate'], [1.5, '1.5× hourly rate'], [2, '2× hourly rate']].map(([n, w]) => h('option', { value: n, selected: c.overtimeRate === n }, w))),
+        h('small', {}, 'Paid for time beyond the shift, 15 minutes or more a day.')),
+      h('label', { class: 'field' }, h('span', {}, 'Normal day (staff without a shift)'),
+        h('select', { name: 'otAfter' }, [[480, '8 hours'], [540, '9 hours'], [600, '10 hours'], [720, '12 hours']].map(([m, w]) =>
+          h('option', { value: m, selected: (c.overtimeAfterMinutes ?? 480) === m }, w))))),
+    h('label', { class: 'field' }, h('span', {}, 'Paid leave per year'),
+      h('select', { name: 'paidLeave' }, h('option', { value: '', selected: c.paidLeavePerYear == null }, 'No limit'),
+        [6, 8, 10, 12, 15, 18, 21, 24, 30].map((n) => h('option', { value: n, selected: c.paidLeavePerYear === n }, `${n} days a year (${Math.floor((n / 12) * 2) / 2} a month)`))),
+      h('small', {}, 'Earned each month from January (or joining), reset every January. Casual, sick and paid leave use it; unpaid leave doesn’t.')),
+    h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'faceMatch', checked: !!c.faceMatch }),
+      h('span', {}, h('b', {}, 'Face match'), h('small', {}, 'Each check-in selfie is compared with the person’s saved photo (their first selfie after this is on). Today shows the result and you get a notification if it doesn’t match. Check-in is never blocked. Tell your staff before turning it on.'))),
+    h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'summary', checked: !!c.dailySummary }),
+      h('span', {}, 'Send admins a WhatsApp summary every morning (around 11 am): who has checked in, who is late, who is not in yet')),
     msg,
     h('button', { class: 'btn', type: 'submit' }, 'Save settings'),
   );
@@ -680,7 +754,10 @@ function viewSettings(root) {
     const btn = e.submitter; btn.disabled = true; msg.className = 'msg'; msg.textContent = '';
     const v = Object.fromEntries(new FormData(form));
     try {
-      state.company = await api('/company', { method: 'PATCH', body: { name: v.name, lateAfterMinutes: hhmmToMinutes(v.late), weeklyOff: v.off === '' ? null : Number(v.off), lateCutEvery: v.lateCut === '' ? null : Number(v.lateCut), halfDayMinutes: v.halfDay === '' ? null : Number(v.halfDay) } });
+      state.company = await api('/company', { method: 'PATCH', body: {
+        name: v.name, lateAfterMinutes: hhmmToMinutes(v.late), weeklyOff: v.off === '' ? null : Number(v.off), lateCutEvery: v.lateCut === '' ? null : Number(v.lateCut),
+        halfDayMinutes: v.halfDay === '' ? null : Number(v.halfDay), overtimeRate: v.otRate === '' ? null : Number(v.otRate),
+        overtimeAfterMinutes: Number(v.otAfter), paidLeavePerYear: v.paidLeave === '' ? null : Number(v.paidLeave), dailySummary: v.summary === 'on', faceMatch: v.faceMatch === 'on' } });
       $('company-name').textContent = state.company.name;
       msg.className = 'msg ok'; msg.textContent = 'Saved.';
     } catch (err) { msg.textContent = err.message; } finally { btn.disabled = false; }

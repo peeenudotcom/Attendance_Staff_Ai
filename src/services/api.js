@@ -75,6 +75,11 @@ export const correctionsAPI = {
   decide: (id, data) => request(`/corrections/${id}/decide`, { method: 'POST', body: JSON.stringify(data) }),
 };
 
+export const payslipsAPI = {
+  mine: () => request('/payslips'),
+  get: (month) => request(`/payslips?month=${month}`),
+};
+
 export const holidaysAPI = {
   list: () => request('/holidays'),
 };

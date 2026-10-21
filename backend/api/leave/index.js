@@ -1,17 +1,21 @@
 import { db, must } from '../../lib/db.js';
 import { holidayMap } from '../../lib/holidays.js';
-import { route, body } from '../../lib/http.js';
+import { route, body, HttpError } from '../../lib/http.js';
 import { sendLeaveRequestEmail } from '../../lib/email.js';
 import { notify } from '../../lib/push.js';
 import { assertNoOverlap, fmtLeaveDates, leaveDays, leaveFields, leaveView, LEAVE_TYPES } from '../../lib/leave.js';
 import { assertMonthsOpen, monthsBetween } from '../../lib/month-close.js';
+import { leaveBalance, usesBalance } from '../../lib/leave-balance.js';
 
 export default route({
-  // GET /api/leave (Bearer) -> the signed-in person's own leave requests, newest first
+  // GET /api/leave (Bearer) -> the signed-in person's own leave requests, newest first, and their paid leave balance
   async GET(req, { staff }) {
     const holidays = await holidayMap(staff.org_id);
     const rows = must(await db().from('leave_requests').select('*').eq('staff_id', staff.id).order('from_date', { ascending: false }));
-    return { requests: rows.slice(0, 100).map((r) => leaveView(r, { weeklyOff: staff.org.weekly_off, holidays })) };
+    return {
+      requests: rows.slice(0, 100).map((r) => leaveView(r, { weeklyOff: staff.org.weekly_off, holidays })),
+      balance: await leaveBalance(staff.org, staff),
+    };
   },
 
   // POST /api/leave { from, to, type: casual|sick|paid|unpaid, reason? } (Bearer) -> asks for leave;
@@ -22,6 +26,14 @@ export default route({
     await assertMonthsOpen(staff.org_id, monthsBetween(fields.from_date, fields.to_date));
     const mine = must(await db().from('leave_requests').select('*').eq('staff_id', staff.id).gte('to_date', fields.from_date));
     assertNoOverlap(mine, fields);
+    if (usesBalance(fields.type)) {
+      const bal = await leaveBalance(staff.org, staff);
+      const need = leaveDays(fields, staff.org.weekly_off, holidays);
+      if (bal.limited && need > bal.available) {
+        const left = bal.available === 1 ? '1 paid leave day' : `${bal.available} paid leave days`;
+        throw new HttpError(400, `You have ${left} left and this needs ${need}. Choose unpaid leave, or ask your admin.`);
+      }
+    }
     const row = must(await db().from('leave_requests').insert({ ...fields, org_id: staff.org_id, staff_id: staff.id }).select('*').single());
 
     const weeklyOff = staff.org.weekly_off;

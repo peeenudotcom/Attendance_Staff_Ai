@@ -48,6 +48,7 @@ export default function LeaveScreen({ navigation }) {
   const isAdmin = user?.role === 'admin';
 
   const [mine, setMine] = useState([]);
+  const [balance, setBalance] = useState(null);
   const [toApprove, setToApprove] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -69,6 +70,7 @@ export default function LeaveScreen({ navigation }) {
     try {
       const [own, company] = await Promise.all([leaveAPI.mine(), isAdmin ? leaveAPI.company() : null]);
       setMine(own.requests);
+      setBalance(own.balance ?? null);
       if (company) setToApprove(company.pending);
     } catch (e) {
       Alert.alert('Could not load leave', e.message);
@@ -173,6 +175,28 @@ export default function LeaveScreen({ navigation }) {
           <ActivityIndicator style={{ marginTop: 40 }} color={C.accent} />
         ) : (
           <>
+            {balance?.limited && (
+              <View style={[styles.card, styles.balance, { backgroundColor: C.bgCard, borderColor: C.border }]}>
+                <View style={styles.balanceItem}>
+                  <Text style={[styles.balanceNum, { color: C.success }]}>{balance.available}</Text>
+                  <Text style={[styles.meta, { color: C.textMuted, marginTop: 0 }]}>Paid leave left</Text>
+                </View>
+                <View style={styles.balanceItem}>
+                  <Text style={[styles.balanceNum, { color: C.textPrimary }]}>{balance.used}</Text>
+                  <Text style={[styles.meta, { color: C.textMuted, marginTop: 0 }]}>Used in {balance.year}</Text>
+                </View>
+                <View style={styles.balanceItem}>
+                  <Text style={[styles.balanceNum, { color: C.textPrimary }]}>{balance.earned}</Text>
+                  <Text style={[styles.meta, { color: C.textMuted, marginTop: 0 }]}>Earned so far</Text>
+                </View>
+              </View>
+            )}
+            {balance?.limited && balance.pending > 0 && (
+              <Text style={[styles.meta, { color: C.textMuted, marginHorizontal: SPACING.xl, marginTop: 6 }]}>
+                {balance.pending} day{balance.pending === 1 ? '' : 's'} waiting for approval {balance.pending === 1 ? 'is' : 'are'} already taken off. Unpaid leave doesn't use your balance.
+              </Text>
+            )}
+
             {isAdmin && (
               <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: C.textPrimary }]}>To approve ({toApprove.length})</Text>
@@ -182,6 +206,9 @@ export default function LeaveScreen({ navigation }) {
                     <Text style={[styles.name, { color: C.textPrimary }]}>{r.staffName}</Text>
                     <Text style={[styles.dates, { color: C.textPrimary }]}>{datesText(r)}</Text>
                     <Text style={[styles.meta, { color: C.textMuted }]}>{r.days} day{r.days === 1 ? '' : 's'} · {r.typeLabel}</Text>
+                    {r.balance?.limited && r.type !== 'unpaid' && (
+                      <Text style={[styles.meta, { color: C.textMuted }]}>Paid leave: {r.balance.earned - r.balance.used} left of {r.balance.earned} earned this year</Text>
+                    )}
                     {!!r.reason && <Text style={[styles.meta, { color: C.textSecondary }]}>“{r.reason}”</Text>}
                     <View style={styles.actions}>
                       <TouchableOpacity style={[styles.actBtn, { backgroundColor: C.success }]} onPress={() => decide(r, true)}>
@@ -232,6 +259,9 @@ const styles = StyleSheet.create({
   applyText: { fontSize: 13, fontWeight: '700', color: '#fff' },
 
   section: { paddingHorizontal: SPACING.xl, marginTop: 20 },
+  balance: { flexDirection: 'row', marginHorizontal: SPACING.xl, marginTop: 20, marginBottom: 0 },
+  balanceItem: { flex: 1, alignItems: 'center' },
+  balanceNum: { fontSize: 22, fontWeight: '800' },
   sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 10 },
   empty: { fontSize: 13 },
 
