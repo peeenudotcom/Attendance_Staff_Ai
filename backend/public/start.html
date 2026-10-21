@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Start free · TARAhut Haazri</title>
+<meta name="description" content="Set up TARAhut Haazri for your business: selfie and location attendance for your staff.">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+  :root { --bg: #F7F3EC; --text: #2A1418; --muted: #6B5A57; --line: #E5DCCF; --accent: #802534; --on-accent: #F4EFE7; --field: #FFFDF9; --bad: #B42318; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #150C0F; --text: #F4EFE7; --muted: #BBAFA8; --line: #3A262B; --accent: #E39AA6; --on-accent: #150C0F; --field: #1F1317; --bad: #F97066; } }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  .muted { color: var(--muted); margin: 0 0 24px; }
+  .card { border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+  label { display: block; font-weight: 600; margin: 14px 0 4px; }
+  label:first-child { margin-top: 0; }
+  .hint { font-weight: 400; color: var(--muted); font-size: 14px; }
+  input { box-sizing: border-box; width: 100%; font: inherit; color: var(--text); background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button { margin-top: 18px; width: 100%; background: var(--accent); color: var(--on-accent); border: 0; font: inherit; font-weight: 700; padding: 13px 18px; border-radius: 10px; cursor: pointer; }
+  button[disabled] { opacity: .6; cursor: default; }
+  .error { color: var(--bad); margin: 12px 0 0; min-height: 1em; }
+  .trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+  ol { padding-left: 20px; }
+  li { margin: 6px 0; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+<img src="/logo.svg" alt="" width="64" height="64" style="display:block;border-radius:15px;margin-bottom:14px">
+<h1>Set up Haazri for your business</h1>
+<p class="muted">Selfie and location attendance, leave and salary for your staff. Create your company in a minute; you become its admin and add your team.</p>
+
+<form id="form" class="card" novalidate>
+  <label for="company">Company name</label>
+  <input id="company" name="company" autocomplete="organization" maxlength="120" required>
+  <label for="name">Your name</label>
+  <input id="name" name="name" autocomplete="name" maxlength="120" required>
+  <label for="phone">Your mobile number <span class="hint">(you sign in with it)</span></label>
+  <input id="phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="10-digit number" maxlength="15" required>
+  <label for="email">Your email <span class="hint">(sign-in codes are sent here)</span></label>
+  <input id="email" name="email" type="email" autocomplete="email" maxlength="200" required>
+  <div class="trap" aria-hidden="true"><label for="website">Website</label><input id="website" name="website" tabindex="-1" autocomplete="off"></div>
+  <button id="submit" type="submit">Create my company</button>
+  <p id="error" class="error" role="alert"></p>
+  <p class="hint" style="margin:6px 0 0">By creating an account you agree to our <a href="/privacy">Privacy Policy</a>.</p>
+</form>
+
+<div id="done" class="card" hidden>
+  <h2 style="margin:0 0 6px;font-size:20px">Your company is ready</h2>
+  <p style="margin:0" id="doneText"></p>
+  <ol>
+    <li>Install the app: <a href="/get">haazri.tarahutaibuilds.com/get</a></li>
+    <li>Sign in with your mobile number. We email you a 4-digit code.</li>
+    <li>Add your staff (name, phone, email) in the app under <strong>Staff</strong>, or on the <a href="/dashboard">web dashboard</a>. Each person gets an email with how to sign in.</li>
+  </ol>
+</div>
+
+<p class="muted" style="margin-top:28px">Your staff don't sign up here: you add them. Need help? <a href="mailto:support@tarahutaibuilds.com">support@tarahutaibuilds.com</a> · <a href="/privacy">Privacy</a></p>
+</main>
+<script>
+  const form = document.getElementById('form');
+  const error = document.getElementById('error');
+  const submit = document.getElementById('submit');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    error.textContent = '';
+    const data = Object.fromEntries(new FormData(form));
+    submit.disabled = true;
+    submit.textContent = 'Creating…';
+    try {
+      const res = await fetch('/api/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.message || 'Something went wrong. Please try again.');
+      form.hidden = true;
+      document.getElementById('doneText').textContent = json.invited
+        ? 'We have emailed ' + data.email.trim() + ' with these steps.'
+        : 'Follow these steps to get started.';
+      document.getElementById('done').hidden = false;
+      window.scrollTo(0, 0);
+    } catch (err) {
+      error.textContent = err.message === 'Failed to fetch' ? 'No internet connection. Please try again.' : err.message;
+    } finally {
+      submit.disabled = false;
+      submit.textContent = 'Create my company';
+    }
+  });
+</script>
+</body>
+</html>

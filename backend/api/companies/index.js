@@ -1,7 +1,7 @@
 import { db, must } from '../../lib/db.js';
 import { route, body, cleanPhone, HttpError } from '../../lib/http.js';
 import { publicUser } from '../../lib/auth.js';
-import { sendWelcomeEmail } from '../../lib/email.js';
+import { createCompany } from '../../lib/companies.js';
 import { emailProblem } from '../../lib/email-check.js';
 
 const text = (v, max = 120) => (v == null || String(v).trim() === '' ? null : String(v).trim().slice(0, max));
@@ -37,25 +37,7 @@ export default route({
     const badEmail = emailProblem(adminEmail);
     if (badEmail) throw new HttpError(400, badEmail);
 
-    const taken = must(await db().from('staff').select('id').eq('phone', adminPhone).maybeSingle());
-    if (taken) throw new HttpError(409, 'This phone number is already registered');
-
-    const org = must(await db().from('organizations').insert({ name }).select('*').single());
-    const { data: admin, error } = await db().from('staff')
-      .insert({ org_id: org.id, name: adminName, phone: adminPhone, email: adminEmail, role: 'admin', designation: 'Owner' })
-      .select('*').single();
-    if (error) {
-      await db().from('organizations').delete().eq('id', org.id); // keep company + admin all-or-nothing
-      if (error.code === '23505') throw new HttpError(409, 'This phone number is already registered');
-      throw new Error(error.message);
-    }
-    let invited = true;
-    try {
-      await sendWelcomeEmail({ to: adminEmail, name: adminName, phone: adminPhone, company: name });
-    } catch (err) {
-      invited = false;
-      console.error('[companies] welcome email failed:', err.message);
-    }
+    const { org, admin, invited } = await createCompany({ name, adminName, adminPhone, adminEmail });
     return { ok: true, invited, company: { id: org.id, name: org.name }, admin: publicUser({ ...admin, org }) };
   },
 }, { platform: true });

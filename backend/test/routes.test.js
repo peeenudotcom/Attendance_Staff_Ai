@@ -860,3 +860,40 @@ test('attendance correction requests', async () => {
   r = await call('corrections/index', { token: staff });
   assert.deepEqual(r.json.requests.map((x) => x.status).sort(), ['approved', 'approved', 'cancelled', 'rejected']);
 });
+
+test('self sign-up', async () => {
+  const { issueToken } = await import(`${B}/lib/auth.js`);
+  const su = (b) => call('signup', { method: 'POST', body: b });
+  assert.equal((await call('signup')).status, 405);
+  assert.equal((await su({ company: 'Kiran Traders', name: 'Kiran', phone: '98' })).status, 400);
+  assert.equal((await su({ company: 'Kiran Traders', name: 'Kiran', phone: '9833333333', email: 'kiran@gmial.com' })).status, 400);
+  // an existing phone points to sign-in instead
+  let r = await su({ company: 'X', name: 'Y', phone: '9915424411', email: 'y@example.com' });
+  assert.equal(r.status, 409); assert.match(r.json.message, /sign in/);
+  // bots that fill the hidden field get a fake success and nothing is made
+  const orgs = tables.organizations.length;
+  r = await su({ company: 'Spam', name: 'Spam', phone: '9844444444', email: 's@example.com', website: 'http://spam' });
+  assert.equal(r.status, 200); assert.equal(tables.organizations.length, orgs);
+
+  const mails = sentEmails.length;
+  r = await su({ company: ' Kiran Traders ', name: 'Kiran Kumar', phone: '+91 98333 33333', email: 'Kiran@Example.com' });
+  assert.equal(r.status, 200); assert.equal(r.json.invited, true); assert.equal(r.json.company.name, 'Kiran Traders');
+  const owner = tables.staff.find((s) => s.phone === '9833333333');
+  assert.equal(owner.role, 'admin'); assert.equal(owner.email, 'kiran@example.com'); assert.ok(!owner.is_platform_admin);
+  assert.equal(owner.org_id, r.json.company.id);
+  assert.equal(sentEmails.length, mails + 2);
+  assert.equal(sentEmails[mails].to, 'kiran@example.com'); assert.match(sentEmails[mails].text, /You are the admin of Kiran Traders/);
+  assert.equal(sentEmails[mails + 1].to, 'support@example.com'); assert.match(sentEmails[mails + 1].subject, /New sign-up: Kiran Traders/);
+
+  // the new admin can sign in and sees only their own company
+  const token = issueToken(owner.id);
+  r = await call('staff/index', { token });
+  assert.equal(r.status, 200); assert.deepEqual(r.json.staff.map((s) => s.phone), ['9833333333']);
+  assert.equal((await call('companies/index', { token })).status, 403);
+
+  // too many sign-ups in an hour are refused
+  const now = new Date().toISOString();
+  for (let i = 0; i < 20; i++) tables.organizations.push({ id: `flood${i}`, name: 'F', created_at: now });
+  assert.equal((await su({ company: 'Late', name: 'Late', phone: '9855555555', email: 'l@example.com' })).status, 429);
+  tables.organizations = tables.organizations.filter((o) => !o.id.startsWith('flood'));
+});
