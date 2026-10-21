@@ -1,0 +1,33 @@
+// Sign-in codes over WhatsApp (Meta WhatsApp Business Platform, Cloud API).
+// Set WHATSAPP_TOKEN (system-user token), WHATSAPP_PHONE_ID (the sending number's Phone number ID) and
+// WHATSAPP_TEMPLATE (an approved Authentication template with a "Copy code" button). Leave any unset to turn it off.
+const GRAPH = 'https://graph.facebook.com/v23.0';
+
+export const whatsappEnabled = () => Boolean(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_ID && process.env.WHATSAPP_TEMPLATE);
+
+/** Sends `code` to an Indian 10-digit `phone` on WhatsApp. Throws if Meta does not accept it. */
+export async function sendOtpWhatsApp({ phone, code }) {
+  const response = await fetch(`${GRAPH}/${process.env.WHATSAPP_PHONE_ID}/messages`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: `91${phone}`,
+      type: 'template',
+      template: {
+        name: process.env.WHATSAPP_TEMPLATE,
+        language: { code: process.env.WHATSAPP_LANGUAGE || 'en' },
+        components: [
+          { type: 'body', parameters: [{ type: 'text', text: code }] },
+          { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: code }] },
+        ],
+      },
+    }),
+  });
+  if (!response.ok) {
+    const details = await response.text().catch(() => '');
+    throw new Error(`WhatsApp failed: ${response.status} ${details.slice(0, 300)}`);
+  }
+}
+
+export const maskPhone = (phone) => `+91 ******${String(phone).slice(-4)}`;
