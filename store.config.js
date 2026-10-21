@@ -27,13 +27,13 @@ See who is in, late or absent today with selfies, approve leave and corrections,
 PRIVATE BY DESIGN
 Location is read only when you check in or out, never in the background. Selfies are shown only to your company's admins. No ads, no tracking. You can delete your account from the app at any time.
 
-Haazri is for companies that use TARAhut Haazri. Your company's admin adds you first; then sign in with your phone number and a code sent to your email.`;
+Haazri works for any business. Set up your company free at haazri.tarahutaibuilds.com/start, then add your staff. Staff sign in with their phone number and a code sent to their email.`;
 
 const reviewNotes = `Sign-in is by phone number and a one-time code. Enter 9000000001, tap Continue, enter the code given in the sign-in details and tap Verify (no email is sent for this demo account). It belongs to a demo company with no location lock, so check-in works anywhere: tap Check In, allow camera and location, take a selfie.
 
 Admin demo: 9000000002 with the same code. It shows Team today, leave and correction approvals, and Staff.
 
-Account deletion: You > Delete my account. The app is for companies that use TARAhut Haazri; each company's admin adds its own staff.`;
+Account deletion: You > Delete my account. Any business can create its own company free at https://haazri.tarahutaibuilds.com/start; its admin then adds the staff.`;
 
 module.exports = {
   configVersion: 0,
