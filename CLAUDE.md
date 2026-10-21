@@ -13,7 +13,7 @@ production track, India) are both submitted for store review. Pilot companies: T
 | Backend API (Vercel functions, Node 24) | `backend/api/**`, shared logic in `backend/lib/` | Deployed at https://haazri.tarahutaibuilds.com/api |
 | Web dashboard (admins) | `backend/public/dashboard/` (plain JS) | https://haazri.tarahutaibuilds.com/dashboard |
 | Public pages | `backend/public/` (privacy, support, delete-account, get) | Required by the stores |
-| Database | Supabase project `oilkvoexlvhkjthpvgfr`, migrations `backend/supabase/migrations/001…015` | Apply new migrations in order; all 15 applied |
+| Database | Supabase project `oilkvoexlvhkjthpvgfr`, migrations `backend/supabase/migrations/001…016` | Apply new migrations in order; all 16 applied |
 | Store material | `docs/PLAY_STORE_LISTING.md`, `docs/APP_STORE_*.md`, `store.config.js` (App Store listing as code), `assets/store/` | Screenshots: `screenshots/` (Play 1080x1920), `ios-screenshots-6.3/` (App Store 1206x2622) |
 | Instant app updates | Expo Updates, guide in `docs/APP_UPDATES.md` | Only builds made after it was merged have it (store 1.0 builds do NOT) |
 | Config plugins | `plugins/with-adi-registration.js` (Android developer verification token), `plugins/with-android-abis.js` (ARM only) | |
@@ -45,8 +45,10 @@ Hosting and accounts (IDs are not secrets):
   WHATSAPP_SUMMARY_TEMPLATE with 6 body variables: company, date, checked in, late, not in yet, on leave).
 - Face match (Settings → Face match, per company): each check-in selfie is compared with the person's saved photo
   (first selfie after it was turned on; admin can reset it in Staff) by Amazon Rekognition CompareFaces in Mumbai
-  (`backend/lib/face.js`, hand-signed SigV4, no AWS SDK). 90%+ = match. Never blocks check-in; Today shows the
-  result with a Compare view and admins get a push on a mismatch. Needs Vercel env REKOGNITION_ACCESS_KEY_ID and
+  (`backend/lib/face.js`, hand-signed SigV4, no AWS SDK). 90%+ = match. Check-in and check-out selfies are both
+  checked: a mismatch or no face is refused (422, code 'face', "try N of 3", nothing saved); the 3rd failed try in a
+  row (within 30 min) goes through flagged and admins get a push. Review accounts are flagged, never refused; a
+  Rekognition outage never blocks. Today shows In/Out results with a Compare view. Needs Vercel env REKOGNITION_ACCESS_KEY_ID and
   REKOGNITION_SECRET_ACCESS_KEY (IAM user allowed only rekognition:CompareFaces); Vercel reserves AWS_* names.
 - Check-in: selfie + location (optional location lock per company). Leave requests, attendance correction requests,
   holidays, shifts, salary from attendance, pay adjustments (advance/bonus/deduction/addition), month close with

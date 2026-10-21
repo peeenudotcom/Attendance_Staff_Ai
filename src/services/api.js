@@ -30,7 +30,11 @@ const request = async (endpoint, options = {}) => {
     if (response.status === 401 && headers['Authorization'] && !endpoint.startsWith('/auth/login') && !endpoint.startsWith('/auth/verify-otp')) {
       onUnauthorized?.();
     }
-    if (!response.ok) throw new Error(data.message || 'Request failed');
+    if (!response.ok) {
+      const err = new Error(data.message || 'Request failed');
+      err.code = data.code; // e.g. 'face': the selfie didn't match and must be retaken
+      throw err;
+    }
     return data;
   } catch (error) {
     console.error(`API Error [${endpoint}]:`, error.message);

@@ -31,7 +31,7 @@ export function route(methods, opts = {}) {
       const result = await handler(req, ctx);
       return res.status(200).json(result ?? {});
     } catch (err) {
-      if (err instanceof HttpError) return res.status(err.status).json({ message: err.message });
+      if (err instanceof HttpError) return res.status(err.status).json({ message: err.message, ...(err.extra ?? {}) });
       console.error(`[${req.method} ${req.url}]`, err);
       return res.status(500).json({ message: 'Something went wrong. Please try again.' });
     }

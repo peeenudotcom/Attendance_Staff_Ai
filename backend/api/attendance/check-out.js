@@ -1,10 +1,12 @@
 import { db, must } from '../../lib/db.js';
 import { route, body, HttpError } from '../../lib/http.js';
-import { coord, currentRecord, eventTime, uploadSelfie } from '../../lib/attendance.js';
+import { coord, currentRecord, eventTime, selfieBytes, uploadSelfie } from '../../lib/attendance.js';
+import { faceGate } from '../../lib/face.js';
 import { officeDistance } from '../../lib/geo.js';
 
 // POST /api/attendance/check-out { selfie (base64), latitude, longitude, accuracy?, address, timestamp } (Bearer)
 // Never blocked by location lock (people leave from site visits); the distance is recorded.
+// With face match on, the selfie must match the person's saved photo, like check-in (see lib/face.js faceGate).
 export default route({
   async POST(req, { staff }) {
     const { selfie, latitude, longitude, accuracy, address, timestamp } = body(req);
@@ -16,6 +18,7 @@ export default route({
     if (!record?.check_in_at) throw new HttpError(400, 'No check-in found for today');
     if (record.check_out_at) throw new HttpError(409, 'You have already checked out today');
 
+    const face = await faceGate(staff, selfieBytes(selfie), 'check-out');
     const workedMinutes = Math.max(0, Math.round((at - new Date(record.check_in_at)) / 60_000));
     must(await db().from('attendance').update({
       check_out_at: at.toISOString(),
@@ -25,6 +28,7 @@ export default route({
       check_out_address: address ? String(address).slice(0, 300) : null,
       check_out_selfie: await uploadSelfie(selfie, staff.id, 'checkout'),
       worked_minutes: workedMinutes,
+      ...(face ? { check_out_face: face.result, check_out_face_score: face.score } : {}),
     }).eq('id', record.id));
 
     return { ok: true, attendance: { id: record.id, checkOutAt: at.toISOString(), workedMinutes } };
