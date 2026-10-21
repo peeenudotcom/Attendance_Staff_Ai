@@ -1157,6 +1157,7 @@ test('face match on check-in', async () => {
     r = await call('reports/day', { token: admin });
     const p = r.json.staff.find((x) => x.id === 'fmStaff');
     assert.equal(p.face.result, 'error'); assert.match(p.face.savedPhoto, /face-reference\.jpg$/); assert.equal(p.faceOut, null);
+    assert.equal(r.json.faceErrors, 1);
     assert.ok(r.json.staff.find((x) => x.id === 'fmAdmin').face === null);
     // admin resets the saved photo: the next selfie becomes the new one
     r = await call('staff/[id]/index', { method: 'PATCH', token: admin, query: { id: 'fmStaff' }, body: { faceReset: true } });
