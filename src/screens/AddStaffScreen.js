@@ -221,8 +221,8 @@ export default function AddStaffScreen({ navigation, route }) {
 }
 
 const st = StyleSheet.create({
-  label: { fontSize: 16, fontWeight: '600', color: T.textMuted, marginBottom: 8 },
-  note: { fontSize: 16, color: T.navyDeep, lineHeight: 22 },
+  label: { fontSize: 14, fontWeight: '600', color: T.textMuted, marginBottom: 8 },
+  note: { fontSize: 14, color: T.navyDeep, lineHeight: 20 },
   switchRow: { flexDirection: 'row', alignItems: 'center', marginTop: 22 },
-  switchLabel: { fontSize: 18, fontWeight: '700', color: T.navyDeep },
+  switchLabel: { fontSize: 15, fontWeight: '700', color: T.navyDeep },
 });

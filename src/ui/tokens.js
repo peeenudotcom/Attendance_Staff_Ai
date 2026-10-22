@@ -4,9 +4,9 @@ export const T = {
   navyDeep: '#0E1A33',      // headings on white
   onNavy: '#FFFFFF',
   onNavyMuted: '#C3CCDD',   // subtitles on the navy header
-  onNavyLine: 'rgba(255,255,255,0.16)',
-  onNavyGlass: 'rgba(255,255,255,0.08)',
-  onNavyGlassStrong: 'rgba(255,255,255,0.18)',
+  onNavyLine: '#2C3C5E',     // solid (no see-through "glass")
+  onNavyGlass: '#1D2C4B',    // header controls: search box, pills
+  onNavyGlassStrong: '#33476F', // the chosen option in a header control
   yellow: '#F6CF4C',        // selected day, Add button, active tab bar line
   yellowSoft: '#FCEFC2',    // admin chip, pending pill
   onYellow: '#13213D',
@@ -20,10 +20,10 @@ export const T = {
   amber: '#D99A00', amberSoft: '#FDF1D6',
   red: '#C62828', redSoft: '#FDECEC',
   blue: '#7CC4E8', blueSoft: '#E6F4FB',
-  radius: 14,
-  radiusLg: 22,
-  sheetRadius: 28,
-  pad: 22,                  // screen side padding
+  radius: 12,
+  radiusLg: 18,
+  sheetRadius: 24,
+  pad: 18,                  // screen side padding
 };
 
 /** Avatar colours, picked from the person's name so it stays the same. */

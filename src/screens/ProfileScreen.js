@@ -15,7 +15,7 @@ const PRIVACY_URL = 'https://haazri.tarahutaibuilds.com/privacy';
 const SUPPORT_MAIL = 'mailto:support@tarahutaibuilds.com';
 
 const MenuIcon = ({ name }) => (
-  <View style={st.menuIcon}><Icon name={name} size={22} color={T.navyDeep} /></View>
+  <View style={st.menuIcon}><Icon name={name} size={19} color={T.navyDeep} /></View>
 );
 
 // The "You" tab: who you are, the app language, shortcuts, reminders, sign out and account deletion.
@@ -113,8 +113,8 @@ export default function ProfileScreen({ navigation }) {
 const st = StyleSheet.create({
   menuIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' },
   switchRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, gap: 16 },
-  switchLabel: { fontSize: 19, fontWeight: '700', color: T.navyDeep },
+  switchLabel: { fontSize: 16, fontWeight: '700', color: T.navyDeep },
   deleteBtn: { alignSelf: 'center', marginTop: 18, paddingVertical: 10, paddingHorizontal: 16 },
-  deleteText: { fontSize: 17, fontWeight: '600', color: T.red },
-  version: { fontSize: 13, color: T.textFaint, textAlign: 'center', marginTop: 18 },
+  deleteText: { fontSize: 15, fontWeight: '600', color: T.red },
+  version: { fontSize: 12, color: T.textFaint, textAlign: 'center', marginTop: 18 },
 });

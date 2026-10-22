@@ -117,7 +117,7 @@ export default function CorrectionsScreen({ navigation, route }) {
       {isAdmin && (
         <View style={{ marginBottom: 18 }}>
           <ListRow last
-            left={<View style={st.linkIcon}><Icon name="file-text" size={22} color={T.navyDeep} /></View>}
+            left={<View style={st.linkIcon}><Icon name="file-text" size={19} color={T.navyDeep} /></View>}
             title={t('corrections.toReview')} subtitle={t('corrections.toReviewSub')}
             right={count ? <Chip label={String(count)} tone="yellow" /> : null}
             onPress={() => navigation.navigate('Main', { screen: 'Requests' })} />
@@ -134,7 +134,7 @@ export default function CorrectionsScreen({ navigation, route }) {
           const on = x.key === kind;
           return (
             <TouchableOpacity key={x.key} onPress={() => setKind(x.key)} activeOpacity={0.8} style={[st.kind, on && st.kindOn]}>
-              <Icon name={on ? 'check-circle' : 'circle'} size={22} color={on ? T.onYellow : T.textFaint} />
+              <Icon name={on ? 'check-circle' : 'circle'} size={19} color={on ? T.onYellow : T.textFaint} />
               <Text style={[st.kindText, on && { color: T.onYellow, fontWeight: '700' }]}>{t(`corrections.kind_${x.key}`)}</Text>
             </TouchableOpacity>
           );
@@ -183,20 +183,20 @@ export default function CorrectionsScreen({ navigation, route }) {
 }
 
 const st = StyleSheet.create({
-  h1: { fontSize: 30, fontWeight: '800', color: T.navyDeep, letterSpacing: -0.3 },
-  h1Sub: { fontSize: 17, marginTop: 4 },
-  label: { fontSize: 17, fontWeight: '600', color: T.textMuted, marginTop: 22, marginBottom: 10 },
+  h1: { fontSize: 24, fontWeight: '800', color: T.navyDeep, letterSpacing: -0.3 },
+  h1Sub: { fontSize: 15, marginTop: 4 },
+  label: { fontSize: 15, fontWeight: '600', color: T.textMuted, marginTop: 22, marginBottom: 10 },
   kind: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 15, paddingHorizontal: 16, borderRadius: T.radius, borderWidth: 1, borderColor: T.line, backgroundColor: T.surface },
   kindOn: { backgroundColor: T.yellow, borderColor: T.yellow },
-  kindText: { fontSize: 17, color: T.text, fontWeight: '500', flexShrink: 1 },
+  kindText: { fontSize: 15, color: T.text, fontWeight: '500', flexShrink: 1 },
   row2: { flexDirection: 'row', gap: 12, marginTop: 18 },
   linkIcon: { width: 46, height: 46, borderRadius: 23, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' },
 
   req: { paddingVertical: 16 },
   reqLine: { borderBottomWidth: 1, borderBottomColor: T.line },
   reqTop: { flexDirection: 'row', alignItems: 'center' },
-  reqTitle: { fontSize: 18, fontWeight: '700', color: T.navyDeep },
-  reqSub: { fontSize: 16, color: T.textMuted, marginTop: 3 },
-  reqNote: { fontSize: 16, color: T.text, marginTop: 8, lineHeight: 22 },
-  link: { fontSize: 16, fontWeight: '700', color: T.red },
+  reqTitle: { fontSize: 15, fontWeight: '700', color: T.navyDeep },
+  reqSub: { fontSize: 14, color: T.textMuted, marginTop: 3 },
+  reqNote: { fontSize: 14, color: T.text, marginTop: 8, lineHeight: 20 },
+  link: { fontSize: 14, fontWeight: '700', color: T.red },
 });

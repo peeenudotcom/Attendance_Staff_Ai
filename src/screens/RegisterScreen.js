@@ -188,7 +188,7 @@ export default function RegisterScreen({ navigation, route }) {
   const navRow = (
     <View style={st.navRow}>
       <TouchableOpacity onPress={navPrev} hitSlop={10} style={st.navBtn} accessibilityLabel={t(view === 'month' ? 'register.prevMonth' : 'register.prevWeek')}>
-        <Icon name="chevron-left" size={24} color={T.onNavy} />
+        <Icon name="chevron-left" size={20} color={T.onNavy} />
       </TouchableOpacity>
       <View style={{ flex: 1, alignItems: 'center' }}>
         {onToday ? (
@@ -200,7 +200,7 @@ export default function RegisterScreen({ navigation, route }) {
         )}
       </View>
       <TouchableOpacity onPress={navNext} disabled={atEnd} hitSlop={10} style={[st.navBtn, atEnd && { opacity: 0.3 }]} accessibilityLabel={t(view === 'month' ? 'register.nextMonth' : 'register.nextWeek')}>
-        <Icon name="chevron-right" size={24} color={T.onNavy} />
+        <Icon name="chevron-right" size={20} color={T.onNavy} />
       </TouchableOpacity>
     </View>
   );
@@ -309,7 +309,7 @@ function TodayCard({ t, rec, navigation }) {
       <Subtle>{greeting}</Subtle>
       <Text style={st.todayDate}>{fmtDayLong(t, today)}</Text>
       <View style={st.todayStatus}>
-        <Icon name={checkedOut ? 'check-circle' : checkedIn ? 'log-in' : 'clock'} size={22} color={checkedOut || checkedIn ? T.green : T.textMuted} />
+        <Icon name={checkedOut ? 'check-circle' : checkedIn ? 'log-in' : 'clock'} size={19} color={checkedOut || checkedIn ? T.green : T.textMuted} />
         <Text style={st.todayStatusText}>
           {checkedOut ? t('register.checkedOutAt', { time: rec.checkOut }) : checkedIn ? t('register.checkedInAt', { time: rec.checkIn }) : t('register.notCheckedIn')}
         </Text>
@@ -318,7 +318,7 @@ function TodayCard({ t, rec, navigation }) {
       {checkedIn && !!rec.location ? <Subtle style={{ marginTop: 4, marginLeft: 32 }} >{rec.location}</Subtle> : null}
       {checkedOut ? (
         <View style={st.doneRow}>
-          <Icon name="check" size={22} color={T.green} />
+          <Icon name="check" size={19} color={T.green} />
           <Text style={st.doneText}>{t('register.doneForToday')}</Text>
         </View>
       ) : (
@@ -404,7 +404,7 @@ function MyDay({ t, navigation, todayRec, month, error, onRetry, selected, onSel
           <Divider style={{ marginTop: 20, marginBottom: 0 }} />
           <ListRow
             title={t(showList ? 'register.hideList' : 'register.viewAsList')}
-            left={<Icon name="list" size={26} color={T.navyDeep} />}
+            left={<Icon name="list" size={22} color={T.navyDeep} />}
             onPress={() => setShowList(!showList)}
             last
           />
@@ -446,13 +446,13 @@ function DayDetail({ t, day, navigation }) {
             </View>
             <View style={[{ flex: 1, paddingLeft: 20 }, st.bigSep]}>
               <Text style={st.bigLabel}>{t('register.out')}</Text>
-              <Text style={[st.bigValue, !day.checkOut && { color: T.textFaint, fontSize: 22, marginTop: 10 }]}>{day.checkOut || t(day.date === istToday() ? 'register.stillIn' : 'register.noCheckOut')}</Text>
+              <Text style={[st.bigValue, !day.checkOut && { color: T.textFaint, fontSize: 18, marginTop: 10 }]}>{day.checkOut || t(day.date === istToday() ? 'register.stillIn' : 'register.noCheckOut')}</Text>
             </View>
           </View>
           {day.hours ? (
             <View style={{ marginTop: 14 }}>
               <Text style={st.bigLabel}>{t('register.workedLabel')}</Text>
-              <Text style={[st.bigValue, { fontSize: 28 }]}>{fmtHours(t, day.hours)}</Text>
+              <Text style={[st.bigValue, { fontSize: 23 }]}>{fmtHours(t, day.hours)}</Text>
             </View>
           ) : null}
         </>
@@ -461,7 +461,7 @@ function DayDetail({ t, day, navigation }) {
       {day.leaveType ? <Subtle style={{ marginTop: 8 }}>{t(day.leaveType === 'unpaid' ? 'register.unpaidLeave' : 'register.paidLeave')}</Subtle> : null}
       {canFix ? (
         <TouchableOpacity onPress={() => navigation.navigate('Corrections', { date: day.date, kind })} style={st.fixLink} activeOpacity={0.7}>
-          <Icon name="edit-3" size={20} color={T.navyDeep} />
+          <Icon name="edit-3" size={18} color={T.navyDeep} />
           <Text style={st.fixLinkText}>{t('register.askCorrection')}</Text>
         </TouchableOpacity>
       ) : null}
@@ -503,13 +503,13 @@ function TeamDay({ t, date, data, error, onRetry, reqCount, onRequests, onOpen }
   return (
     <View>
       <Text style={st.teamTitle}>{isToday ? t('register.teamToday') : fmtDay(t, date)}</Text>
-      <Subtle style={{ fontSize: 18, marginTop: 2 }}>{fmtDayLong(t, date)}</Subtle>
+      <Subtle style={{ fontSize: 15, marginTop: 2 }}>{fmtDayLong(t, date)}</Subtle>
 
       <TouchableOpacity disabled={!reqCount} onPress={onRequests} activeOpacity={0.7} style={st.reqRow}>
         <Text style={[st.reqText, !reqCount && { color: T.textMuted, fontWeight: '500' }]}>
           {reqCount === 1 ? t('register.requestsOne') : reqCount > 1 ? t('register.requestsMany', { n: reqCount }) : t('register.noRequests')}
         </Text>
-        {reqCount ? <Icon name="chevron-right" size={24} color={T.navyDeep} /> : null}
+        {reqCount ? <Icon name="chevron-right" size={20} color={T.navyDeep} /> : null}
       </TouchableOpacity>
 
       {!data && !error && <Loading />}
@@ -559,7 +559,7 @@ function TeamDay({ t, date, data, error, onRetry, reqCount, onRequests, onOpen }
                   {line.map((part, j) => (
                     <View key={j} style={{ flexDirection: 'row', alignItems: 'center' }}>
                       {j > 0 ? <Text style={[st.statusText, { color: T.textMuted }]}> · </Text> : null}
-                      {part.icon ? <Icon name={part.icon} size={18} color={part.color} style={{ marginRight: 6 }} /> : null}
+                      {part.icon ? <Icon name={part.icon} size={16} color={part.color} style={{ marginRight: 6 }} /> : null}
                       <Text style={[st.statusText, { color: part.color }]}>{part.text}</Text>
                     </View>
                   ))}
@@ -604,13 +604,13 @@ function PersonSheet({ t, person: p, date, office, onClose, onPhoto, onEdit, onR
         <View style={[st.sheet, { paddingBottom: insets.bottom + 20 }]}>
           <ScrollView contentContainerStyle={{ padding: T.pad }} bounces={false}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Avatar name={p.name} size={52} />
+              <Avatar name={p.name} size={42} />
               <View style={{ flex: 1, marginLeft: 14 }}>
                 <Text style={st.sheetTitle} numberOfLines={1}>{p.name}</Text>
                 <Subtle>{fmtDayLong(t, date)}</Subtle>
               </View>
               <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityLabel={t('common.close')}>
-                <Icon name="x" size={26} color={T.navyDeep} />
+                <Icon name="x" size={22} color={T.navyDeep} />
               </TouchableOpacity>
             </View>
 
@@ -618,8 +618,8 @@ function PersonSheet({ t, person: p, date, office, onClose, onPhoto, onEdit, onR
               {line.map((part, j) => (
                 <View key={j} style={{ flexDirection: 'row', alignItems: 'center' }}>
                   {j > 0 ? <Text style={[st.statusText, { color: T.textMuted }]}> · </Text> : null}
-                  {part.icon ? <Icon name={part.icon} size={20} color={part.color} style={{ marginRight: 6 }} /> : null}
-                  <Text style={[st.statusText, { color: part.color, fontSize: 18 }]}>{part.text}</Text>
+                  {part.icon ? <Icon name={part.icon} size={18} color={part.color} style={{ marginRight: 6 }} /> : null}
+                  <Text style={[st.statusText, { color: part.color, fontSize: 15 }]}>{part.text}</Text>
                 </View>
               ))}
             </View>
@@ -633,20 +633,20 @@ function PersonSheet({ t, person: p, date, office, onClose, onPhoto, onEdit, onR
                 </View>
                 <View style={[{ flex: 1, paddingLeft: 16 }, st.bigSep]}>
                   <Text style={st.bigLabel}>{t('register.out')}</Text>
-                  <Text style={[st.bigValue, !has(p.checkOut) && { fontSize: 20, color: T.textFaint, marginTop: 10 }]}>
+                  <Text style={[st.bigValue, !has(p.checkOut) && { fontSize: 17, color: T.textFaint, marginTop: 10 }]}>
                     {has(p.checkOut) ? p.checkOut : p.noCheckOut ? t('register.noCheckOut') : t('register.stillIn')}
                   </Text>
                 </View>
                 {has(p.hours) && (
                   <View style={[{ flex: 1, paddingLeft: 16 }, st.bigSep]}>
                     <Text style={st.bigLabel}>{t('register.workedLabel')}</Text>
-                    <Text style={[st.bigValue, { fontSize: 22, marginTop: 8 }]}>{fmtHours(t, p.hours)}</Text>
+                    <Text style={[st.bigValue, { fontSize: 18, marginTop: 8 }]}>{fmtHours(t, p.hours)}</Text>
                   </View>
                 )}
               </View>
             )}
 
-            {flags.length ? <Text style={[st.flagText, { fontSize: 16, marginTop: 12 }]}>{flags.join(' · ')}</Text> : null}
+            {flags.length ? <Text style={[st.flagText, { fontSize: 14, marginTop: 12 }]}>{flags.join(' · ')}</Text> : null}
             {p.addedByAdmin ? <Subtle style={{ marginTop: 8 }}>{p.note ? t('register.addedByAdminNote', { note: p.note }) : t('register.addedByAdmin')}</Subtle> : null}
 
             {(p.checkInSelfie || p.checkOutSelfie) && (
@@ -739,56 +739,56 @@ function TimeForm({ t, visible, person, date, record, onClose, onSaved }) {
 const st = StyleSheet.create({
   navRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   navBtn: { width: 40, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: T.onNavyGlass },
-  navText: { color: T.onNavyMuted, fontSize: 16, fontWeight: '600' },
+  navText: { color: T.onNavyMuted, fontSize: 14, fontWeight: '600' },
   todayPill: { paddingVertical: 6, paddingHorizontal: 18, borderRadius: 18, borderWidth: 1, borderColor: T.onNavyLine, backgroundColor: T.onNavyGlassStrong },
-  todayPillText: { color: T.onNavy, fontSize: 16, fontWeight: '700' },
+  todayPillText: { color: T.onNavy, fontSize: 14, fontWeight: '700' },
 
-  todayDate: { fontSize: 22, fontWeight: '800', color: T.navyDeep, marginTop: 4 },
+  todayDate: { fontSize: 18, fontWeight: '800', color: T.navyDeep, marginTop: 4 },
   todayStatus: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
-  todayStatusText: { fontSize: 18, fontWeight: '600', color: T.navyDeep, marginLeft: 10, flex: 1 },
+  todayStatusText: { fontSize: 15, fontWeight: '600', color: T.navyDeep, marginLeft: 10, flex: 1 },
   doneRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 16, paddingVertical: 14, borderRadius: T.radius, backgroundColor: T.bg },
-  doneText: { fontSize: 19, fontWeight: '700', color: T.green, marginLeft: 8 },
+  doneText: { fontSize: 16, fontWeight: '700', color: T.green, marginLeft: 8 },
 
   legend: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 16, rowGap: 8, marginBottom: 8 },
   legendItem: { flexDirection: 'row', alignItems: 'center' },
   legendDot: { width: 12, height: 12, borderRadius: 6 },
   legendOutline: { width: 16, height: 16, borderRadius: 5, borderWidth: 1.5, borderColor: T.navyDeep },
-  legendText: { fontSize: 15, color: T.textMuted, marginLeft: 6 },
-  workedLine: { fontSize: 18, color: T.textMuted, marginTop: 12 },
-  workedBig: { fontSize: 22, fontWeight: '800', color: T.navyDeep },
+  legendText: { fontSize: 13, color: T.textMuted, marginLeft: 6 },
+  workedLine: { fontSize: 15, color: T.textMuted, marginTop: 12 },
+  workedBig: { fontSize: 18, fontWeight: '800', color: T.navyDeep },
 
   bigRow: { flexDirection: 'row', marginTop: 18 },
   bigSep: { borderLeftWidth: 1, borderLeftColor: T.line },
-  bigLabel: { fontSize: 16, color: T.textMuted },
-  bigValue: { fontSize: 34, fontWeight: '800', color: T.navyDeep, marginTop: 2 },
+  bigLabel: { fontSize: 14, color: T.textMuted },
+  bigValue: { fontSize: 28, fontWeight: '800', color: T.navyDeep, marginTop: 2 },
   fixLink: { flexDirection: 'row', alignItems: 'center', marginTop: 18, paddingVertical: 6 },
-  fixLinkText: { fontSize: 17, fontWeight: '700', color: T.navyDeep, marginLeft: 10, textDecorationLine: 'underline', flex: 1 },
+  fixLinkText: { fontSize: 15, fontWeight: '700', color: T.navyDeep, marginLeft: 10, textDecorationLine: 'underline', flex: 1 },
 
   listDay: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 6, borderRadius: 10 },
   listLine: { borderBottomWidth: 1, borderBottomColor: T.line },
-  listDate: { fontSize: 17, fontWeight: '700', color: T.navyDeep },
-  listStatus: { fontSize: 15, color: T.textMuted, marginTop: 2 },
-  listTimes: { fontSize: 16, fontWeight: '600', color: T.navyDeep, marginLeft: 8 },
+  listDate: { fontSize: 15, fontWeight: '700', color: T.navyDeep },
+  listStatus: { fontSize: 13, color: T.textMuted, marginTop: 2 },
+  listTimes: { fontSize: 14, fontWeight: '600', color: T.navyDeep, marginLeft: 8 },
 
-  teamTitle: { fontSize: 30, fontWeight: '800', color: T.navyDeep },
+  teamTitle: { fontSize: 24, fontWeight: '800', color: T.navyDeep },
   reqRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: T.line, marginTop: 10 },
-  reqText: { fontSize: 19, fontWeight: '700', color: T.navyDeep, flex: 1 },
+  reqText: { fontSize: 16, fontWeight: '700', color: T.navyDeep, flex: 1 },
   teamStats: { paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: T.line },
-  personTime: { fontSize: 22, fontWeight: '800', color: T.navyDeep },
+  personTime: { fontSize: 18, fontWeight: '800', color: T.navyDeep },
   statusLine: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginTop: 6 },
-  statusText: { fontSize: 16, fontWeight: '500' },
-  flagText: { fontSize: 14, fontWeight: '600', color: T.red, marginTop: 4 },
+  statusText: { fontSize: 14, fontWeight: '500' },
+  flagText: { fontSize: 13, fontWeight: '600', color: T.red, marginTop: 4 },
 
   sheetWrap: { flex: 1, backgroundColor: 'rgba(14,26,51,0.45)' },
   sheet: { backgroundColor: T.bg, borderTopLeftRadius: T.sheetRadius, borderTopRightRadius: T.sheetRadius, maxHeight: '88%' },
-  sheetTitle: { fontSize: 22, fontWeight: '800', color: T.navyDeep },
-  formName: { fontSize: 18, fontWeight: '600', color: T.navyDeep, marginTop: 4 },
+  sheetTitle: { fontSize: 18, fontWeight: '800', color: T.navyDeep },
+  formName: { fontSize: 15, fontWeight: '600', color: T.navyDeep, marginTop: 4 },
   selfieRow: { flexDirection: 'row', gap: 12, marginTop: 18 },
   selfie: { width: '100%', aspectRatio: 1, borderRadius: T.radius, backgroundColor: T.surface },
-  selfieLabel: { fontSize: 15, color: T.textMuted, marginTop: 6 },
-  placeText: { fontSize: 16, color: T.navyDeep, marginTop: 2 },
+  selfieLabel: { fontSize: 13, color: T.textMuted, marginTop: 6 },
+  placeText: { fontSize: 14, color: T.navyDeep, marginTop: 2 },
 
   photoWrap: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center', padding: 20 },
   photo: { width: '100%', height: '75%' },
-  photoCaption: { color: '#fff', marginTop: 12, fontSize: 16 },
+  photoCaption: { color: '#fff', marginTop: 12, fontSize: 14 },
 });

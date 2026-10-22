@@ -43,7 +43,7 @@ export function PeriodNav({ label, onPrev, onNext, prevDisabled, nextDisabled, r
   const btn = (icon, onPress, disabled, a11y) => (
     <TouchableOpacity onPress={onPress} disabled={disabled} hitSlop={10} accessibilityLabel={a11y}
       style={[st.navBtn, disabled && { opacity: 0.3 }]}>
-      <Icon name={icon} size={22} color={T.onNavy} />
+      <Icon name={icon} size={19} color={T.onNavy} />
     </TouchableOpacity>
   );
   return (
@@ -236,7 +236,7 @@ export function MyLeave({ navigation, form }) {
 
       <View style={{ marginTop: 22 }}>
         <ListRow
-          left={<View style={st.linkIcon}><Icon name="edit-3" size={22} color={T.navyDeep} /></View>}
+          left={<View style={st.linkIcon}><Icon name="edit-3" size={19} color={T.navyDeep} /></View>}
           title={t('leave.corrections')} subtitle={t('leave.correctionsSub')}
           onPress={() => navigation.navigate('Corrections')}
         />
@@ -291,23 +291,23 @@ export default function LeaveScreen({ navigation, route }) {
 const st = StyleSheet.create({
   navRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   navBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: T.onNavyGlass },
-  navLabel: { flex: 1, textAlign: 'center', color: T.onNavyMuted, fontSize: 16, fontWeight: '600' },
+  navLabel: { flex: 1, textAlign: 'center', color: T.onNavyMuted, fontSize: 14, fontWeight: '600' },
 
   balance: { paddingVertical: 12, paddingHorizontal: 12, marginBottom: 24 },
-  balanceTitle: { fontSize: 15, fontWeight: '700', color: T.textMuted, textAlign: 'center', marginBottom: 4 },
-  h1: { fontSize: 30, fontWeight: '800', color: T.navyDeep, letterSpacing: -0.3 },
-  h1Sub: { fontSize: 17, marginTop: 4 },
-  label: { fontSize: 17, fontWeight: '600', color: T.textMuted, marginTop: 22, marginBottom: 10 },
+  balanceTitle: { fontSize: 13, fontWeight: '700', color: T.textMuted, textAlign: 'center', marginBottom: 4 },
+  h1: { fontSize: 24, fontWeight: '800', color: T.navyDeep, letterSpacing: -0.3 },
+  h1Sub: { fontSize: 15, marginTop: 4 },
+  label: { fontSize: 15, fontWeight: '600', color: T.textMuted, marginTop: 22, marginBottom: 10 },
   dateRow: { flexDirection: 'row', gap: 12, marginTop: 18 },
   dateFocus: { borderColor: T.yellow, borderWidth: 2 },
-  summary: { fontSize: 20, fontWeight: '800', color: T.navyDeep, marginBottom: 16 },
+  summary: { fontSize: 17, fontWeight: '800', color: T.navyDeep, marginBottom: 16 },
   linkIcon: { width: 46, height: 46, borderRadius: 23, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' },
 
   req: { paddingVertical: 16 },
   reqLine: { borderBottomWidth: 1, borderBottomColor: T.line },
   reqTop: { flexDirection: 'row', alignItems: 'center' },
-  reqTitle: { fontSize: 18, fontWeight: '700', color: T.navyDeep },
-  reqSub: { fontSize: 16, color: T.textMuted, marginTop: 3 },
-  reqNote: { fontSize: 16, color: T.text, marginTop: 8, lineHeight: 22 },
-  link: { fontSize: 16, fontWeight: '700', color: T.red },
+  reqTitle: { fontSize: 15, fontWeight: '700', color: T.navyDeep },
+  reqSub: { fontSize: 14, color: T.textMuted, marginTop: 3 },
+  reqNote: { fontSize: 14, color: T.text, marginTop: 8, lineHeight: 20 },
+  link: { fontSize: 14, fontWeight: '700', color: T.red },
 });

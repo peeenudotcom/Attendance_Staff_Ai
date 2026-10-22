@@ -48,7 +48,7 @@ export default function StaffListScreen({ navigation, route }) {
       right={<Button title={t('common.add')} icon="plus" variant="accent" small onPress={() => navigation.navigate('AddStaff')} />}
     >
       <View style={st.search}>
-        <Icon name="search" size={22} color={T.onNavyMuted} />
+        <Icon name="search" size={19} color={T.onNavyMuted} />
         <TextInput
           style={st.searchInput}
           value={query}
@@ -60,7 +60,7 @@ export default function StaffListScreen({ navigation, route }) {
         />
         {query ? (
           <TouchableOpacity onPress={() => setQuery('')} hitSlop={10} accessibilityLabel={t('common.close')}>
-            <Icon name="x" size={20} color={T.onNavyMuted} />
+            <Icon name="x" size={18} color={T.onNavyMuted} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -74,7 +74,7 @@ export default function StaffListScreen({ navigation, route }) {
       ) : shown.map((s) => (
         <View key={s.id} style={{ opacity: s.active ? 1 : 0.6 }}>
           <ListRow
-            left={<Avatar name={s.name || ''} size={50} />}
+            left={<Avatar name={s.name || ''} size={40} />}
             title={s.name}
             subtitle={[s.designation, s.department].filter(Boolean).join(' · ') || s.phone}
             right={!s.active
@@ -97,7 +97,7 @@ const st = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', borderRadius: 30, borderWidth: 1, borderColor: T.onNavyLine,
     backgroundColor: T.onNavyGlass, paddingHorizontal: 18, height: 56,
   },
-  searchInput: { flex: 1, color: T.onNavy, fontSize: 18, marginLeft: 12, paddingVertical: 0, height: '100%' },
+  searchInput: { flex: 1, color: T.onNavy, fontSize: 15, marginLeft: 12, paddingVertical: 0, height: '100%' },
   offRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20, marginTop: 4 },
-  offText: { flex: 1, fontSize: 18, fontWeight: '700', color: T.navyDeep },
+  offText: { flex: 1, fontSize: 15, fontWeight: '700', color: T.navyDeep },
 });

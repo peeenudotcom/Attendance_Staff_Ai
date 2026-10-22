@@ -72,14 +72,14 @@ export default function ReviewRequestScreen({ navigation, route }) {
       </AppHeader>
     )}>
       <TouchableOpacity onPress={back} hitSlop={10} style={st.backRow} activeOpacity={0.7}>
-        <Icon name="chevron-left" size={24} color={T.navyDeep} />
+        <Icon name="chevron-left" size={20} color={T.navyDeep} />
         <Text style={st.backText}>{t('requests.allRequests')}</Text>
       </TouchableOpacity>
 
       <Text style={st.h1}>{isLeave ? t('requests.reviewLeave') : t('requests.reviewCorrection')}</Text>
 
       <View style={st.person}>
-        <Avatar name={r.staffName || ''} size={64} />
+        <Avatar name={r.staffName || ''} size={52} />
         <View style={{ flex: 1, marginLeft: 16, paddingRight: 8 }}>
           <Text style={st.name} numberOfLines={2}>{r.staffName}</Text>
           {!!r.designation && <Text style={st.job} numberOfLines={1}>{r.designation}</Text>}
@@ -140,14 +140,14 @@ export default function ReviewRequestScreen({ navigation, route }) {
 
 const st = StyleSheet.create({
   backRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', marginLeft: -4 },
-  backText: { fontSize: 18, color: T.textMuted, marginLeft: 6 },
-  h1: { fontSize: 32, fontWeight: '800', color: T.navyDeep, marginTop: 22, letterSpacing: -0.3 },
+  backText: { fontSize: 15, color: T.textMuted, marginLeft: 6 },
+  h1: { fontSize: 26, fontWeight: '800', color: T.navyDeep, marginTop: 22, letterSpacing: -0.3 },
   person: { flexDirection: 'row', alignItems: 'center', marginTop: 22, marginBottom: 18 },
-  name: { fontSize: 21, fontWeight: '800', color: T.navyDeep },
-  job: { fontSize: 17, color: T.textMuted, marginTop: 3 },
+  name: { fontSize: 17, fontWeight: '800', color: T.navyDeep },
+  job: { fontSize: 15, color: T.textMuted, marginTop: 3 },
   line: { height: 1, backgroundColor: T.line },
   reason: { paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: T.line },
-  reasonLabel: { fontSize: 17, color: T.textMuted },
-  reasonText: { fontSize: 18, color: T.navyDeep, fontWeight: '600', marginTop: 6, lineHeight: 25 },
+  reasonLabel: { fontSize: 15, color: T.textMuted },
+  reasonText: { fontSize: 15, color: T.navyDeep, fontWeight: '600', marginTop: 6, lineHeight: 22 },
   btnRow: { flexDirection: 'row', gap: 12 },
 });
