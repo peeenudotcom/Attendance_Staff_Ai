@@ -1,239 +1,228 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Switch, Alert } from 'react-native';
+import { useAuth } from '../context/AuthContext';
+import { useLang, fmtDayYear } from '../i18n';
+import '../i18n/strings/staff';
+import { staffAPI, companyAPI } from '../services/api';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, KeyboardAvoidingView, Platform,
-} from 'react-native';
-import { COLORS, SHADOWS, RADIUS, SPACING, FONTS } from '../utils/theme';
-import { useTheme } from '../context/ThemeContext';
-import { useHeaderInset } from '../utils/safeArea';
-import { staffAPI } from '../services/api';
+  Screen, AppHeader, Field, ChoiceRow, Button, SectionTitle, Subtle, Divider, Card, T,
+} from '../ui';
 
-export default function AddStaffScreen({ navigation }) {
-  const { colors: C } = useTheme();
-  const headerTop = useHeaderInset(12);
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [department, setDepartment] = useState('');
-  const [designation, setDesignation] = useState('');
-  const [salaryType, setSalaryType] = useState('monthly');
-  const [salary, setSalary] = useState('');
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Form values from a staff record (edit) or blanks (new person).
+const formOf = (p) => ({
+  name: p?.name || '',
+  phone: p?.phone || '',
+  email: p?.email || '',
+  designation: p?.designation || '',
+  department: p?.department || '',
+  salaryType: p ? (p.salaryType || '') : 'monthly',
+  salary: p?.salary == null ? '' : String(p.salary),
+  role: p?.role === 'admin' ? 'admin' : 'staff',
+  locationFree: !!p?.locationFree,
+});
+
+// Admins: add a new person (no params) or see and change someone (params.staff).
+export default function AddStaffScreen({ navigation, route }) {
+  const { user } = useAuth();
+  const { t } = useLang();
+  const [person, setPerson] = useState(route?.params?.staff || null);
+  const editing = !!person;
+  const [f, setF] = useState(() => formOf(route?.params?.staff));
   const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState(null); // 'active' | 'invite' | 'face'
+  const [faceMatch, setFaceMatch] = useState(false);
+  const set = (k) => (v) => setF((x) => ({ ...x, [k]: v }));
 
-  const departments = ['Sales', 'Marketing', 'Development', 'Support', 'HR', 'Operations', 'Finance'];
-  const salaryTypes = [
-    { key: 'monthly', label: 'Monthly', icon: '📅' },
-    { key: 'daily', label: 'Daily', icon: '☀️' },
-    { key: 'hourly', label: 'Hourly', icon: '⏱️' },
-    { key: 'weekly', label: 'Weekly', icon: '📆' },
-  ];
+  useEffect(() => {
+    if (!editing) return;
+    companyAPI.get().then((c) => setFaceMatch(!!c.faceMatch)).catch(() => {});
+  }, [editing]);
 
-  const handleSave = async () => {
-    if (!name.trim()) return Alert.alert('Required', 'Please enter staff name');
-    if (phone.length < 10) return Alert.alert('Required', 'Please enter valid phone number');
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return Alert.alert('Required', 'Please enter a valid email. Sign-in codes are sent there.');
+  const isMe = editing && person.id === user?.id;
+  const locked = editing && !!person.deletedAt; // deleted their account: the server refuses changes
+
+  const save = async () => {
+    const name = f.name.trim();
+    const phone = f.phone.trim();
+    const email = f.email.trim();
+    if (!name) return Alert.alert(t('staff.required'), t('staff.needName'));
+    if (phone.replace(/\D/g, '').length < 10) return Alert.alert(t('staff.required'), t('staff.needPhone'));
+    if (!editing && !EMAIL_RE.test(email)) return Alert.alert(t('staff.required'), t('staff.needEmail'));
+    if (editing && email && email !== (person.email || '') && !EMAIL_RE.test(email)) return Alert.alert(t('staff.required'), t('staff.needEmail'));
+
+    const data = {
+      name, phone, email,
+      designation: f.designation.trim(),
+      department: f.department.trim(),
+      salaryType: f.salaryType || null,
+      salary: f.salary.trim() ? Number(f.salary.trim()) : null,
+      role: f.role,
+    };
 
     setSaving(true);
     try {
-      await staffAPI.create({ name: name.trim(), phone, email: email.trim(), department, designation, salaryType, salary: salary.trim() ? Number(salary) : null });
-      Alert.alert('Staff Added', `${name.trim()} can now sign in with ${phone}. Their sign-in code will be emailed to ${email.trim()}.`, [{ text: 'OK', onPress: () => navigation.goBack() }]);
+      if (!editing) {
+        const res = await staffAPI.create(data);
+        Alert.alert(
+          t('staff.addedTitle'),
+          t(res?.invited === false ? 'staff.addedNoEmailMsg' : 'staff.addedMsg', { name, phone, email }),
+          [{ text: t('common.ok'), onPress: () => navigation.goBack() }],
+        );
+        return;
+      }
+      // Only what changed, so an untouched empty field (e.g. no email) isn't re-checked.
+      const before = formOf(person);
+      const after = { ...f, name, phone, email, designation: data.designation, department: data.department, salary: f.salary.trim() };
+      const changed = {};
+      for (const k of Object.keys(after)) {
+        if (after[k] === before[k]) continue;
+        if (k === 'salary') changed.salary = data.salary;
+        else if (k === 'salaryType') changed.salaryType = data.salaryType;
+        else changed[k] = after[k];
+      }
+      if (Object.keys(changed).length) await staffAPI.update(person.id, changed);
+      navigation.goBack();
     } catch (e) {
-      Alert.alert('Could not add staff', e.message || 'Please try again.');
+      Alert.alert(editing ? t('common.couldNotSave') : t('staff.couldNotAdd'), e.message || t('common.tryAgain'));
     } finally {
       setSaving(false);
     }
   };
 
+  const run = async (what, fn, after) => {
+    setBusy(what);
+    try {
+      const res = await fn();
+      if (res?.staff) setPerson(res.staff);
+      after?.(res);
+    } catch (e) {
+      Alert.alert(t('common.couldNotSave'), e.message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const toggleActive = () => {
+    const go = () => run('active', () => staffAPI.update(person.id, { active: !person.active }));
+    if (!person.active) return go();
+    Alert.alert(t('staff.switchOffQ', { name: person.name }), t('staff.switchOffMsg'), [
+      { text: t('common.back'), style: 'cancel' },
+      { text: t('staff.switchOff'), style: 'destructive', onPress: go },
+    ]);
+  };
+
+  const invite = () => run('invite', () => staffAPI.invite(person.id),
+    () => Alert.alert(t('staff.inviteSent'), t('staff.inviteSentMsg', { email: person.email })));
+
+  const resetFace = () => {
+    Alert.alert(t('staff.resetFaceQ'), t('staff.resetFaceMsg'), [
+      { text: t('common.back'), style: 'cancel' },
+      { text: t('staff.reset'), style: 'destructive', onPress: () => run('face', () => staffAPI.update(person.id, { faceReset: true }),
+        () => Alert.alert(t('staff.faceResetDone'))) },
+    ]);
+  };
+
+  const subtitle = editing
+    ? [person.designation, person.department].filter(Boolean).join(' · ') || (person.role === 'admin' ? t('common.admin') : t('common.staff'))
+    : t('staff.addSubtitle');
+
+  const payTypes1 = [
+    { value: 'monthly', label: t('staff.monthly') },
+    { value: 'weekly', label: t('staff.weekly') },
+    { value: 'daily', label: t('staff.daily') },
+  ];
+  const payTypes2 = [
+    { value: 'hourly', label: t('staff.hourly') },
+    { value: '', label: t('staff.notSet') },
+  ];
+  const salaryPh = f.salaryType === 'monthly' ? t('staff.salaryPhMonthly') : f.salaryType === 'daily' ? t('staff.salaryPhDaily') : t('staff.salaryPhOther');
+  const faceDate = person?.faceSavedAt ? String(person.faceSavedAt).slice(0, 10) : null;
+
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-    <ScrollView style={[styles.container, { backgroundColor: C.bg }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: headerTop, backgroundColor: C.bgCard, borderBottomColor: C.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backButton, { backgroundColor: C.bgElevated }]}>
-          <Text style={[styles.backIcon, { color: C.textPrimary }]}>←</Text>
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: C.textPrimary }]}>Add Staff Member</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <Screen keyboard header={<AppHeader title={editing ? person.name : t('staff.addTitle')} subtitle={subtitle} onBack={() => navigation.goBack()} />}>
+      {locked ? <Card tone="red" style={{ marginBottom: 20 }}><Text style={st.note}>{t('staff.deletedNote')}</Text></Card> : null}
+      {editing && !person.active && !locked ? <Card tone="yellow" style={{ marginBottom: 20 }}><Text style={st.note}>{t('staff.switchedOffNote')}</Text></Card> : null}
 
-      {/* Form */}
-      <View style={styles.form}>
-        {/* Avatar Placeholder */}
-        <View style={styles.avatarSection}>
-          <View style={[styles.avatarCircle, { backgroundColor: C.accentSoft, borderColor: C.accentBorder }]}>
-            <Text style={styles.avatarIcon}>👤</Text>
+      <SectionTitle style={{ marginBottom: 14 }}>{t('staff.details')}</SectionTitle>
+      <Field label={t('staff.name')} placeholder={t('staff.namePh')} value={f.name} onChangeText={set('name')} editable={!locked} />
+      <Field label={t('staff.mobile')} placeholder={t('staff.mobilePh')} value={f.phone} onChangeText={set('phone')}
+        keyboardType="phone-pad" maxLength={editing ? 14 : 10} editable={!locked} />
+      <Field label={t('staff.email')} placeholder={t('staff.emailPh')} value={f.email} onChangeText={set('email')}
+        keyboardType="email-address" autoCapitalize="none" autoCorrect={false} editable={!locked} style={{ marginBottom: 6 }} />
+      <Subtle style={{ marginBottom: 16 }}>{t('staff.codeNote')}</Subtle>
+      <Field label={t('staff.designation')} placeholder={t('staff.designationPh')} value={f.designation} onChangeText={set('designation')} editable={!locked} />
+      <Field label={t('staff.department')} placeholder={t('staff.departmentPh')} value={f.department} onChangeText={set('department')} editable={!locked} />
+
+      <Divider style={{ marginVertical: 18 }} />
+      <SectionTitle style={{ marginBottom: 14 }}>{t('staff.pay')}</SectionTitle>
+      <Text style={st.label}>{t('staff.payType')}</Text>
+      <ChoiceRow options={payTypes1} value={f.salaryType} onChange={locked ? () => {} : set('salaryType')} />
+      <View style={{ height: 10 }} />
+      <ChoiceRow options={payTypes2} value={f.salaryType} onChange={locked ? () => {} : set('salaryType')} />
+      <Field label={t('staff.salary')} placeholder={salaryPh} value={f.salary} onChangeText={(v) => set('salary')(v.replace(/[^\d.]/g, ''))}
+        keyboardType="numeric" editable={!locked} style={{ marginTop: 16 }} />
+
+      <Divider style={{ marginVertical: 18 }} />
+      <SectionTitle style={{ marginBottom: 14 }}>{t('staff.access')}</SectionTitle>
+      <Text style={st.label}>{t('staff.role')}</Text>
+      <ChoiceRow
+        options={[{ value: 'staff', label: t('common.staff') }, { value: 'admin', label: t('common.admin') }]}
+        value={f.role}
+        onChange={locked ? () => {} : set('role')}
+      />
+      <Subtle style={{ marginTop: 8 }}>{t('staff.adminNote')}</Subtle>
+
+      {editing ? (
+        <View style={st.switchRow}>
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <Text style={st.switchLabel}>{t('staff.anywhere')}</Text>
+            <Subtle style={{ marginTop: 2 }}>{t('staff.anywhereNote')}</Subtle>
           </View>
+          <Switch value={!!f.locationFree} onValueChange={set('locationFree')} disabled={locked}
+            trackColor={{ true: T.navy, false: T.line }} thumbColor="#fff" ios_backgroundColor={T.line} />
         </View>
+      ) : null}
 
-        {/* Basic Info */}
-        <View style={[styles.card, { backgroundColor: C.bgCard, borderWidth: 1, borderColor: C.border }]}>
-          <Text style={[styles.cardTitle, { color: C.textPrimary }]}>Basic Information</Text>
+      {!locked ? (
+        <Button title={editing ? t('staff.saveBtn') : t('staff.addBtn')} onPress={save} busy={saving} style={{ marginTop: 24 }} />
+      ) : null}
 
-          <Text style={[styles.label, { color: C.textMuted }]}>Full Name *</Text>
-          <TextInput
-            style={[styles.input, { backgroundColor: C.bgElevated, borderColor: C.border, color: C.textPrimary }]}
-            placeholder="Enter staff name"
-            placeholderTextColor={C.textMuted}
-            value={name}
-            onChangeText={setName}
+      {editing && !locked && faceMatch && faceDate ? (
+        <>
+          <Divider style={{ marginVertical: 22 }} />
+          <SectionTitle>{t('staff.faceTitle')}</SectionTitle>
+          <Subtle style={{ marginBottom: 12 }}>{t('staff.faceSaved', { date: fmtDayYear(t, faceDate) })}</Subtle>
+          <Button title={t('staff.resetFace')} icon="refresh-cw" variant="outline" onPress={resetFace} busy={busy === 'face'} disabled={!!busy} />
+        </>
+      ) : null}
+
+      {editing && !locked && !isMe ? (
+        <>
+          <Divider style={{ marginVertical: 22 }} />
+          {person.active && person.email ? (
+            <Button title={t('staff.inviteAgain')} icon="send" variant="outline" onPress={invite} busy={busy === 'invite'} disabled={!!busy} style={{ marginBottom: 12 }} />
+          ) : null}
+          <Button
+            title={person.active ? t('staff.switchOff') : t('staff.switchOn')}
+            icon={person.active ? 'user-x' : 'user-check'}
+            variant={person.active ? 'danger' : 'outline'}
+            onPress={toggleActive}
+            busy={busy === 'active'}
+            disabled={!!busy}
           />
+        </>
+      ) : null}
 
-          <Text style={[styles.label, { color: C.textMuted }]}>Phone Number *</Text>
-          <View style={styles.phoneRow}>
-            <View style={[styles.codeBox, { backgroundColor: C.bgElevated, borderColor: C.border }]}>
-              <Text style={[styles.codeText, { color: C.textPrimary }]}>🇮🇳 +91</Text>
-            </View>
-            <TextInput
-              style={[styles.input, { flex: 1, backgroundColor: C.bgElevated, borderColor: C.border, color: C.textPrimary }]}
-              placeholder="10 digit number"
-              placeholderTextColor={C.textMuted}
-              keyboardType="phone-pad"
-              maxLength={10}
-              value={phone}
-              onChangeText={setPhone}
-            />
-          </View>
-
-          <Text style={[styles.label, { color: C.textMuted }]}>Email *</Text>
-          <TextInput
-            style={[styles.input, { backgroundColor: C.bgElevated, borderColor: C.border, color: C.textPrimary }]}
-            placeholder="Sign-in codes are sent here"
-            placeholderTextColor={C.textMuted}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            value={email}
-            onChangeText={setEmail}
-          />
-
-          <Text style={[styles.label, { color: C.textMuted }]}>Designation</Text>
-          <TextInput
-            style={[styles.input, { backgroundColor: C.bgElevated, borderColor: C.border, color: C.textPrimary }]}
-            placeholder="e.g. Sales Executive, Developer"
-            placeholderTextColor={C.textMuted}
-            value={designation}
-            onChangeText={setDesignation}
-          />
-        </View>
-
-        {/* Department */}
-        <View style={[styles.card, { backgroundColor: C.bgCard, borderWidth: 1, borderColor: C.border }]}>
-          <Text style={[styles.cardTitle, { color: C.textPrimary }]}>Department</Text>
-          <View style={styles.chipGrid}>
-            {departments.map((dept) => (
-              <TouchableOpacity
-                key={dept}
-                style={[
-                  styles.chip,
-                  { backgroundColor: C.bgElevated, borderColor: C.border },
-                  department === dept && { backgroundColor: C.accentSoft, borderColor: C.accentBorder },
-                ]}
-                onPress={() => setDepartment(dept)}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    { color: C.textMuted },
-                    department === dept && { color: C.textAccent, fontWeight: '600' },
-                  ]}
-                >
-                  {dept}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Salary */}
-        <View style={[styles.card, { backgroundColor: C.bgCard, borderWidth: 1, borderColor: C.border }]}>
-          <Text style={[styles.cardTitle, { color: C.textPrimary }]}>Salary Details</Text>
-
-          <Text style={[styles.label, { color: C.textMuted }]}>Salary Type</Text>
-          <View style={styles.salaryTypeRow}>
-            {salaryTypes.map((type) => (
-              <TouchableOpacity
-                key={type.key}
-                style={[
-                  styles.salaryTypeCard,
-                  { backgroundColor: C.bgElevated, borderColor: C.border },
-                  salaryType === type.key && { backgroundColor: C.accentSoft, borderColor: C.accentBorder },
-                ]}
-                onPress={() => setSalaryType(type.key)}
-              >
-                <Text style={styles.salaryTypeIcon}>{type.icon}</Text>
-                <Text
-                  style={[
-                    styles.salaryTypeText,
-                    { color: C.textMuted },
-                    salaryType === type.key && { color: C.textAccent },
-                  ]}
-                >
-                  {type.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={[styles.label, { color: C.textMuted }]}>Amount (₹)</Text>
-          <TextInput
-            style={[styles.input, { backgroundColor: C.bgElevated, borderColor: C.border, color: C.textPrimary }]}
-            placeholder={salaryType === 'monthly' ? 'e.g. 25000' : salaryType === 'daily' ? 'e.g. 800' : 'e.g. 150'}
-            placeholderTextColor={C.textMuted}
-            keyboardType="numeric"
-            value={salary}
-            onChangeText={setSalary}
-          />
-        </View>
-
-        {/* Save Button */}
-        <TouchableOpacity style={[styles.saveButton, saving && { opacity: 0.6 }]} onPress={handleSave} activeOpacity={0.8} disabled={saving}>
-          <Text style={[styles.saveButtonText, { color: '#ffffff' }]}>{saving ? 'Adding…' : 'Add Staff Member'}</Text>
-        </TouchableOpacity>
-
-        <View style={{ height: 40 }} />
-      </View>
-    </ScrollView>
-    </KeyboardAvoidingView>
+      {editing ? <Subtle style={{ marginTop: 18 }}>{t('staff.dashboardNote')}</Subtle> : null}
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.xl, paddingBottom: 16, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  backButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.gray100, justifyContent: 'center', alignItems: 'center' },
-  backIcon: { fontSize: 20, color: COLORS.text },
-  headerTitle: { ...FONTS.h3 },
-
-  form: { padding: SPACING.xl },
-
-  avatarSection: { alignItems: 'center', marginBottom: 20 },
-  avatarCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: COLORS.accentSoft, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: COLORS.accentBorder, borderStyle: 'dashed' },
-  avatarIcon: { fontSize: 32 },
-
-  card: { backgroundColor: COLORS.white, borderRadius: RADIUS.lg, padding: SPACING.xl, marginBottom: 12, ...SHADOWS.sm },
-  cardTitle: { ...FONTS.h3, fontSize: 16, marginBottom: 16 },
-
-  label: { ...FONTS.captionMedium, color: COLORS.gray600, marginBottom: 6, marginTop: 12 },
-  input: { backgroundColor: COLORS.gray50, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: COLORS.text },
-
-  phoneRow: { flexDirection: 'row', gap: 8 },
-  codeBox: { backgroundColor: COLORS.gray100, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 12, justifyContent: 'center' },
-  codeText: { fontSize: 14, fontWeight: '600', color: COLORS.text },
-
-  chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.full, backgroundColor: COLORS.gray100, borderWidth: 1, borderColor: COLORS.border },
-  chipActive: { backgroundColor: COLORS.accentSoft, borderColor: COLORS.accent },
-  chipText: { fontSize: 13, fontWeight: '500', color: COLORS.gray600 },
-  chipTextActive: { color: COLORS.accent, fontWeight: '600' },
-
-  salaryTypeRow: { flexDirection: 'row', gap: 8 },
-  salaryTypeCard: { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: RADIUS.sm, backgroundColor: COLORS.gray50, borderWidth: 1.5, borderColor: COLORS.border },
-  salaryTypeActive: { backgroundColor: COLORS.accentSoft, borderColor: COLORS.accent },
-  salaryTypeIcon: { fontSize: 18, marginBottom: 4 },
-  salaryTypeText: { fontSize: 11, fontWeight: '600', color: COLORS.gray500 },
-  salaryTypeTextActive: { color: COLORS.accent },
-
-
-  saveButton: { backgroundColor: COLORS.accent, borderRadius: RADIUS.md, paddingVertical: 16, alignItems: 'center', marginTop: 8, ...SHADOWS.accent },
-  saveButtonText: { ...FONTS.button, color: COLORS.white },
+const st = StyleSheet.create({
+  label: { fontSize: 16, fontWeight: '600', color: T.textMuted, marginBottom: 8 },
+  note: { fontSize: 16, color: T.navyDeep, lineHeight: 22 },
+  switchRow: { flexDirection: 'row', alignItems: 'center', marginTop: 22 },
+  switchLabel: { fontSize: 18, fontWeight: '700', color: T.navyDeep },
 });
