@@ -2,7 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { View, Text, StyleSheet, TouchableOpacity, AppState } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, AppState, Platform } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useAuth } from '../context/AuthContext';
 import { useLang } from '../i18n';
 import { Icon, T } from '../ui';
@@ -56,28 +57,35 @@ const TABS = {
   Profile: { icon: 'user', label: 'common.tabYou' },
 };
 
+// Floating frosted-glass tab bar; the chosen tab sits in a white glass bubble.
 function TabBar({ state, navigation }) {
   const { t } = useLang();
   const { count } = useRequestsCount();
   const bottom = useBottomInset(10);
+  const items = state.routes.map((route, index) => {
+    const focused = state.index === index;
+    const cfg = TABS[route.name];
+    const badge = route.name === 'Requests' && count > 0 ? count : null;
+    return (
+      <TouchableOpacity key={route.key} style={[tab.item, focused && tab.itemOn]} activeOpacity={0.7} accessibilityRole="button" accessibilityState={{ selected: focused }}
+        onPress={() => { if (!focused) navigation.navigate(route.name); }}>
+        <View>
+          <View style={[tab.iconWrap, focused && { backgroundColor: T.yellow }]}>
+            <Icon name={cfg.icon} size={20} color={focused ? T.onYellow : T.textMuted} />
+          </View>
+          {badge ? <View style={tab.badge}><Text style={tab.badgeText}>{badge > 9 ? '9+' : badge}</Text></View> : null}
+        </View>
+        <Text style={[tab.label, focused && tab.labelOn]} numberOfLines={1}>{t(cfg.label)}</Text>
+      </TouchableOpacity>
+    );
+  });
   return (
-    <View style={[tab.bar, { paddingBottom: bottom }]}>
-      {state.routes.map((route, index) => {
-        const focused = state.index === index;
-        const cfg = TABS[route.name];
-        const badge = route.name === 'Requests' && count > 0 ? count : null;
-        return (
-          <TouchableOpacity key={route.key} style={tab.item} activeOpacity={0.7} accessibilityRole="button" accessibilityState={{ selected: focused }}
-            onPress={() => { if (!focused) navigation.navigate(route.name); }}>
-            <View>
-              <Icon name={cfg.icon} size={23} color={focused ? T.navyDeep : T.textMuted} />
-              {badge ? <View style={tab.badge}><Text style={tab.badgeText}>{badge > 9 ? '9+' : badge}</Text></View> : null}
-            </View>
-            <Text style={[tab.label, focused && tab.labelOn]} numberOfLines={1}>{t(cfg.label)}</Text>
-            <View style={[tab.underline, focused && { backgroundColor: T.yellow }]} />
-          </TouchableOpacity>
-        );
-      })}
+    <View pointerEvents="box-none" style={[tab.float, { bottom }]}>
+      <View style={tab.shadow}>
+        {Platform.OS === 'ios'
+          ? <BlurView intensity={45} tint="light" style={tab.bar}>{items}</BlurView>
+          : <View style={[tab.bar, { backgroundColor: 'rgba(255,255,255,0.94)' }]}>{items}</View>}
+      </View>
     </View>
   );
 }
@@ -139,11 +147,14 @@ export default function AppNavigator() {
 }
 
 const tab = StyleSheet.create({
-  bar: { flexDirection: 'row', backgroundColor: T.bg, borderTopWidth: 1, borderTopColor: T.line, paddingTop: 8 },
-  item: { flex: 1, alignItems: 'center' },
-  label: { fontSize: 12, color: T.textMuted, marginTop: 4 },
+  float: { position: 'absolute', left: 14, right: 14 },
+  shadow: { borderRadius: 34, shadowColor: '#0E1A33', shadowOpacity: 0.16, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 10, backgroundColor: 'transparent' },
+  bar: { flexDirection: 'row', borderRadius: 34, overflow: 'hidden', padding: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)', backgroundColor: 'rgba(255,255,255,0.55)' },
+  item: { flex: 1, alignItems: 'center', paddingVertical: 6, borderRadius: 28 },
+  itemOn: { backgroundColor: 'rgba(255,255,255,0.9)', borderWidth: 1, borderColor: 'rgba(255,255,255,1)' },
+  iconWrap: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  label: { fontSize: 11, color: T.textMuted, marginTop: 2 },
   labelOn: { color: T.navyDeep, fontWeight: '700' },
-  underline: { width: 40, height: 4, borderRadius: 2, marginTop: 5, backgroundColor: 'transparent' },
-  badge: { position: 'absolute', top: -8, right: -12, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: '#E5484D', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5, borderWidth: 2, borderColor: T.bg },
-  badgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  badge: { position: 'absolute', top: -4, right: -8, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#E5484D', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: T.white },
+  badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
 });

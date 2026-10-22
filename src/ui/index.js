@@ -36,7 +36,7 @@ export function AppHeader({ title, subtitle, right, children, avatarName, onAvat
   const { t } = useLang();
   const insets = useSafeAreaInsets();
   return (
-    <View style={{ backgroundColor: T.navy, paddingTop: insets.top + 6, paddingHorizontal: T.pad, paddingBottom: 30 }}>
+    <View style={{ backgroundColor: T.page, paddingTop: insets.top + 6, paddingHorizontal: T.pad, paddingBottom: 30 }}>
       <View style={s.brandRow}>
         {onBack ? (
           <TouchableOpacity onPress={onBack} hitSlop={12} style={s.backBtn} accessibilityLabel={t('common.back')}>
@@ -45,7 +45,7 @@ export function AppHeader({ title, subtitle, right, children, avatarName, onAvat
         ) : <Text style={s.brand}>{t('common.appName')}</Text>}
         {avatarName !== undefined && (
           <TouchableOpacity onPress={onAvatarPress} disabled={!onAvatarPress} activeOpacity={0.8}>
-            <Avatar name={avatarName} size={36} style={{ backgroundColor: '#E9ECF2' }} />
+            <Avatar name={avatarName} size={36} style={{ backgroundColor: T.white, borderWidth: 1, borderColor: T.glassBorder, ...T.shadow }} />
           </TouchableOpacity>
         )}
       </View>
@@ -78,7 +78,7 @@ export function Screen({ header, children, refreshing, onRefresh, scroll = true,
   const body = scroll ? (
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={{ padding: T.pad, paddingTop: 20, paddingBottom: 32 }}
+      contentContainerStyle={{ padding: T.pad, paddingTop: 20, paddingBottom: 120 }}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
       refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={T.navy} /> : undefined}
@@ -87,8 +87,8 @@ export function Screen({ header, children, refreshing, onRefresh, scroll = true,
     </ScrollView>
   ) : <View style={{ flex: 1 }}>{children}</View>;
   const content = (
-    <View style={{ flex: 1, backgroundColor: T.navy }}>
-      <StatusBar barStyle="light-content" backgroundColor={T.navy} />
+    <View style={{ flex: 1, backgroundColor: T.page }}>
+      <StatusBar barStyle="dark-content" backgroundColor={T.page} />
       {header}
       <View style={s.sheet}>
         {body}
@@ -210,7 +210,7 @@ export function Chip({ label, tone = 'grey', icon, style }) {
  */
 export function Button({ title, onPress, variant = 'primary', icon, busy, disabled, small, style }) {
   const v = {
-    primary: { bg: T.navy, fg: T.onNavy, border: T.navy },
+    primary: { bg: T.navy, fg: T.white, border: T.navy },
     accent: { bg: T.yellow, fg: T.onYellow, border: T.yellow },
     outline: { bg: T.bg, fg: T.navyDeep, border: T.line },
     danger: { bg: T.bg, fg: T.red, border: T.red },
@@ -329,20 +329,20 @@ export const Card = ({ children, style, tone }) => (
 
 const s = StyleSheet.create({
   brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 38 },
-  brand: { color: T.onNavy, fontSize: 24, fontWeight: '600', letterSpacing: 0.3 },
+  brand: { color: T.onNavy, fontSize: 24, fontWeight: '700', letterSpacing: 0.2 },
   backBtn: { width: 44, height: 44, marginLeft: -10, alignItems: 'center', justifyContent: 'center' },
   titleRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
   title: { color: T.onNavy, fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
   subtitle: { color: T.onNavyMuted, fontSize: 15, marginTop: 4 },
-  sheet: { flex: 1, backgroundColor: T.bg, borderTopLeftRadius: T.sheetRadius, borderTopRightRadius: T.sheetRadius, marginTop: -18, overflow: 'hidden' },
+  sheet: { flex: 1, backgroundColor: T.bg, borderTopLeftRadius: T.sheetRadius, borderTopRightRadius: T.sheetRadius, marginTop: -18, overflow: 'hidden', borderWidth: 1, borderBottomWidth: 0, borderColor: T.glassBorder },
 
-  segWrap: { flexDirection: 'row', alignSelf: 'flex-start', borderRadius: 14, borderWidth: 1, borderColor: T.onNavyLine, backgroundColor: T.onNavyGlass, padding: 3 },
+  segWrap: { flexDirection: 'row', alignSelf: 'flex-start', borderRadius: 14, backgroundColor: 'rgba(14,26,51,0.06)', padding: 3 },
   segItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 16, borderRadius: 10 },
-  segOn: { backgroundColor: T.onNavyGlassStrong },
+  segOn: { backgroundColor: T.white, ...T.shadow },
   segText: { color: T.onNavyMuted, fontSize: 15, fontWeight: '600' },
-  segBadge: { marginLeft: 8, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
-  segBadgeText: { color: T.navy, fontSize: 12, fontWeight: '700' },
-  viewToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 22, borderWidth: 1, borderColor: T.onNavyLine, backgroundColor: T.onNavyGlass, paddingVertical: 9, paddingHorizontal: 12 },
+  segBadge: { marginLeft: 8, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: T.navy, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+  segBadgeText: { color: T.white, fontSize: 12, fontWeight: '700' },
+  viewToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 22, borderWidth: 1, borderColor: T.glassBorder, backgroundColor: T.onNavyGlass, ...T.shadow, paddingVertical: 9, paddingHorizontal: 12 },
   viewToggleText: { color: T.onNavy, fontSize: 13, fontWeight: '600', maxWidth: 96 },
 
   weekRow: { flexDirection: 'row' },
@@ -361,7 +361,7 @@ const s = StyleSheet.create({
   chip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 10, borderRadius: 14 },
   chipText: { fontSize: 13, fontWeight: '600' },
 
-  btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: T.radius, borderWidth: 1.5, paddingVertical: 13, paddingHorizontal: 18 },
+  btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1.5, paddingVertical: 13, paddingHorizontal: 18 },
   btnSmall: { borderRadius: 24, paddingVertical: 8, paddingHorizontal: 14 },
   btnText: { fontSize: 16, fontWeight: '700' },
 
@@ -393,5 +393,5 @@ const s = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: '800', color: T.navyDeep },
   subtle: { fontSize: 13, color: T.textMuted },
   empty: { fontSize: 14, color: T.textMuted, marginVertical: 18, lineHeight: 20 },
-  card: { borderWidth: 1, borderColor: T.line, borderRadius: T.radiusLg, padding: 14, backgroundColor: T.bg },
+  card: { borderWidth: 1, borderColor: T.line, borderRadius: T.radiusLg, padding: 14, backgroundColor: T.bg, ...T.shadow, shadowOpacity: 0.05 },
 });
