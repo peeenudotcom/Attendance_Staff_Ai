@@ -10,8 +10,8 @@ import { useLang, fmtDayLong } from '../i18n';
 import '../i18n/strings/mark';
 
 const { width } = Dimensions.get('window');
-// The camera fills at most ~40% of the screen height, so the selfie button always shows below it.
-const FRAME_H = Math.min(Math.min(width - T.pad * 2, 420) * 1.15, Dimensions.get('window').height * 0.4);
+// The camera fills at most ~36% of the screen height, so the selfie button always shows below it.
+const FRAME_H = Math.min(Math.min(width - T.pad * 2, 420) * 1.15, Dimensions.get('window').height * 0.36);
 
 // "Railway Road, Kotkapura": the geocoder often repeats the street as the place name.
 function formatAddress(a) {
@@ -177,6 +177,24 @@ export default function MarkAttendanceScreen({ route, navigation }) {
 
   return (
     <Screen header={header}>
+      {/* Location */}
+      <View style={s.locRow}>
+        <View style={[s.locIcon, { backgroundColor: location ? T.greenSoft : locError && !locationLoading ? T.redSoft : T.surface }]}>
+          <Icon name="map-pin" size={16} color={location ? T.green : locError && !locationLoading ? T.red : T.textMuted} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={s.locLabel}>{t('mark.locTitle')}</Text>
+          <Text style={s.locValue} numberOfLines={1}>
+            {locationLoading ? t('mark.locFinding') : locError ? t('mark.locNotFound') : address || t('mark.locFound')}
+          </Text>
+          {!locationLoading && location && (
+            <Text style={[s.locSub, blocked && { color: T.red, fontWeight: '700' }]} numberOfLines={1}>
+              {[accuracy != null && t('mark.accuracy', { m: accuracy }), distance != null && t('mark.fromOffice', { d: fmtDistance(distance) })].filter(Boolean).join('  ·  ')}
+            </Text>
+          )}
+        </View>
+      </View>
+
       {/* Selfie */}
       <View style={[s.frame, { height: frameH }]}>
         {selfie ? (
@@ -206,24 +224,6 @@ export default function MarkAttendanceScreen({ route, navigation }) {
           <Text style={s.shutterLabel}>{t('mark.takeSelfie')}</Text>
         </View>
       )}
-
-      {/* Location */}
-      <View style={s.locRow}>
-        <View style={[s.locIcon, { backgroundColor: location ? T.greenSoft : locError && !locationLoading ? T.redSoft : T.surface }]}>
-          <Icon name="map-pin" size={19} color={location ? T.green : locError && !locationLoading ? T.red : T.textMuted} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={s.locLabel}>{t('mark.locTitle')}</Text>
-          <Text style={s.locValue} numberOfLines={2}>
-            {locationLoading ? t('mark.locFinding') : locError ? t('mark.locNotFound') : address || t('mark.locFound')}
-          </Text>
-          {!locationLoading && location && (
-            <Text style={[s.locSub, blocked && { color: T.red, fontWeight: '700' }]} numberOfLines={1}>
-              {[accuracy != null && t('mark.accuracy', { m: accuracy }), distance != null && t('mark.fromOffice', { d: fmtDistance(distance) })].filter(Boolean).join('  ·  ')}
-            </Text>
-          )}
-        </View>
-      </View>
 
       {/* Action */}
       <View style={{ marginTop: 18 }}>
@@ -303,11 +303,11 @@ const s = StyleSheet.create({
   shutterInner: { width: 58, height: 58, borderRadius: 29, backgroundColor: T.yellow, alignItems: 'center', justifyContent: 'center' },
   shutterLabel: { fontSize: 14, fontWeight: '700', color: T.navyDeep, marginTop: 6 },
 
-  locRow: { flexDirection: 'row', alignItems: 'center', marginTop: 18, paddingVertical: 14, paddingHorizontal: 14, borderWidth: 1, borderColor: T.line, borderRadius: T.radius },
-  locIcon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
-  locLabel: { fontSize: 13, color: T.textMuted },
-  locValue: { fontSize: 15, fontWeight: '700', color: T.navyDeep, marginTop: 2 },
-  locSub: { fontSize: 13, color: T.textMuted, marginTop: 3 },
+  locRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, paddingVertical: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: T.line, borderRadius: T.radius },
+  locIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  locLabel: { fontSize: 12, color: T.textMuted },
+  locValue: { fontSize: 14, fontWeight: '700', color: T.navyDeep, marginTop: 1 },
+  locSub: { fontSize: 12, color: T.textMuted, marginTop: 1 },
 
   cardTitle: { fontSize: 17, fontWeight: '800', color: T.navyDeep },
   bigTime: { fontSize: 34, fontWeight: '800', color: T.navyDeep, marginTop: 6 },
