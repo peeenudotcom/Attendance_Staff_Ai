@@ -64,7 +64,7 @@ export default function RegisterScreen({ navigation, route }) {
   const today = istToday();
 
   const [mode, setMode] = useState(isAdmin && asStack ? 'team' : 'me');
-  const [views, setViews] = useState({ me: 'month', team: 'week' });
+  const [views, setViews] = useState({ me: 'week', team: 'week' }); // week first, so the check-in card is in view
   const view = views[mode];
   const toggleView = () => setViews((v) => ({ ...v, [mode]: v[mode] === 'month' ? 'week' : 'month' }));
 

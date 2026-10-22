@@ -142,7 +142,7 @@ export default function CorrectionsScreen({ navigation, route }) {
       </View>
 
       <DateBox label={t('corrections.day')} value={date === today ? `${t('common.today')}, ${fmtDay(t, date)}` : fmtDayYear(t, date)}
-        onPress={() => setAnchor(date)} style={{ marginTop: 18, flex: 0 }} />
+        onPress={() => setAnchor(date)} style={{ marginTop: 18, flexGrow: 0, flexShrink: 0, flexBasis: 'auto' }} />
       <Subtle style={{ marginTop: 8 }}>{t('corrections.tapDay')}</Subtle>
 
       <View style={st.row2}>

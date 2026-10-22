@@ -33,6 +33,7 @@ const request = async (endpoint, options = {}) => {
     if (!response.ok) {
       const err = new Error(data.message || 'Request failed');
       err.code = data.code; // e.g. 'face': the selfie didn't match and must be retaken
+      if (data.tries != null) { err.tries = data.tries; err.maxTries = data.maxTries; }
       throw err;
     }
     return data;

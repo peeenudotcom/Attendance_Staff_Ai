@@ -52,7 +52,7 @@ export function AppHeader({ title, subtitle, right, children, avatarName, onAvat
       {!!title && (
         <View style={[s.titleRow, compact && { marginTop: 10 }]}>
           <View style={{ flex: 1, paddingRight: right ? 12 : 0 }}>
-            <Text style={[s.title, compact && { fontSize: 30 }]} numberOfLines={2} adjustsFontSizeToFit>{title}</Text>
+            <Text style={[s.title, { fontSize: titleSize(title, !!right, compact) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{title}</Text>
             {!!subtitle && <Text style={s.subtitle}>{subtitle}</Text>}
           </View>
           {right}
@@ -61,6 +61,13 @@ export function AppHeader({ title, subtitle, right, children, avatarName, onAvat
       {children ? <View style={{ marginTop: 16 }}>{children}</View> : null}
     </View>
   );
+}
+
+// Big titles shrink to fit on one line next to a header button ("October 2026" + "Month view").
+function titleSize(title, withButton, compact) {
+  const max = compact ? 28 : 34;
+  if (!withButton) return max;
+  return Math.max(22, Math.min(max, Math.floor(190 / (Math.max(1, String(title).length) * 0.58))));
 }
 
 /**
@@ -151,10 +158,14 @@ export function WeekStrip({ dates, selected = [], dots = {}, onPress, disabled }
   );
 }
 
-/** A month (from monthWeeks) on the navy header, with a weekday row, dots and the selected day in yellow. */
+/**
+ * A month (from monthWeeks) on the navy header, with a weekday row, dots and the selected day(s) in yellow
+ * (`selected` is one date or an array; neighbouring selected days join like WeekStrip).
+ */
 export function MonthGrid({ weeks, selected, dots = {}, onPress }) {
   const { t } = useLang();
   const today = istToday();
+  const sel = new Set(Array.isArray(selected) ? selected : selected ? [selected] : []);
   const labels = ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18']; // a Monday-Sunday week, for the names
   return (
     <View>
@@ -163,8 +174,12 @@ export function MonthGrid({ weeks, selected, dots = {}, onPress }) {
         <View key={wi} style={s.monthRow}>
           {w.map((d, i) => (
             <TouchableOpacity key={d || `e${wi}${i}`} disabled={!d || !onPress} onPress={() => onPress?.(d)} activeOpacity={0.8}
-              style={[s.monthCell, i > 0 && s.weekSep, d && d === selected && { backgroundColor: T.yellow, borderRadius: 12 }, d && d !== selected && d === today && s.todayOutline]}>
-              {d ? <Text style={[s.monthNum, d === selected && { color: T.onYellow }]}>{Number(d.slice(8, 10))}</Text> : null}
+              style={[s.monthCell, i > 0 && s.weekSep,
+                d && sel.has(d) && { backgroundColor: T.yellow,
+                  borderTopLeftRadius: sel.has(w[i - 1]) ? 0 : 12, borderBottomLeftRadius: sel.has(w[i - 1]) ? 0 : 12,
+                  borderTopRightRadius: sel.has(w[i + 1]) ? 0 : 12, borderBottomRightRadius: sel.has(w[i + 1]) ? 0 : 12 },
+                d && !sel.has(d) && d === today && s.todayOutline]}>
+              {d ? <Text style={[s.monthNum, sel.has(d) && { color: T.onYellow }]}>{Number(d.slice(8, 10))}</Text> : null}
               <View style={[s.dot, { backgroundColor: (d && dots[d]) || 'transparent' }]} />
             </TouchableOpacity>
           ))}
@@ -317,7 +332,7 @@ const s = StyleSheet.create({
   brand: { color: T.onNavy, fontSize: 30, fontWeight: '600', letterSpacing: 0.3 },
   backBtn: { width: 44, height: 44, marginLeft: -10, alignItems: 'center', justifyContent: 'center' },
   titleRow: { flexDirection: 'row', alignItems: 'center', marginTop: 18 },
-  title: { color: T.onNavy, fontSize: 40, fontWeight: '800', letterSpacing: -0.5 },
+  title: { color: T.onNavy, fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
   subtitle: { color: T.onNavyMuted, fontSize: 18, marginTop: 4 },
   sheet: { flex: 1, backgroundColor: T.bg, borderTopLeftRadius: T.sheetRadius, borderTopRightRadius: T.sheetRadius, marginTop: -22, overflow: 'hidden' },
 
@@ -327,8 +342,8 @@ const s = StyleSheet.create({
   segText: { color: T.onNavyMuted, fontSize: 17, fontWeight: '600' },
   segBadge: { marginLeft: 8, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
   segBadgeText: { color: T.navy, fontSize: 13, fontWeight: '700' },
-  viewToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 22, borderWidth: 1, borderColor: T.onNavyLine, backgroundColor: T.onNavyGlass, paddingVertical: 10, paddingHorizontal: 16 },
-  viewToggleText: { color: T.onNavy, fontSize: 15, fontWeight: '600', maxWidth: 110 },
+  viewToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 22, borderWidth: 1, borderColor: T.onNavyLine, backgroundColor: T.onNavyGlass, paddingVertical: 9, paddingHorizontal: 12 },
+  viewToggleText: { color: T.onNavy, fontSize: 14, fontWeight: '600', maxWidth: 96 },
 
   weekRow: { flexDirection: 'row' },
   weekCell: { flex: 1, alignItems: 'center', paddingVertical: 10 },

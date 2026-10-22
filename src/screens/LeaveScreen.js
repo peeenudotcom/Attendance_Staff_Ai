@@ -170,8 +170,6 @@ export function LeavePicker({ form, showToggle }) {
   const { view, anchor, from, to, pickDay, move, minDate, periodStart, dots } = form;
   const range = datesBetween(from, to);
   const week = weekOf(anchor);
-  const monthDots = { ...dots };
-  for (const d of range) monthDots[d] = T.yellow;
   return (
     <View>
       <PeriodNav
@@ -181,7 +179,7 @@ export function LeavePicker({ form, showToggle }) {
       />
       {view === 'week'
         ? <WeekStrip dates={week} selected={range} dots={dots} onPress={pickDay} />
-        : <MonthGrid weeks={monthWeeks(anchor.slice(0, 7))} selected={from} dots={monthDots} onPress={pickDay} />}
+        : <MonthGrid weeks={monthWeeks(anchor.slice(0, 7))} selected={range} dots={dots} onPress={pickDay} />}
     </View>
   );
 }
