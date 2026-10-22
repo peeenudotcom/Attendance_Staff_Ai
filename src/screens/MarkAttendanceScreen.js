@@ -158,7 +158,7 @@ export default function MarkAttendanceScreen({ route, navigation }) {
     return (
       <Screen header={header}>
         <View style={s.permWrap}>
-          <View style={s.permIcon}><Icon name="camera" size={40} color={T.navyDeep} /></View>
+          <View style={s.permIcon}><Icon name="camera" size={32} color={T.navyDeep} /></View>
           <Text style={s.permTitle}>{t('mark.camTitle')}</Text>
           <Subtle style={s.permDesc}>{t('mark.camDesc')}</Subtle>
           <Button title={t('mark.camAllow')} icon="camera" onPress={requestPermission} style={{ alignSelf: 'stretch' }} />
@@ -188,7 +188,7 @@ export default function MarkAttendanceScreen({ route, navigation }) {
         )}
         {selfie && !loading && !result?.ok && (
           <TouchableOpacity style={s.retake} onPress={() => { setSelfie(null); setResult(null); }} activeOpacity={0.8}>
-            <Icon name="refresh-cw" size={18} color="#fff" />
+            <Icon name="refresh-cw" size={16} color="#fff" />
             <Text style={s.retakeText}>{t('mark.retake')}</Text>
           </TouchableOpacity>
         )}
@@ -199,7 +199,7 @@ export default function MarkAttendanceScreen({ route, navigation }) {
           <TouchableOpacity onPress={takeSelfie} disabled={shooting} activeOpacity={0.75} style={s.shutterOuter}
             accessibilityRole="button" accessibilityLabel={t('mark.takeSelfie')}>
             <View style={[s.shutterInner, shooting && { opacity: 0.5 }]}>
-              <Icon name="camera" size={30} color={T.onYellow} />
+              <Icon name="camera" size={24} color={T.onYellow} />
             </View>
           </TouchableOpacity>
           <Text style={s.shutterLabel}>{t('mark.takeSelfie')}</Text>
@@ -209,7 +209,7 @@ export default function MarkAttendanceScreen({ route, navigation }) {
       {/* Location */}
       <View style={s.locRow}>
         <View style={[s.locIcon, { backgroundColor: location ? T.greenSoft : locError && !locationLoading ? T.redSoft : T.surface }]}>
-          <Icon name="map-pin" size={22} color={location ? T.green : locError && !locationLoading ? T.red : T.textMuted} />
+          <Icon name="map-pin" size={19} color={location ? T.green : locError && !locationLoading ? T.red : T.textMuted} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={s.locLabel}>{t('mark.locTitle')}</Text>
@@ -286,30 +286,30 @@ export default function MarkAttendanceScreen({ route, navigation }) {
 const s = StyleSheet.create({
   permWrap: { alignItems: 'center', paddingTop: 20 },
   permIcon: { width: 84, height: 84, borderRadius: 42, backgroundColor: T.yellowSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
-  permTitle: { fontSize: 24, fontWeight: '800', color: T.navyDeep, textAlign: 'center' },
-  permDesc: { fontSize: 17, textAlign: 'center', marginTop: 8, marginBottom: 24, lineHeight: 24 },
+  permTitle: { fontSize: 20, fontWeight: '800', color: T.navyDeep, textAlign: 'center' },
+  permDesc: { fontSize: 15, textAlign: 'center', marginTop: 8, marginBottom: 24, lineHeight: 21 },
 
   frame: { borderRadius: T.radiusLg, overflow: 'hidden', backgroundColor: T.navyDeep },
   guideWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   oval: { width: '58%', aspectRatio: 0.78, borderRadius: 999, borderWidth: 3, borderStyle: 'dashed' },
   guideBadge: { position: 'absolute', bottom: 14, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: 'rgba(14,26,51,0.7)', maxWidth: '90%' },
-  guideText: { fontSize: 15, fontWeight: '600', color: '#fff', textAlign: 'center' },
+  guideText: { fontSize: 13, fontWeight: '600', color: '#fff', textAlign: 'center' },
   retake: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(14,26,51,0.75)', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22 },
-  retakeText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  retakeText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 
   shutterWrap: { alignItems: 'center', marginTop: 18 },
   shutterOuter: { width: 86, height: 86, borderRadius: 43, borderWidth: 4, borderColor: T.navy, alignItems: 'center', justifyContent: 'center' },
   shutterInner: { width: 70, height: 70, borderRadius: 35, backgroundColor: T.yellow, alignItems: 'center', justifyContent: 'center' },
-  shutterLabel: { fontSize: 18, fontWeight: '700', color: T.navyDeep, marginTop: 10 },
+  shutterLabel: { fontSize: 15, fontWeight: '700', color: T.navyDeep, marginTop: 10 },
 
   locRow: { flexDirection: 'row', alignItems: 'center', marginTop: 18, paddingVertical: 14, paddingHorizontal: 14, borderWidth: 1, borderColor: T.line, borderRadius: T.radius },
   locIcon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
-  locLabel: { fontSize: 14, color: T.textMuted },
-  locValue: { fontSize: 17, fontWeight: '700', color: T.navyDeep, marginTop: 2 },
-  locSub: { fontSize: 14, color: T.textMuted, marginTop: 3 },
+  locLabel: { fontSize: 13, color: T.textMuted },
+  locValue: { fontSize: 15, fontWeight: '700', color: T.navyDeep, marginTop: 2 },
+  locSub: { fontSize: 13, color: T.textMuted, marginTop: 3 },
 
-  cardTitle: { fontSize: 21, fontWeight: '800', color: T.navyDeep },
-  bigTime: { fontSize: 44, fontWeight: '800', color: T.navyDeep, marginTop: 6 },
-  cardText: { fontSize: 16, color: T.text, marginTop: 8, lineHeight: 23 },
-  linkText: { fontSize: 16, fontWeight: '700', color: T.navyDeep, textDecorationLine: 'underline', textAlign: 'center' },
+  cardTitle: { fontSize: 17, fontWeight: '800', color: T.navyDeep },
+  bigTime: { fontSize: 34, fontWeight: '800', color: T.navyDeep, marginTop: 6 },
+  cardText: { fontSize: 14, color: T.text, marginTop: 8, lineHeight: 20 },
+  linkText: { fontSize: 14, fontWeight: '700', color: T.navyDeep, textDecorationLine: 'underline', textAlign: 'center' },
 });

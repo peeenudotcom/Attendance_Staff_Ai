@@ -74,8 +74,8 @@ const st = StyleSheet.create({
   item: { paddingVertical: 18 },
   line: { borderBottomWidth: 1, borderBottomColor: T.line },
   top: { flexDirection: 'row', alignItems: 'center' },
-  month: { fontSize: 20, fontWeight: '700', color: T.navyDeep },
-  sub: { fontSize: 15, color: T.textMuted, marginTop: 3 },
-  amount: { fontSize: 22, fontWeight: '800', color: T.green },
+  month: { fontSize: 17, fontWeight: '700', color: T.navyDeep },
+  sub: { fontSize: 13, color: T.textMuted, marginTop: 3 },
+  amount: { fontSize: 18, fontWeight: '800', color: T.green },
   actions: { flexDirection: 'row', gap: 12, marginTop: 14 },
 });

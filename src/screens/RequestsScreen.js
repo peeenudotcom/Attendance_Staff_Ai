@@ -106,7 +106,7 @@ export default function RequestsScreen({ navigation, route }) {
               {earlier.length === 0 ? <Empty>{t('requests.noEarlier')}</Empty> : null}
               {earlier.map((it, i) => (
                 <ListRow key={`${it.kind}-${it.request.id}`} last={i === earlier.length - 1}
-                  left={<Avatar name={it.request.staffName || ''} size={40} />}
+                  left={<Avatar name={it.request.staffName || ''} size={32} />}
                   title={it.request.staffName}
                   subtitle={`${requestLine(t, it.kind, it.request)}${it.kind === 'leave' ? ` · ${t(`leave.${it.request.type}`)}` : ''}`}
                   below={<View style={{ marginTop: 8 }}><Chip label={statusLabel(it)} tone={STATUS_TONE[it.request.status]} /></View>}

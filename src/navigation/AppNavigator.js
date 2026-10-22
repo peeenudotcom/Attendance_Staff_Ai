@@ -70,7 +70,7 @@ function TabBar({ state, navigation }) {
           <TouchableOpacity key={route.key} style={tab.item} activeOpacity={0.7} accessibilityRole="button" accessibilityState={{ selected: focused }}
             onPress={() => { if (!focused) navigation.navigate(route.name); }}>
             <View>
-              <Icon name={cfg.icon} size={30} color={focused ? T.navyDeep : T.textMuted} />
+              <Icon name={cfg.icon} size={23} color={focused ? T.navyDeep : T.textMuted} />
               {badge ? <View style={tab.badge}><Text style={tab.badgeText}>{badge > 9 ? '9+' : badge}</Text></View> : null}
             </View>
             <Text style={[tab.label, focused && tab.labelOn]} numberOfLines={1}>{t(cfg.label)}</Text>
@@ -117,7 +117,7 @@ export default function AppNavigator() {
           {user ? (
             <>
               <Stack.Screen name="Main" component={Tabs} />
-              <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+              <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
               <Stack.Screen name="Corrections" component={CorrectionsScreen} options={{ animation: 'slide_from_right' }} />
               <Stack.Screen name="Payslips" component={PayslipsScreen} options={{ animation: 'slide_from_right' }} />
               {/* Notification taps still use the old names: Team opens the Register's team view, Leave opens Requests for admins. */}
@@ -139,11 +139,11 @@ export default function AppNavigator() {
 }
 
 const tab = StyleSheet.create({
-  bar: { flexDirection: 'row', backgroundColor: T.bg, borderTopWidth: 1, borderTopColor: T.line, paddingTop: 12 },
+  bar: { flexDirection: 'row', backgroundColor: T.bg, borderTopWidth: 1, borderTopColor: T.line, paddingTop: 8 },
   item: { flex: 1, alignItems: 'center' },
-  label: { fontSize: 15, color: T.textMuted, marginTop: 6 },
+  label: { fontSize: 12, color: T.textMuted, marginTop: 4 },
   labelOn: { color: T.navyDeep, fontWeight: '700' },
-  underline: { width: 52, height: 5, borderRadius: 3, marginTop: 6, backgroundColor: 'transparent' },
+  underline: { width: 40, height: 4, borderRadius: 2, marginTop: 5, backgroundColor: 'transparent' },
   badge: { position: 'absolute', top: -8, right: -12, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: '#E5484D', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5, borderWidth: 2, borderColor: T.bg },
   badgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 });

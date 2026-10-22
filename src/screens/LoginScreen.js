@@ -128,7 +128,7 @@ export default function LoginScreen() {
           <Button title={t('login.continue')} icon="arrow-right" onPress={() => sendCode()} busy={loading} disabled={phone.length < 10} style={{ marginTop: 8 }} />
 
           <View style={s.help}>
-            <Icon name="info" size={20} color={T.textMuted} style={{ marginTop: 1 }} />
+            <Icon name="info" size={18} color={T.textMuted} style={{ marginTop: 1 }} />
             <View style={{ flex: 1, marginLeft: 10 }}>
               <Text style={s.helpText}>{t('login.helpAdmin')}</Text>
               <Text style={[s.helpText, { marginTop: 6 }]}>
@@ -173,18 +173,18 @@ export default function LoginScreen() {
 
           {error && <ErrorBox error={error} />}
           {!!notice && !error && (
-            <View style={s.notice}><Icon name="check-circle" size={18} color={T.green} /><Text style={s.noticeText}>{notice}</Text></View>
+            <View style={s.notice}><Icon name="check-circle" size={16} color={T.green} /><Text style={s.noticeText}>{notice}</Text></View>
           )}
 
           <Button title={t('login.verify')} icon="check" onPress={verify} busy={loading} disabled={otp.length < 4} />
 
           <View style={s.links}>
             <TouchableOpacity onPress={changeNumber} disabled={loading} hitSlop={10} style={s.linkBtn}>
-              <Icon name="edit-2" size={18} color={T.navyDeep} />
+              <Icon name="edit-2" size={16} color={T.navyDeep} />
               <Text style={s.linkText}>{t('login.changeNumber')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => { setOtp(''); sendCode({ resend: true }); }} disabled={loading || resending || wait > 0} hitSlop={10} style={s.linkBtn}>
-              <Icon name="refresh-cw" size={18} color={wait > 0 ? T.textFaint : T.navyDeep} />
+              <Icon name="refresh-cw" size={16} color={wait > 0 ? T.textFaint : T.navyDeep} />
               <Text style={[s.linkText, wait > 0 && { color: T.textFaint }]}>
                 {wait > 0 ? t('login.resendIn', { s: wait }) : t('login.resend')}
               </Text>
@@ -210,36 +210,36 @@ const s = StyleSheet.create({
   langRow: { flexDirection: 'row', gap: 10 },
   langPill: { flex: 1, alignItems: 'center', paddingVertical: 11, paddingHorizontal: 8, borderRadius: 24, borderWidth: 1, borderColor: T.onNavyLine, backgroundColor: T.onNavyGlass },
   langPillOn: { backgroundColor: T.yellow, borderColor: T.yellow },
-  langText: { color: T.onNavy, fontSize: 17, fontWeight: '700' },
+  langText: { color: T.onNavy, fontSize: 15, fontWeight: '700' },
 
-  h: { fontSize: 24, fontWeight: '800', color: T.navyDeep },
-  lead: { fontSize: 16, marginTop: 6, marginBottom: 18, lineHeight: 22 },
+  h: { fontSize: 20, fontWeight: '800', color: T.navyDeep },
+  lead: { fontSize: 14, marginTop: 6, marginBottom: 18, lineHeight: 20 },
   phoneBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: T.line, borderRadius: T.radius, backgroundColor: T.surface, overflow: 'hidden', marginBottom: 14 },
   prefix: { paddingHorizontal: 16, paddingVertical: 16, borderRightWidth: 1, borderRightColor: T.line },
-  prefixText: { fontSize: 20, fontWeight: '700', color: T.navyDeep },
-  phoneInput: { flex: 1, paddingHorizontal: 16, paddingVertical: 16, fontSize: 22, fontWeight: '600', color: T.text, letterSpacing: 1.5 },
+  prefixText: { fontSize: 17, fontWeight: '700', color: T.navyDeep },
+  phoneInput: { flex: 1, paddingHorizontal: 16, paddingVertical: 16, fontSize: 18, fontWeight: '600', color: T.text, letterSpacing: 1.5 },
 
   help: { flexDirection: 'row', marginTop: 26, padding: 16, borderRadius: T.radius, backgroundColor: T.surface },
-  helpText: { fontSize: 15, color: T.textMuted, lineHeight: 21 },
+  helpText: { fontSize: 13, color: T.textMuted, lineHeight: 19 },
   link: { color: T.navyDeep, fontWeight: '700', textDecorationLine: 'underline' },
 
-  sentTo: { fontSize: 17, color: T.textMuted, marginTop: 8, marginBottom: 22, lineHeight: 24 },
+  sentTo: { fontSize: 15, color: T.textMuted, marginTop: 8, marginBottom: 22, lineHeight: 21 },
   otpRow: { flexDirection: 'row', justifyContent: 'center', gap: 14, marginBottom: 10 },
   otpBox: { width: 64, height: 72, borderRadius: T.radius, borderWidth: 1.5, borderColor: T.line, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' },
   otpBoxFilled: { borderColor: T.yellow, backgroundColor: T.yellowSoft },
   otpBoxNext: { borderColor: T.navy },
-  otpChar: { fontSize: 32, fontWeight: '800', color: T.navyDeep },
+  otpChar: { fontSize: 26, fontWeight: '800', color: T.navyDeep },
   hiddenInput: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.02, color: 'transparent', fontSize: 1 },
-  tapHint: { textAlign: 'center', fontSize: 14, marginBottom: 20 },
+  tapHint: { textAlign: 'center', fontSize: 13, marginBottom: 20 },
 
   notice: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
-  noticeText: { fontSize: 15, color: T.green, fontWeight: '600' },
-  errTitle: { fontSize: 17, fontWeight: '700', color: T.red },
-  errText: { fontSize: 15, color: T.text, marginTop: 4, lineHeight: 21 },
+  noticeText: { fontSize: 13, color: T.green, fontWeight: '600' },
+  errTitle: { fontSize: 15, fontWeight: '700', color: T.red },
+  errText: { fontSize: 13, color: T.text, marginTop: 4, lineHeight: 19 },
 
   links: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginTop: 22 },
   linkBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
-  linkText: { fontSize: 17, fontWeight: '700', color: T.navyDeep },
+  linkText: { fontSize: 15, fontWeight: '700', color: T.navyDeep },
 
-  byline: { textAlign: 'center', fontSize: 13, color: T.textFaint, marginTop: 34 },
+  byline: { textAlign: 'center', fontSize: 12, color: T.textFaint, marginTop: 34 },
 });

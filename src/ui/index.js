@@ -18,7 +18,7 @@ export * from './dates';
 export const Icon = ({ name, size = 22, color = T.text, style }) => <Feather name={name} size={size} color={color} style={style} />;
 
 /** Initials in a soft coloured circle. */
-export function Avatar({ name = '', size = 46, style }) {
+export function Avatar({ name = '', size = 40, style }) {
   const initials = name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || '?';
   let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return (
@@ -36,7 +36,7 @@ export function AppHeader({ title, subtitle, right, children, avatarName, onAvat
   const { t } = useLang();
   const insets = useSafeAreaInsets();
   return (
-    <View style={{ backgroundColor: T.navy, paddingTop: insets.top + 10, paddingHorizontal: T.pad, paddingBottom: 34 }}>
+    <View style={{ backgroundColor: T.navy, paddingTop: insets.top + 6, paddingHorizontal: T.pad, paddingBottom: 30 }}>
       <View style={s.brandRow}>
         {onBack ? (
           <TouchableOpacity onPress={onBack} hitSlop={12} style={s.backBtn} accessibilityLabel={t('common.back')}>
@@ -45,7 +45,7 @@ export function AppHeader({ title, subtitle, right, children, avatarName, onAvat
         ) : <Text style={s.brand}>{t('common.appName')}</Text>}
         {avatarName !== undefined && (
           <TouchableOpacity onPress={onAvatarPress} disabled={!onAvatarPress} activeOpacity={0.8}>
-            <Avatar name={avatarName} size={44} style={{ backgroundColor: '#E9ECF2' }} />
+            <Avatar name={avatarName} size={36} style={{ backgroundColor: '#E9ECF2' }} />
           </TouchableOpacity>
         )}
       </View>
@@ -58,16 +58,16 @@ export function AppHeader({ title, subtitle, right, children, avatarName, onAvat
           {right}
         </View>
       )}
-      {children ? <View style={{ marginTop: 16 }}>{children}</View> : null}
+      {children ? <View style={{ marginTop: 12 }}>{children}</View> : null}
     </View>
   );
 }
 
 // Big titles shrink to fit on one line next to a header button ("October 2026" + "Month view").
 function titleSize(title, withButton, compact) {
-  const max = compact ? 28 : 34;
+  const max = compact ? 24 : 28;
   if (!withButton) return max;
-  return Math.max(22, Math.min(max, Math.floor(190 / (Math.max(1, String(title).length) * 0.58))));
+  return Math.max(19, Math.min(max, Math.floor(200 / (Math.max(1, String(title).length) * 0.58))));
 }
 
 /**
@@ -78,7 +78,7 @@ export function Screen({ header, children, refreshing, onRefresh, scroll = true,
   const body = scroll ? (
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={{ padding: T.pad, paddingTop: 26, paddingBottom: 40 }}
+      contentContainerStyle={{ padding: T.pad, paddingTop: 20, paddingBottom: 32 }}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
       refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={T.navy} /> : undefined}
@@ -221,8 +221,8 @@ export function Button({ title, onPress, variant = 'primary', icon, busy, disabl
       style={[s.btn, small && s.btnSmall, { backgroundColor: v.bg, borderColor: v.border, opacity: disabled ? 0.5 : 1 }, style]}>
       {busy ? <ActivityIndicator color={v.fg} /> : (
         <>
-          {icon ? <Icon name={icon} size={small ? 20 : 22} color={v.fg} style={{ marginRight: 8 }} /> : null}
-          <Text style={[s.btnText, small && { fontSize: 17 }, { color: v.fg }]} numberOfLines={1} adjustsFontSizeToFit>{title}</Text>
+          {icon ? <Icon name={icon} size={small ? 17 : 19} color={v.fg} style={{ marginRight: 7 }} /> : null}
+          <Text style={[s.btnText, small && { fontSize: 15 }, { color: v.fg }]} numberOfLines={1} adjustsFontSizeToFit>{title}</Text>
         </>
       )}
     </TouchableOpacity>
@@ -235,7 +235,7 @@ export function StatRow({ items, style }) {
     <View style={[s.statRow, style]}>
       {items.map((it, i) => (
         <View key={it.label} style={[s.statItem, i > 0 && s.statSep]}>
-          {it.icon ? <View style={[s.statIcon, { backgroundColor: it.tint || T.surface }]}><Icon name={it.icon} size={22} color={it.color || T.textMuted} /></View> : null}
+          {it.icon ? <View style={[s.statIcon, { backgroundColor: it.tint || T.surface }]}><Icon name={it.icon} size={19} color={it.color || T.textMuted} /></View> : null}
           {it.icon ? <Text style={s.statLabel} numberOfLines={2}>{it.label}</Text> : null}
           <Text style={[s.statValue, it.valueColor && { color: it.valueColor }]}>{it.value}</Text>
           {!it.icon ? <Text style={s.statLabel} numberOfLines={2}>{it.label}</Text> : null}
@@ -250,14 +250,14 @@ export function ListRow({ title, subtitle, left, right, below, onPress, last }) 
   const Wrap = onPress ? TouchableOpacity : View;
   return (
     <Wrap onPress={onPress} activeOpacity={0.7} style={[s.row, !last && s.rowLine]}>
-      {left ? <View style={{ marginRight: 16 }}>{left}</View> : null}
+      {left ? <View style={{ marginRight: 12 }}>{left}</View> : null}
       <View style={{ flex: 1 }}>
         <Text style={s.rowTitle} numberOfLines={1}>{title}</Text>
         {!!subtitle && <Text style={s.rowSub} numberOfLines={2}>{subtitle}</Text>}
         {below}
       </View>
       {right ? <View style={{ marginLeft: 10 }}>{right}</View> : null}
-      {onPress ? <Icon name="chevron-right" size={24} color={T.navyDeep} style={{ marginLeft: 10 }} /> : null}
+      {onPress ? <Icon name="chevron-right" size={20} color={T.navyDeep} style={{ marginLeft: 10 }} /> : null}
     </Wrap>
   );
 }
@@ -288,7 +288,7 @@ export function DateBox({ label, value, onPress, style }) {
     <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={[s.dateBox, style]}>
       <Text style={s.dateBoxLabel}>{label}</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
-        <Icon name="calendar" size={22} color={T.navyDeep} />
+        <Icon name="calendar" size={18} color={T.navyDeep} />
         <Text style={s.dateBoxValue} numberOfLines={1}>{value}</Text>
       </View>
     </TouchableOpacity>
@@ -328,70 +328,70 @@ export const Card = ({ children, style, tone }) => (
 );
 
 const s = StyleSheet.create({
-  brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
-  brand: { color: T.onNavy, fontSize: 30, fontWeight: '600', letterSpacing: 0.3 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 38 },
+  brand: { color: T.onNavy, fontSize: 24, fontWeight: '600', letterSpacing: 0.3 },
   backBtn: { width: 44, height: 44, marginLeft: -10, alignItems: 'center', justifyContent: 'center' },
-  titleRow: { flexDirection: 'row', alignItems: 'center', marginTop: 18 },
-  title: { color: T.onNavy, fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
-  subtitle: { color: T.onNavyMuted, fontSize: 18, marginTop: 4 },
-  sheet: { flex: 1, backgroundColor: T.bg, borderTopLeftRadius: T.sheetRadius, borderTopRightRadius: T.sheetRadius, marginTop: -22, overflow: 'hidden' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
+  title: { color: T.onNavy, fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
+  subtitle: { color: T.onNavyMuted, fontSize: 15, marginTop: 4 },
+  sheet: { flex: 1, backgroundColor: T.bg, borderTopLeftRadius: T.sheetRadius, borderTopRightRadius: T.sheetRadius, marginTop: -18, overflow: 'hidden' },
 
   segWrap: { flexDirection: 'row', alignSelf: 'flex-start', borderRadius: 14, borderWidth: 1, borderColor: T.onNavyLine, backgroundColor: T.onNavyGlass, padding: 3 },
-  segItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 22, borderRadius: 11 },
+  segItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 16, borderRadius: 10 },
   segOn: { backgroundColor: T.onNavyGlassStrong },
-  segText: { color: T.onNavyMuted, fontSize: 17, fontWeight: '600' },
+  segText: { color: T.onNavyMuted, fontSize: 15, fontWeight: '600' },
   segBadge: { marginLeft: 8, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
-  segBadgeText: { color: T.navy, fontSize: 13, fontWeight: '700' },
+  segBadgeText: { color: T.navy, fontSize: 12, fontWeight: '700' },
   viewToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 22, borderWidth: 1, borderColor: T.onNavyLine, backgroundColor: T.onNavyGlass, paddingVertical: 9, paddingHorizontal: 12 },
-  viewToggleText: { color: T.onNavy, fontSize: 14, fontWeight: '600', maxWidth: 96 },
+  viewToggleText: { color: T.onNavy, fontSize: 13, fontWeight: '600', maxWidth: 96 },
 
   weekRow: { flexDirection: 'row' },
-  weekCell: { flex: 1, alignItems: 'center', paddingVertical: 10 },
+  weekCell: { flex: 1, alignItems: 'center', paddingVertical: 7 },
   weekSep: { borderLeftWidth: 1, borderLeftColor: T.onNavyLine },
-  weekDay: { color: T.onNavyMuted, fontSize: 14, fontWeight: '500' },
-  weekNum: { color: T.onNavy, fontSize: 24, fontWeight: '700', marginTop: 6 },
+  weekDay: { color: T.onNavyMuted, fontSize: 13, fontWeight: '500' },
+  weekNum: { color: T.onNavy, marginTop: 3, fontSize: 20, fontWeight: '700', marginTop: 6 },
   todayOutline: { borderWidth: 1.5, borderColor: T.onNavy, borderRadius: 12 },
   dot: { width: 7, height: 7, borderRadius: 4, marginTop: 5 },
   monthHead: { flexDirection: 'row', marginBottom: 4 },
-  monthHeadText: { flex: 1, textAlign: 'center', color: T.onNavyMuted, fontSize: 14, fontWeight: '500', paddingVertical: 4 },
+  monthHeadText: { flex: 1, textAlign: 'center', color: T.onNavyMuted, fontSize: 13, fontWeight: '500', paddingVertical: 4 },
   monthRow: { flexDirection: 'row' },
-  monthCell: { flex: 1, alignItems: 'center', paddingVertical: 8, minHeight: 50 },
-  monthNum: { color: T.onNavy, fontSize: 20, fontWeight: '700' },
+  monthCell: { flex: 1, alignItems: 'center', paddingVertical: 5, minHeight: 40 },
+  monthNum: { color: T.onNavy, fontSize: 17, fontWeight: '700' },
 
-  chip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingVertical: 7, paddingHorizontal: 14, borderRadius: 20 },
-  chipText: { fontSize: 15, fontWeight: '600' },
+  chip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 10, borderRadius: 14 },
+  chipText: { fontSize: 13, fontWeight: '600' },
 
-  btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: T.radius, borderWidth: 1.5, paddingVertical: 17, paddingHorizontal: 20 },
-  btnSmall: { borderRadius: 30, paddingVertical: 11, paddingHorizontal: 18 },
-  btnText: { fontSize: 19, fontWeight: '700' },
+  btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: T.radius, borderWidth: 1.5, paddingVertical: 13, paddingHorizontal: 18 },
+  btnSmall: { borderRadius: 24, paddingVertical: 8, paddingHorizontal: 14 },
+  btnText: { fontSize: 16, fontWeight: '700' },
 
   statRow: { flexDirection: 'row', paddingVertical: 8 },
   statItem: { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
   statSep: { borderLeftWidth: 1, borderLeftColor: T.line },
-  statIcon: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  statValue: { fontSize: 32, fontWeight: '800', color: T.navyDeep, marginTop: 2 },
-  statLabel: { fontSize: 15, color: T.textMuted, textAlign: 'center' },
+  statIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  statValue: { fontSize: 26, fontWeight: '800', color: T.navyDeep, marginTop: 2 },
+  statLabel: { fontSize: 13, color: T.textMuted, textAlign: 'center' },
 
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16 },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
   rowLine: { borderBottomWidth: 1, borderBottomColor: T.line },
-  rowTitle: { fontSize: 19, fontWeight: '700', color: T.navyDeep },
-  rowSub: { fontSize: 16, color: T.textMuted, marginTop: 3 },
-  info: { flexDirection: 'row', paddingVertical: 16 },
-  infoLabel: { flex: 1, fontSize: 17, color: T.textMuted },
-  infoValue: { flex: 1.3, fontSize: 17, color: T.navyDeep, fontWeight: '500' },
+  rowTitle: { fontSize: 16, fontWeight: '700', color: T.navyDeep },
+  rowSub: { fontSize: 14, color: T.textMuted, marginTop: 3 },
+  info: { flexDirection: 'row', paddingVertical: 11 },
+  infoLabel: { flex: 1, fontSize: 15, color: T.textMuted },
+  infoValue: { flex: 1.3, fontSize: 15, color: T.navyDeep, fontWeight: '500' },
 
-  fieldLabel: { fontSize: 16, fontWeight: '600', color: T.textMuted, marginBottom: 8 },
-  input: { borderWidth: 1, borderColor: T.line, borderRadius: T.radius, paddingHorizontal: 16, paddingVertical: 14, fontSize: 17, color: T.text, backgroundColor: T.bg },
-  dateBox: { flex: 1, borderWidth: 1, borderColor: T.line, borderRadius: T.radius, paddingVertical: 14, paddingHorizontal: 16 },
-  dateBoxLabel: { fontSize: 15, color: T.textMuted },
-  dateBoxValue: { fontSize: 17, color: T.navyDeep, fontWeight: '600', marginLeft: 12, flexShrink: 1 },
+  fieldLabel: { fontSize: 14, fontWeight: '600', color: T.textMuted, marginBottom: 8 },
+  input: { borderWidth: 1, borderColor: T.line, borderRadius: T.radius, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: T.text, backgroundColor: T.bg },
+  dateBox: { flex: 1, borderWidth: 1, borderColor: T.line, borderRadius: T.radius, paddingVertical: 10, paddingHorizontal: 12 },
+  dateBoxLabel: { fontSize: 13, color: T.textMuted },
+  dateBoxValue: { fontSize: 15, color: T.navyDeep, fontWeight: '600', marginLeft: 12, flexShrink: 1 },
   choiceRow: { flexDirection: 'row', gap: 10 },
-  choice: { flex: 1, alignItems: 'center', paddingVertical: 16, borderRadius: T.radius, borderWidth: 1, borderColor: T.line, backgroundColor: T.surface },
+  choice: { flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: T.radius, borderWidth: 1, borderColor: T.line, backgroundColor: T.surface },
   choiceOn: { backgroundColor: T.yellow, borderColor: T.yellow },
-  choiceText: { fontSize: 17, color: T.textMuted, fontWeight: '500' },
+  choiceText: { fontSize: 15, color: T.textMuted, fontWeight: '500' },
 
-  sectionTitle: { fontSize: 22, fontWeight: '800', color: T.navyDeep },
-  subtle: { fontSize: 15, color: T.textMuted },
-  empty: { fontSize: 16, color: T.textMuted, marginVertical: 18, lineHeight: 22 },
-  card: { borderWidth: 1, borderColor: T.line, borderRadius: T.radiusLg, padding: 18, backgroundColor: T.bg },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: T.navyDeep },
+  subtle: { fontSize: 13, color: T.textMuted },
+  empty: { fontSize: 14, color: T.textMuted, marginVertical: 18, lineHeight: 20 },
+  card: { borderWidth: 1, borderColor: T.line, borderRadius: T.radiusLg, padding: 14, backgroundColor: T.bg },
 });
