@@ -1,244 +1,202 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator,
-  KeyboardAvoidingView, Platform, RefreshControl,
-} from 'react-native';
-import { RADIUS, SPACING, FONTS } from '../utils/theme';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
-import { useHeaderInset } from '../utils/safeArea';
 import { correctionsAPI } from '../services/api';
-import { normalizeTime, TIME_KEYBOARD } from './TeamScreen';
+import { useRequestsCount } from '../navigation/AppNavigator';
+import { normalizeTime, TIME_KEYBOARD } from '../utils/time';
+import { useLang, fmtDay, fmtDayYear, monthShort } from '../i18n';
+import '../i18n/strings/corrections';
+import '../i18n/strings/leave';
+import {
+  Screen, AppHeader, WeekStrip, Chip, Button, ListRow, Field, DateBox, SectionTitle, Subtle, Divider, Empty, Loading,
+  Icon, T, istToday, addDays, weekOf,
+} from '../ui';
+import { PeriodNav, STATUS_TONE } from './LeaveScreen';
 
 // "I forgot to check out", "I couldn't check in" or "the time is wrong": staff ask, an admin approves and the
-// attendance is fixed. Opened from Home, from a day in My attendance (date filled in), or after a failed check-in.
+// attendance is fixed. Opened from the Leave tab, from a day in the register (params { date, kind }), or after a
+// failed check-in. Admins decide these in the Requests tab.
 const KINDS = [
-  { key: 'missed_check_out', label: 'Forgot to check out', in: false, out: true },
-  { key: 'missed_check_in', label: 'Could not check in', in: true, out: 'optional' },
-  { key: 'wrong_time', label: 'Wrong time', in: 'optional', out: 'optional' },
+  { key: 'missed_check_out', in: false, out: true },
+  { key: 'missed_check_in', in: true, out: 'optional' },
+  { key: 'wrong_time', in: 'optional', out: 'optional' },
 ];
-const DAY = 86_400_000;
-const istToday = () => new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
-const addDays = (d, n) => new Date(Date.parse(`${d}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
-const nice = (d) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
-const timesText = (r) => [r.checkIn ? `In ${r.checkIn}` : null, r.checkOut ? `Out ${r.checkOut}` : null].filter(Boolean).join(' · ');
+const MAX_DAYS_BACK = 45;
 
 export default function CorrectionsScreen({ navigation, route }) {
   const { user } = useAuth();
-  const { colors: C } = useTheme();
-  const headerTop = useHeaderInset(12);
+  const { t } = useLang();
+  const tRef = useRef(t);
+  tRef.current = t;
+  const { count } = useRequestsCount();
   const isAdmin = user?.role === 'admin';
   const preset = route?.params || {};
+  const today = istToday();
+  const oldest = addDays(today, -MAX_DAYS_BACK);
 
   const [mine, setMine] = useState([]);
-  const [toApprove, setToApprove] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showForm, setShowForm] = useState(!!preset.date || !!preset.kind);
-  const [kind, setKind] = useState(preset.kind || 'missed_check_out');
-  const [date, setDate] = useState(preset.date || istToday());
+  const [kind, setKind] = useState(KINDS.some((x) => x.key === preset.kind) ? preset.kind : 'missed_check_out');
+  const [date, setDate] = useState(preset.date && preset.date <= today ? preset.date : today);
+  const [anchor, setAnchor] = useState(preset.date && preset.date <= today ? preset.date : today);
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const k = KINDS.find((x) => x.key === kind);
 
-  const STATUS = {
-    pending: { label: 'Waiting', color: C.warning },
-    approved: { label: 'Approved', color: C.success },
-    rejected: { label: 'Not approved', color: C.danger },
-    cancelled: { label: 'Withdrawn', color: C.textMuted },
-  };
-
   const load = useCallback(async () => {
     try {
-      const [own, company] = await Promise.all([correctionsAPI.mine(), isAdmin ? correctionsAPI.company() : null]);
-      setMine(own.requests);
-      if (company) setToApprove(company.pending);
+      const own = await correctionsAPI.mine();
+      setMine(own.requests || []);
     } catch (e) {
-      Alert.alert('Could not load corrections', e.message);
+      Alert.alert(tRef.current('corrections.couldNotLoad'), e.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [isAdmin]);
-  useEffect(() => { load(); }, [load]);
+  }, []);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const pickDay = (d) => {
+    if (d > today) { Alert.alert(t('corrections.noFuture')); return; }
+    if (d < oldest) { Alert.alert(t('corrections.tooOld')); return; }
+    setDate(d);
+  };
+  const week = weekOf(anchor);
+  const short = (d) => `${Number(d.slice(8, 10))} ${monthShort(t, Number(d.slice(5, 7)))}`;
 
   const submit = async () => {
     setBusy(true);
     try {
       await correctionsAPI.ask({ date, kind, checkIn: normalizeTime(checkIn) || null, checkOut: normalizeTime(checkOut) || null, reason: reason.trim() });
-      setShowForm(false); setCheckIn(''); setCheckOut(''); setReason('');
-      Alert.alert('Request sent', isAdmin ? 'It is waiting for approval.' : 'Your admin has been told. You will be notified when they decide.');
+      setCheckIn(''); setCheckOut(''); setReason('');
+      Alert.alert(t('corrections.sentTitle'), isAdmin ? t('corrections.sentAdmin') : t('corrections.sentStaff'));
       load();
     } catch (e) {
-      Alert.alert('Could not send the request', e.message);
+      Alert.alert(t('corrections.couldNotSend'), e.message);
     } finally {
       setBusy(false);
     }
   };
 
-  const withdraw = (r) => Alert.alert('Withdraw this request?', `${nice(r.date)} · ${r.label}`, [
-    { text: 'Keep it', style: 'cancel' },
-    { text: 'Withdraw', style: 'destructive', onPress: async () => {
-      try { await correctionsAPI.cancel(r.id); load(); } catch (e) { Alert.alert('Could not withdraw', e.message); }
+  const timesText = (r) => [r.checkIn ? t('corrections.inAt', { time: r.checkIn }) : null, r.checkOut ? t('corrections.outAt', { time: r.checkOut }) : null]
+    .filter(Boolean).join(' · ');
+  const withdraw = (r) => Alert.alert(t('corrections.withdrawTitle'), `${fmtDay(t, r.date)} · ${t(`corrections.kind_${r.kind}`)}`, [
+    { text: t('corrections.keepIt'), style: 'cancel' },
+    { text: t('corrections.withdrawBtn'), style: 'destructive', onPress: async () => {
+      try { await correctionsAPI.cancel(r.id); load(); } catch (e) { Alert.alert(t('corrections.couldNotWithdraw'), e.message); }
     } },
   ]);
-  const decide = async (r, approve) => {
-    try { await correctionsAPI.decide(r.id, { approve }); load(); } catch (e) { Alert.alert('Could not save', e.message); }
-  };
-  const confirm = (r, approve) => Alert.alert(
-    approve ? `Approve ${r.staffName}'s correction?` : `Reject ${r.staffName}'s correction?`,
-    `${nice(r.date)} · ${timesText(r)}${approve ? '\n\nTheir attendance for that day will be updated.' : ''}`,
-    [{ text: 'Back', style: 'cancel' }, { text: approve ? 'Approve' : 'Reject', style: approve ? 'default' : 'destructive', onPress: () => decide(r, approve) }],
-  );
 
-  const input = [styles.input, { backgroundColor: C.bgElevated, borderColor: C.border, color: C.textPrimary }];
-  const timeField = (label, value, set, need) => (need ? (
-    <View style={{ flex: 1 }}>
-      <Text style={[styles.label, { color: C.textMuted }]}>{label}{need === 'optional' ? ' (optional)' : ''}</Text>
-      <TextInput style={input} value={value} onChangeText={set} placeholder={label.startsWith('Came') ? '09:30' : '18:30'}
-        placeholderTextColor={C.textMuted} keyboardType={TIME_KEYBOARD} maxLength={5} />
-    </View>
+  // Days with a request: a dot on the week strip.
+  const dots = useMemo(() => {
+    const out = {};
+    for (const r of mine) if (r.status === 'pending' || r.status === 'approved') out[r.date] = r.status === 'approved' ? T.green : T.amber;
+    return out;
+  }, [mine]);
+
+  const timeField = (labelKey, value, set, need, placeholder) => (need ? (
+    <Field style={{ flex: 1 }} label={need === 'optional' ? t('corrections.optional', { label: t(labelKey) }) : t(labelKey)}
+      value={value} onChangeText={set} placeholder={placeholder} keyboardType={TIME_KEYBOARD} maxLength={5} />
   ) : null);
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={[styles.header, { paddingTop: headerTop, backgroundColor: C.bgCard, borderBottomColor: C.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backBtn, { backgroundColor: C.bgElevated }]}>
-          <Text style={[styles.backIcon, { color: C.textPrimary }]}>←</Text>
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: C.textPrimary }]}>Corrections</Text>
-        <TouchableOpacity style={[styles.applyBtn, { backgroundColor: C.accent }]} onPress={() => setShowForm(!showForm)}>
-          <Text style={styles.applyText}>{showForm ? 'Close' : '+ Ask'}</Text>
-        </TouchableOpacity>
+    <Screen keyboard refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }}
+      header={(
+        <AppHeader title={t('corrections.title')} subtitle={t('corrections.subtitle')} onBack={() => navigation.goBack()}
+          avatarName={user?.name || ''} onAvatarPress={() => navigation.navigate('Main', { screen: 'Profile' })}>
+          <PeriodNav label={`${short(week[0])} – ${short(week[6])}`}
+            onPrev={() => setAnchor(addDays(anchor, -7))} prevDisabled={week[0] <= oldest}
+            onNext={() => setAnchor(addDays(anchor, 7))} nextDisabled={week[6] >= today} />
+          <WeekStrip dates={week} selected={[date]} dots={dots} onPress={pickDay} />
+        </AppHeader>
+      )}>
+      {isAdmin && (
+        <View style={{ marginBottom: 18 }}>
+          <ListRow last
+            left={<View style={st.linkIcon}><Icon name="file-text" size={22} color={T.navyDeep} /></View>}
+            title={t('corrections.toReview')} subtitle={t('corrections.toReviewSub')}
+            right={count ? <Chip label={String(count)} tone="yellow" /> : null}
+            onPress={() => navigation.navigate('Main', { screen: 'Requests' })} />
+          <Divider style={{ marginVertical: 0 }} />
+        </View>
+      )}
+
+      <Text style={st.h1}>{t('corrections.askTitle')}</Text>
+      <Subtle style={st.h1Sub}>{t('corrections.askSub')}</Subtle>
+
+      <Text style={st.label}>{t('corrections.whatHappened')}</Text>
+      <View style={{ gap: 10 }}>
+        {KINDS.map((x) => {
+          const on = x.key === kind;
+          return (
+            <TouchableOpacity key={x.key} onPress={() => setKind(x.key)} activeOpacity={0.8} style={[st.kind, on && st.kindOn]}>
+              <Icon name={on ? 'check-circle' : 'circle'} size={22} color={on ? T.onYellow : T.textFaint} />
+              <Text style={[st.kindText, on && { color: T.onYellow, fontWeight: '700' }]}>{t(`corrections.kind_${x.key}`)}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.accent} />}>
-        {showForm && (
-          <View style={[styles.card, styles.form, { backgroundColor: C.bgCard, borderColor: C.border }]}>
-            <Text style={[styles.formTitle, { color: C.textPrimary }]}>Ask for a correction</Text>
-            <Text style={[styles.label, { color: C.textMuted }]}>What happened?</Text>
-            <View style={styles.kindCol}>
-              {KINDS.map((x) => (
-                <TouchableOpacity key={x.key} onPress={() => setKind(x.key)}
-                  style={[styles.kindChip, { borderColor: C.border, backgroundColor: C.bgElevated }, kind === x.key && { borderColor: C.accentBorder, backgroundColor: C.accentSoft }]}>
-                  <Text style={[styles.kindText, { color: kind === x.key ? C.textAccent : C.textPrimary }]}>{x.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <Text style={[styles.label, { color: C.textMuted }]}>Day</Text>
-            <View style={styles.stepRow}>
-              <TouchableOpacity disabled={date <= addDays(istToday(), -45)} onPress={() => setDate(addDays(date, -1))}
-                style={[styles.stepBtn, { borderColor: C.border, backgroundColor: C.bgElevated }]}>
-                <Text style={[styles.stepIcon, { color: C.textPrimary }]}>‹</Text>
-              </TouchableOpacity>
-              <Text style={[styles.stepValue, { color: C.textPrimary }]}>{date === istToday() ? `Today, ${nice(date)}` : nice(date)}</Text>
-              <TouchableOpacity disabled={date >= istToday()} onPress={() => setDate(addDays(date, 1))}
-                style={[styles.stepBtn, { borderColor: C.border, backgroundColor: C.bgElevated, opacity: date >= istToday() ? 0.35 : 1 }]}>
-                <Text style={[styles.stepIcon, { color: C.textPrimary }]}>›</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.row2}>
-              {timeField('Came in at', checkIn, setCheckIn, k.in)}
-              {timeField('Left at', checkOut, setCheckOut, k.out)}
-            </View>
-            <Text style={[styles.hint, { color: C.textMuted }]}>24-hour time, e.g. 09:30 or 18:30.</Text>
-            <Text style={[styles.label, { color: C.textMuted }]}>Reason</Text>
-            <TextInput style={[styles.reason, { backgroundColor: C.bgElevated, borderColor: C.border, color: C.textPrimary }]}
-              placeholder="e.g. Phone battery died" placeholderTextColor={C.textMuted} value={reason} onChangeText={setReason} maxLength={300} multiline />
-            <TouchableOpacity style={[styles.submitBtn, { backgroundColor: C.accent }]} onPress={submit} disabled={busy} activeOpacity={0.8}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Send request</Text>}
-            </TouchableOpacity>
-          </View>
-        )}
+      <DateBox label={t('corrections.day')} value={date === today ? `${t('common.today')}, ${fmtDay(t, date)}` : fmtDayYear(t, date)}
+        onPress={() => setAnchor(date)} style={{ marginTop: 18, flex: 0 }} />
+      <Subtle style={{ marginTop: 8 }}>{t('corrections.tapDay')}</Subtle>
 
-        {loading ? <ActivityIndicator style={{ marginTop: 40 }} color={C.accent} /> : (
-          <>
-            {isAdmin && (
-              <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: C.textPrimary }]}>To approve ({toApprove.length})</Text>
-                {toApprove.length === 0 && <Text style={[styles.empty, { color: C.textMuted }]}>No corrections waiting.</Text>}
-                {toApprove.map((r) => (
-                  <View key={r.id} style={[styles.card, { backgroundColor: C.bgCard, borderColor: C.border }]}>
-                    <Text style={[styles.name, { color: C.textPrimary }]}>{r.staffName}</Text>
-                    <Text style={[styles.dates, { color: C.textPrimary }]}>{nice(r.date)} · {r.label}</Text>
-                    <Text style={[styles.meta, { color: C.textMuted }]}>{timesText(r)}</Text>
-                    <Text style={[styles.meta, { color: C.textSecondary }]}>“{r.reason}”</Text>
-                    <View style={styles.actions}>
-                      <TouchableOpacity style={[styles.actBtn, { backgroundColor: C.success }]} onPress={() => confirm(r, true)}>
-                        <Text style={styles.actText}>Approve</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.actBtn, { backgroundColor: C.bgElevated, borderWidth: 1, borderColor: C.border }]} onPress={() => confirm(r, false)}>
-                        <Text style={[styles.actText, { color: C.danger }]}>Reject</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: C.textPrimary }]}>My requests</Text>
-              {mine.length === 0 && <Text style={[styles.empty, { color: C.textMuted }]}>Forgot to check in or out? Tap “+ Ask” and your admin can fix the day.</Text>}
-              {mine.map((r) => (
-                <View key={r.id} style={[styles.card, { backgroundColor: C.bgCard, borderColor: C.border }]}>
-                  <View style={styles.rowBetween}>
-                    <Text style={[styles.dates, { color: C.textPrimary, marginTop: 0 }]}>{nice(r.date)}</Text>
-                    <Text style={[styles.status, { color: STATUS[r.status].color }]}>{STATUS[r.status].label}</Text>
-                  </View>
-                  <Text style={[styles.meta, { color: C.textMuted }]}>{r.label} · {timesText(r)}</Text>
-                  <Text style={[styles.meta, { color: C.textSecondary }]}>“{r.reason}”</Text>
-                  {!!r.decisionNote && <Text style={[styles.meta, { color: C.textSecondary }]}>Note from admin: {r.decisionNote}</Text>}
-                  {r.status === 'pending' && (
-                    <TouchableOpacity onPress={() => withdraw(r)} style={{ marginTop: 8 }}>
-                      <Text style={[styles.link, { color: C.textAccent }]}>Withdraw request</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ))}
+      <View style={st.row2}>
+        {timeField('corrections.cameIn', checkIn, setCheckIn, k.in, '09:30')}
+        {timeField('corrections.leftAt', checkOut, setCheckOut, k.out, '18:30')}
+      </View>
+      <Subtle style={{ marginTop: -6, marginBottom: 16 }}>{t('corrections.timeHint')}</Subtle>
+
+      <Field label={t('corrections.reason')} placeholder={t('corrections.reasonPlaceholder')} value={reason}
+        onChangeText={setReason} maxLength={300} multiline />
+      <Button title={`${t('corrections.send')}  →`} onPress={submit} busy={busy} />
+      <Subtle style={{ marginTop: 10 }}>{t('corrections.willBeSent')}</Subtle>
+
+      <SectionTitle style={{ marginTop: 28 }}>{t('corrections.myRequests')}</SectionTitle>
+      {loading && !mine.length ? <Loading /> : null}
+      {!loading && mine.length === 0 ? <Empty>{t('corrections.noRequests')}</Empty> : null}
+      {mine.map((r, i) => (
+        <View key={r.id} style={[st.req, i < mine.length - 1 && st.reqLine]}>
+          <View style={st.reqTop}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Text style={st.reqTitle}>{fmtDay(t, r.date)}</Text>
+              <Text style={st.reqSub}>{t(`corrections.kind_${r.kind}`)}{timesText(r) ? ` · ${timesText(r)}` : ''}</Text>
             </View>
-          </>
-        )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+            <Chip tone={STATUS_TONE[r.status]}
+              label={r.status === 'cancelled' ? t('corrections.withdrawn') : t(`common.${r.status === 'pending' ? 'waiting' : r.status}`)} />
+          </View>
+          {!!r.reason && <Text style={st.reqNote}>“{r.reason}”</Text>}
+          {!!r.decisionNote && <Text style={st.reqNote}>{t('corrections.adminNote', { note: r.decisionNote })}</Text>}
+          {r.status === 'pending' && (
+            <TouchableOpacity onPress={() => withdraw(r)} hitSlop={8} style={{ marginTop: 10, alignSelf: 'flex-start' }}>
+              <Text style={st.link}>{t('corrections.withdraw')}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      ))}
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.xl, paddingBottom: 14, borderBottomWidth: 1 },
-  backBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
-  backIcon: { fontSize: 20 },
-  headerTitle: { ...FONTS.h3 },
-  applyBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.full },
-  applyText: { fontSize: 13, fontWeight: '700', color: '#fff' },
-  section: { paddingHorizontal: SPACING.xl, marginTop: 20 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 10 },
-  empty: { fontSize: 13 },
-  card: { borderRadius: RADIUS.lg, borderWidth: 1, padding: SPACING.lg, marginBottom: 10 },
-  form: { margin: SPACING.xl, marginBottom: 0 },
-  formTitle: { fontSize: 16, fontWeight: '700' },
-  label: { fontSize: 12, fontWeight: '600', marginTop: 14, marginBottom: 8 },
-  hint: { fontSize: 11, marginTop: 6 },
-  kindCol: { gap: 8 },
-  kindChip: { paddingVertical: 11, paddingHorizontal: 14, borderRadius: RADIUS.sm, borderWidth: 1.5 },
-  kindText: { fontSize: 14, fontWeight: '600' },
-  stepRow: { flexDirection: 'row', alignItems: 'center' },
-  stepBtn: { width: 40, height: 40, borderRadius: RADIUS.sm, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  stepIcon: { fontSize: 22, fontWeight: '600', marginTop: -2 },
-  stepValue: { flex: 1, textAlign: 'center', fontSize: 15, fontWeight: '600' },
-  row2: { flexDirection: 'row', gap: 10 },
-  input: { borderWidth: 1, borderRadius: RADIUS.sm, paddingHorizontal: 12, paddingVertical: 11, fontSize: 16 },
-  reason: { borderRadius: RADIUS.sm, borderWidth: 1, padding: 12, fontSize: 14, minHeight: 70, textAlignVertical: 'top' },
-  submitBtn: { borderRadius: RADIUS.md, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
-  submitText: { ...FONTS.button, color: '#fff' },
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  name: { fontSize: 15, fontWeight: '700' },
-  dates: { fontSize: 15, fontWeight: '600', marginTop: 2 },
-  meta: { fontSize: 13, marginTop: 4 },
-  status: { fontSize: 12, fontWeight: '700' },
-  link: { fontSize: 13, fontWeight: '600' },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  actBtn: { flex: 1, paddingVertical: 10, borderRadius: RADIUS.sm, alignItems: 'center' },
-  actText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+const st = StyleSheet.create({
+  h1: { fontSize: 30, fontWeight: '800', color: T.navyDeep, letterSpacing: -0.3 },
+  h1Sub: { fontSize: 17, marginTop: 4 },
+  label: { fontSize: 17, fontWeight: '600', color: T.textMuted, marginTop: 22, marginBottom: 10 },
+  kind: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 15, paddingHorizontal: 16, borderRadius: T.radius, borderWidth: 1, borderColor: T.line, backgroundColor: T.surface },
+  kindOn: { backgroundColor: T.yellow, borderColor: T.yellow },
+  kindText: { fontSize: 17, color: T.text, fontWeight: '500', flexShrink: 1 },
+  row2: { flexDirection: 'row', gap: 12, marginTop: 18 },
+  linkIcon: { width: 46, height: 46, borderRadius: 23, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' },
+
+  req: { paddingVertical: 16 },
+  reqLine: { borderBottomWidth: 1, borderBottomColor: T.line },
+  reqTop: { flexDirection: 'row', alignItems: 'center' },
+  reqTitle: { fontSize: 18, fontWeight: '700', color: T.navyDeep },
+  reqSub: { fontSize: 16, color: T.textMuted, marginTop: 3 },
+  reqNote: { fontSize: 16, color: T.text, marginTop: 8, lineHeight: 22 },
+  link: { fontSize: 16, fontWeight: '700', color: T.red },
 });
