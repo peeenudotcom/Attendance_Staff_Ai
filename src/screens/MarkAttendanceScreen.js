@@ -10,7 +10,8 @@ import { useLang, fmtDayLong } from '../i18n';
 import '../i18n/strings/mark';
 
 const { width } = Dimensions.get('window');
-const FRAME_H = Math.min(width - T.pad * 2, 420) * 1.15;
+// The camera fills at most ~40% of the screen height, so the selfie button always shows below it.
+const FRAME_H = Math.min(Math.min(width - T.pad * 2, 420) * 1.15, Dimensions.get('window').height * 0.4);
 
 // "Railway Road, Kotkapura": the geocoder often repeats the street as the place name.
 function formatAddress(a) {
@@ -297,10 +298,10 @@ const s = StyleSheet.create({
   retake: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(14,26,51,0.75)', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22 },
   retakeText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 
-  shutterWrap: { alignItems: 'center', marginTop: 18 },
-  shutterOuter: { width: 86, height: 86, borderRadius: 43, borderWidth: 4, borderColor: T.navy, alignItems: 'center', justifyContent: 'center' },
-  shutterInner: { width: 70, height: 70, borderRadius: 35, backgroundColor: T.yellow, alignItems: 'center', justifyContent: 'center' },
-  shutterLabel: { fontSize: 15, fontWeight: '700', color: T.navyDeep, marginTop: 10 },
+  shutterWrap: { alignItems: 'center', marginTop: 12 },
+  shutterOuter: { width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: T.navy, alignItems: 'center', justifyContent: 'center' },
+  shutterInner: { width: 58, height: 58, borderRadius: 29, backgroundColor: T.yellow, alignItems: 'center', justifyContent: 'center' },
+  shutterLabel: { fontSize: 14, fontWeight: '700', color: T.navyDeep, marginTop: 6 },
 
   locRow: { flexDirection: 'row', alignItems: 'center', marginTop: 18, paddingVertical: 14, paddingHorizontal: 14, borderWidth: 1, borderColor: T.line, borderRadius: T.radius },
   locIcon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
