@@ -1,20 +1,39 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
-  Dimensions, StatusBar, Animated, Image, Pressable,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, SHADOWS, RADIUS, SPACING, FONTS, GLASS } from '../utils/theme';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Pressable, Linking } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
 import { authAPI } from '../services/api';
-import GlassCard from '../components/GlassCard';
+import { Screen, AppHeader, Button, Card, Subtle, Icon, T } from '../ui';
+import { useLang, LANGS } from '../i18n';
+import '../i18n/strings/login';
 
-const { width, height } = Dimensions.get('window');
+const START_URL = 'https://haazri.tarahutaibuilds.com/start';
+const RESEND_WAIT = 30; // seconds before "Resend code" can be tapped again
+
+// fetch fails with a TypeError when there is no connection; a captive Wi-Fi page returns HTML, not our JSON.
+const isNetwork = (e) => e instanceof TypeError || /network|non-JSON|timed? ?out|failed to fetch/i.test(e?.message || '');
+
+/** English | ਪੰਜਾਬੀ | हिंदी on the navy header; the chosen one is yellow. */
+function LanguagePills() {
+  const { lang, setLang, t } = useLang();
+  return (
+    <View style={s.langRow} accessibilityRole="radiogroup" accessibilityLabel={t('common.language')}>
+      {LANGS.map((l) => {
+        const on = l.code === lang;
+        return (
+          <TouchableOpacity key={l.code} onPress={() => setLang(l.code)} activeOpacity={0.8}
+            accessibilityRole="radio" accessibilityState={{ selected: on }}
+            style={[s.langPill, on && s.langPillOn]}>
+            <Text style={[s.langText, on && { color: T.onYellow }]} numberOfLines={1}>{l.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
 
 export default function LoginScreen() {
-  const { colors: C } = useTheme();
+  const { t } = useLang();
+  const { login } = useAuth();
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const otpInput = useRef(null);
@@ -22,188 +41,205 @@ export default function LoginScreen() {
   const [sentTo, setSentTo] = useState(''); // masked destination reported by the backend
   const [reviewLogin, setReviewLogin] = useState(false); // store-review demo account: fixed code, no email
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
+  const [resending, setResending] = useState(false);
+  const [error, setError] = useState(null); // { title, message }
+  const [notice, setNotice] = useState('');
+  const [wait, setWait] = useState(0); // resend cooldown, seconds left
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
-    ]).start();
-  }, []);
+    if (wait <= 0) return undefined;
+    const id = setTimeout(() => setWait((w) => w - 1), 1000);
+    return () => clearTimeout(id);
+  }, [wait]);
 
-  const handleSendOTP = async () => {
-    if (phone.length < 10) return Alert.alert('Invalid', 'Enter a valid 10-digit number');
-    setLoading(true);
+  const onPhone = (text) => {
+    let d = text.replace(/\D/g, '');
+    if (d.length > 10 && d.startsWith('91')) d = d.slice(-10); // pasted "+91 98765 43210"
+    setPhone(d.slice(0, 10));
+    setError(null);
+  };
+
+  const sendCode = async ({ resend } = {}) => {
+    if (phone.length < 10) { setError({ title: t('login.invalidPhone') }); return; }
+    resend ? setResending(true) : setLoading(true);
+    setError(null);
+    setNotice('');
     try {
       const res = await authAPI.login({ phone });
       setSentTo(res?.sentTo || '');
       setReviewLogin(res?.channel === 'review');
       setStep('otp');
+      setWait(RESEND_WAIT);
+      if (resend) setNotice(t('login.resent'));
     } catch (e) {
-      Alert.alert('Could not send OTP', e.message || 'Please check your connection and try again.');
-    } finally { setLoading(false); }
+      setError({ title: t('login.sendFailed'), message: isNetwork(e) ? t('common.noInternet') : (e.message || t('login.unexpected')) });
+    } finally {
+      resend ? setResending(false) : setLoading(false);
+    }
   };
 
-  const handleVerifyOTP = async () => {
-    if (otp.length < 4) return Alert.alert('Invalid', 'Enter the OTP');
+  const verify = async () => {
+    if (otp.length < 4) return;
     setLoading(true);
+    setError(null);
+    setNotice('');
     try {
       const res = await authAPI.verifyOTP({ phone, otp });
-      if (!res?.user || !res?.token) throw new Error('Unexpected response from server');
+      if (!res?.user || !res?.token) throw new Error(t('login.unexpected'));
       await login(res.user, res.token);
     } catch (e) {
       setOtp('');
-      Alert.alert('Sign-in failed', e.message || 'The OTP is incorrect or has expired. Please try again.');
-    } finally { setLoading(false); }
+      setError({ title: t('login.signInFailed'), message: isNetwork(e) ? t('common.noInternet') : (e.message || t('login.wrongCode')) });
+      setLoading(false);
+    }
   };
 
+  const changeNumber = () => { setStep('phone'); setOtp(''); setError(null); setNotice(''); };
+
+  const header = (
+    <AppHeader title={t('login.welcome')} subtitle={t('login.subtitle')}>
+      <LanguagePills />
+    </AppHeader>
+  );
+
   return (
-    <View style={[styles.container, { backgroundColor: C.bg }]}>
-      <StatusBar barStyle={C.statusBar} />
-      {/* Ambient orbs */}
-      <View style={styles.orb1} />
-      <View style={styles.orb2} />
-      <View style={styles.orb3} />
-
-      <KeyboardAvoidingView style={styles.content} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
-          {/* Brand */}
-          <View style={styles.brand}>
-            <Image source={require('../../assets/logo.png')} style={styles.logoMark} accessibilityLabel="TARAhut Haazri logo" />
-            <Text style={[styles.brandName, { color: C.textPrimary }]}>TARAhut Haazri</Text>
-            <Text style={[styles.brandSub, { color: C.textSecondary }]}>Staff attendance, made simple</Text>
+    <Screen header={header} keyboard>
+      {step === 'phone' ? (
+        <>
+          <Text style={s.h}>{t('login.phoneTitle')}</Text>
+          <Subtle style={s.lead}>{t('login.phoneHint')}</Subtle>
+          <View style={s.phoneBox}>
+            <View style={s.prefix}><Text style={s.prefixText}>+91</Text></View>
+            <TextInput
+              style={s.phoneInput}
+              placeholder={t('login.phonePlaceholder')}
+              placeholderTextColor={T.textFaint}
+              keyboardType="phone-pad"
+              textContentType="telephoneNumber"
+              autoComplete="tel"
+              value={phone}
+              onChangeText={onPhone}
+              onSubmitEditing={() => sendCode()}
+              returnKeyType="next"
+              accessibilityLabel={t('login.phoneTitle')}
+            />
           </View>
+          {error && <ErrorBox error={error} />}
+          <Button title={t('login.continue')} icon="arrow-right" onPress={() => sendCode()} busy={loading} disabled={phone.length < 10} style={{ marginTop: 8 }} />
 
-          {/* Card */}
-          <GlassCard style={styles.cardWrap} intensity={50} borderRadius={RADIUS.xxl}>
-          <View style={styles.card}>
-            <Text style={[styles.cardTitle, { color: C.textPrimary }]}>{step === 'phone' ? 'Sign In' : 'Verification'}</Text>
-            <Text style={[styles.cardSub, { color: C.textSecondary }]}>
-              {step === 'phone' ? 'Enter your mobile number to continue' : reviewLogin ? 'Enter the code given in the review notes' : `Code sent to ${sentTo || `+91 ${phone}`}`}
-            </Text>
-
-            {step === 'phone' ? (
-              <>
-                <View style={[styles.inputGroup, { backgroundColor: C.bgCard, borderColor: C.accentBorder }]}>
-                  <View style={[styles.prefix, { borderRightColor: C.border }]}>
-                    <Text style={[styles.prefixText, { color: C.textSecondary }]}>+91</Text>
-                  </View>
-                  <TextInput
-                    style={[styles.input, { color: C.textPrimary }]}
-                    placeholder="Phone number"
-                    placeholderTextColor={C.textMuted}
-                    keyboardType="phone-pad"
-                    maxLength={10}
-                    value={phone}
-                    onChangeText={setPhone}
-                  />
-                </View>
-
-                <TouchableOpacity
-                  style={[phone.length < 10 && styles.ctaBtnDisabled]}
-                  onPress={handleSendOTP}
-                  disabled={loading || phone.length < 10}
-                  activeOpacity={0.85}
-                >
-                  <LinearGradient colors={[C.accentStart, C.accentEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.ctaBtn}>
-                    {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaBtnText}>Continue →</Text>}
-                  </LinearGradient>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                {/* The four boxes only show the code; one real input lies over them. It has to have a size: Android
-                    won't focus or open the keyboard for a zero-height input, and tapping the boxes refocuses it. */}
-                <Pressable style={styles.otpRow} onPress={() => otpInput.current?.focus()}>
-                  {[0, 1, 2, 3].map((i) => (
-                    <View key={i} style={[styles.otpBox, { backgroundColor: C.bgCard, borderColor: C.border }, otp.length > i && { borderColor: C.accentBorder, backgroundColor: C.accentSoft }]}>
-                      <Text style={[styles.otpChar, { color: C.textPrimary }]}>{otp[i] || '·'}</Text>
-                    </View>
-                  ))}
-                  <TextInput
-                    ref={otpInput}
-                    style={styles.hiddenInput}
-                    keyboardType="number-pad"
-                    textContentType="oneTimeCode"
-                    autoComplete="one-time-code"
-                    maxLength={4}
-                    value={otp}
-                    onChangeText={(t) => setOtp(t.replace(/\D/g, '').slice(0, 4))}
-                    caretHidden
-                    autoFocus
-                  />
-                </Pressable>
-                <Text style={[styles.otpHint, { color: C.textMuted }]}>Tap the boxes if the keyboard doesn't open</Text>
-
-                <TouchableOpacity
-                  style={[otp.length < 4 && styles.ctaBtnDisabled]}
-                  onPress={handleVerifyOTP}
-                  disabled={loading || otp.length < 4}
-                  activeOpacity={0.85}
-                >
-                  <LinearGradient colors={[C.accentStart, C.accentEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.ctaBtn}>
-                    {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaBtnText}>Verify →</Text>}
-                  </LinearGradient>
-                </TouchableOpacity>
-
-                <View style={styles.otpLinks}>
-                  <TouchableOpacity onPress={() => { setStep('phone'); setOtp(''); }}>
-                    <Text style={[styles.link, { color: C.textAccent }]}>Change Number</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => { setOtp(''); handleSendOTP(); }} disabled={loading}>
-                    <Text style={[styles.link, { color: C.textAccent }]}>Resend</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
+          <View style={s.help}>
+            <Icon name="info" size={20} color={T.textMuted} style={{ marginTop: 1 }} />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={s.helpText}>{t('login.helpAdmin')}</Text>
+              <Text style={[s.helpText, { marginTop: 6 }]}>
+                {t('login.helpNewBusiness')}{' '}
+                <Text style={s.link} onPress={() => Linking.openURL(START_URL).catch(() => {})} accessibilityRole="link">
+                  haazri.tarahutaibuilds.com/start
+                </Text>
+              </Text>
+            </View>
           </View>
+        </>
+      ) : (
+        <>
+          <Text style={s.h}>{t('login.codeTitle')}</Text>
+          <Text style={s.sentTo}>
+            {reviewLogin ? t('login.codeReview') : t('login.codeSentTo', { to: sentTo || `+91 ${phone}` })}
+          </Text>
 
-          </GlassCard>
+          {/* The four boxes only show the code; one real input lies over them. It has to have a size: Android
+              won't focus or open the keyboard for a zero-height input, and tapping the boxes refocuses it. */}
+          <Pressable style={s.otpRow} onPress={() => otpInput.current?.focus()}>
+            {[0, 1, 2, 3].map((i) => (
+              <View key={i} style={[s.otpBox, otp.length > i && s.otpBoxFilled, otp.length === i && s.otpBoxNext]}>
+                <Text style={s.otpChar}>{otp[i] || ''}</Text>
+              </View>
+            ))}
+            <TextInput
+              ref={otpInput}
+              style={s.hiddenInput}
+              keyboardType="number-pad"
+              textContentType="oneTimeCode"
+              autoComplete="one-time-code"
+              maxLength={4}
+              value={otp}
+              onChangeText={(x) => { setOtp(x.replace(/\D/g, '').slice(0, 4)); setError(null); }}
+              caretHidden
+              autoFocus
+              accessibilityLabel={t('login.codeTitle')}
+            />
+          </Pressable>
+          <Subtle style={s.tapHint}>{t('login.codeTapHint')}</Subtle>
 
-          <Text style={[styles.footer, { color: C.textMuted }]}>by TARAhut AI Builds</Text>
-        </Animated.View>
-      </KeyboardAvoidingView>
-    </View>
+          {error && <ErrorBox error={error} />}
+          {!!notice && !error && (
+            <View style={s.notice}><Icon name="check-circle" size={18} color={T.green} /><Text style={s.noticeText}>{notice}</Text></View>
+          )}
+
+          <Button title={t('login.verify')} icon="check" onPress={verify} busy={loading} disabled={otp.length < 4} />
+
+          <View style={s.links}>
+            <TouchableOpacity onPress={changeNumber} disabled={loading} hitSlop={10} style={s.linkBtn}>
+              <Icon name="edit-2" size={18} color={T.navyDeep} />
+              <Text style={s.linkText}>{t('login.changeNumber')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { setOtp(''); sendCode({ resend: true }); }} disabled={loading || resending || wait > 0} hitSlop={10} style={s.linkBtn}>
+              <Icon name="refresh-cw" size={18} color={wait > 0 ? T.textFaint : T.navyDeep} />
+              <Text style={[s.linkText, wait > 0 && { color: T.textFaint }]}>
+                {wait > 0 ? t('login.resendIn', { s: wait }) : t('login.resend')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+      <Text style={s.byline}>{t('login.byline')}</Text>
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  orb1: { position: 'absolute', top: '15%', left: -50, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(154, 46, 64, 0.12)' },
-  orb2: { position: 'absolute', top: '40%', right: -60, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(54, 138, 132, 0.08)' },
-  orb3: { position: 'absolute', bottom: '10%', left: '30%', width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(154, 46, 64, 0.06)' },
-  content: { flex: 1, justifyContent: 'center', paddingHorizontal: SPACING.xxl },
+function ErrorBox({ error }) {
+  return (
+    <Card tone="red" style={{ marginBottom: 14, padding: 14 }}>
+      <Text style={s.errTitle}>{error.title}</Text>
+      {!!error.message && <Text style={s.errText}>{error.message}</Text>}
+    </Card>
+  );
+}
 
-  brand: { alignItems: 'center', marginBottom: 36 },
-  logoMark: { width: 64, height: 64, marginBottom: 16 },
-  brandName: { fontSize: 28, fontWeight: '800', color: COLORS.textPrimary, letterSpacing: 2 },
-  brandSub: { ...FONTS.small, color: COLORS.textMuted, marginTop: 6, letterSpacing: 1.5, fontSize: 10 },
+const s = StyleSheet.create({
+  langRow: { flexDirection: 'row', gap: 10 },
+  langPill: { flex: 1, alignItems: 'center', paddingVertical: 11, paddingHorizontal: 8, borderRadius: 24, borderWidth: 1, borderColor: T.onNavyLine, backgroundColor: T.onNavyGlass },
+  langPillOn: { backgroundColor: T.yellow, borderColor: T.yellow },
+  langText: { color: T.onNavy, fontSize: 17, fontWeight: '700' },
 
-  cardWrap: {},
-  card: { padding: SPACING.xxl },
-  cardTitle: { ...FONTS.h2, textAlign: 'center' },
-  cardSub: { ...FONTS.caption, textAlign: 'center', marginTop: 4, marginBottom: 24 },
+  h: { fontSize: 24, fontWeight: '800', color: T.navyDeep },
+  lead: { fontSize: 16, marginTop: 6, marginBottom: 18, lineHeight: 22 },
+  phoneBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: T.line, borderRadius: T.radius, backgroundColor: T.surface, overflow: 'hidden', marginBottom: 14 },
+  prefix: { paddingHorizontal: 16, paddingVertical: 16, borderRightWidth: 1, borderRightColor: T.line },
+  prefixText: { fontSize: 20, fontWeight: '700', color: T.navyDeep },
+  phoneInput: { flex: 1, paddingHorizontal: 16, paddingVertical: 16, fontSize: 22, fontWeight: '600', color: T.text, letterSpacing: 1.5 },
 
-  inputGroup: { flexDirection: 'row', alignItems: 'center', borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bgCard, overflow: 'hidden', marginBottom: 20 },
-  prefix: { paddingHorizontal: 16, paddingVertical: 15, borderRightWidth: 1, borderRightColor: COLORS.border },
-  prefixText: { ...FONTS.bodyMedium, color: COLORS.textSecondary },
-  input: { flex: 1, paddingHorizontal: 16, paddingVertical: 15, fontSize: 17, fontWeight: '500', color: COLORS.textPrimary, letterSpacing: 2 },
+  help: { flexDirection: 'row', marginTop: 26, padding: 16, borderRadius: T.radius, backgroundColor: T.surface },
+  helpText: { fontSize: 15, color: T.textMuted, lineHeight: 21 },
+  link: { color: T.navyDeep, fontWeight: '700', textDecorationLine: 'underline' },
 
-  otpRow: { flexDirection: 'row', justifyContent: 'center', gap: 14, marginBottom: 24 },
-  otpBox: { width: 52, height: 56, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bgCard, justifyContent: 'center', alignItems: 'center' },
-  otpBoxFill: { borderColor: COLORS.accentBorder, backgroundColor: COLORS.accentSoft },
-  otpChar: { fontSize: 24, fontWeight: '700', color: COLORS.textPrimary },
+  sentTo: { fontSize: 17, color: T.textMuted, marginTop: 8, marginBottom: 22, lineHeight: 24 },
+  otpRow: { flexDirection: 'row', justifyContent: 'center', gap: 14, marginBottom: 10 },
+  otpBox: { width: 64, height: 72, borderRadius: T.radius, borderWidth: 1.5, borderColor: T.line, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' },
+  otpBoxFilled: { borderColor: T.yellow, backgroundColor: T.yellowSoft },
+  otpBoxNext: { borderColor: T.navy },
+  otpChar: { fontSize: 32, fontWeight: '800', color: T.navyDeep },
   hiddenInput: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.02, color: 'transparent', fontSize: 1 },
-  otpHint: { textAlign: 'center', fontSize: 11, marginTop: -14, marginBottom: 18 },
+  tapHint: { textAlign: 'center', fontSize: 14, marginBottom: 20 },
 
-  ctaBtn: { borderRadius: RADIUS.sm, paddingVertical: 16, alignItems: 'center', ...SHADOWS.accent },
-  ctaBtnDisabled: { opacity: 0.3 },
-  ctaBtnText: { ...FONTS.button, color: '#fff' },
+  notice: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  noticeText: { fontSize: 15, color: T.green, fontWeight: '600' },
+  errTitle: { fontSize: 17, fontWeight: '700', color: T.red },
+  errText: { fontSize: 15, color: T.text, marginTop: 4, lineHeight: 21 },
 
-  otpLinks: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18 },
-  link: { ...FONTS.captionMedium, color: COLORS.textAccent },
+  links: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginTop: 22 },
+  linkBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
+  linkText: { fontSize: 17, fontWeight: '700', color: T.navyDeep },
 
-  footer: { ...FONTS.small, textAlign: 'center', color: COLORS.textMuted, marginTop: 28, letterSpacing: 1 },
+  byline: { textAlign: 'center', fontSize: 13, color: T.textFaint, marginTop: 34 },
 });

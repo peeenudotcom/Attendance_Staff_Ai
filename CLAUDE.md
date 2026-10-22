@@ -9,7 +9,7 @@ production track, India) are both submitted for store review. Pilot companies: T
 
 | Part | Location | Notes |
 | --- | --- | --- |
-| Mobile app (Expo SDK 54, RN 0.81) | `App.js`, `src/` (screens, services/api.js, navigation) | iOS + Android, package/bundle `com.tarahut.attendance` |
+| Mobile app (Expo SDK 54, RN 0.81) | `App.js`, `src/` (screens, services/api.js, navigation) | iOS + Android, package/bundle `com.tarahut.attendance`. Design kit in `src/ui` (navy/yellow; use it, no ad-hoc colours); English/Punjabi/Hindi in `src/i18n` (each screen's words in `src/i18n/strings/<name>.js`, every key in en, pa, hi). Tabs: Register, Requests (admin) or Leave (staff), Staff (admin), You |
 | Backend API (Vercel functions, Node 24) | `backend/api/**`, shared logic in `backend/lib/` | Deployed at https://haazri.tarahutaibuilds.com/api |
 | Web dashboard (admins) | `backend/public/dashboard/` (plain JS) | https://haazri.tarahutaibuilds.com/dashboard |
 | Public pages | `backend/public/` (privacy, support, delete-account, get) | Required by the stores |

@@ -75,7 +75,17 @@ const toMin = (hhmm) => { const [h, m] = String(hhmm).split(':').map(Number); re
  *   skipping today once checked in;
  * - check out: today only, when checked in and not out, 15 minutes after the shift ends (20:00 without a shift).
  */
-export async function scheduleReminders({ company, today, leaveDates = [] }) { // leaveDates: leave and holiday dates
+export async function scheduleReminders({ company, today, leaveDates = [], t }) { // leaveDates: leave and holiday dates
+  // t (from useLang) translates the texts; without it they stay in English.
+  const EN = {
+    reminderInTitle: 'Not checked in yet', reminderInBody: 'Tap to check in with Haazri.',
+    reminderOutTitle: "Don't forget to check out", reminderOutBody: 'Tap to check out with Haazri.',
+  };
+  const tr = (k) => {
+    if (!t) return EN[k];
+    const v = t(`register.${k}`);
+    return v && v !== `register.${k}` ? v : EN[k];
+  };
   try {
     if (Platform.OS === 'web' || !company || !(await remindersOn())) return;
     if (!(await Notifications.getPermissionsAsync()).granted) return;
@@ -95,7 +105,7 @@ export async function scheduleReminders({ company, today, leaveDates = [] }) { /
       if (date === todayDate && today?.checkedIn) continue;
       const when = atIst(date, lateAt);
       if (when.getTime() <= now) continue;
-      jobs.push({ when, title: 'Not checked in yet', body: 'Tap to check in with Haazri.', data: { screen: 'MarkAttendance', type: 'check-in' } });
+      jobs.push({ when, title: tr('reminderInTitle'), body: tr('reminderInBody'), data: { screen: 'MarkAttendance', type: 'check-in' } });
     }
 
     if (today?.checkedIn && !today?.checkedOut) {
@@ -106,7 +116,7 @@ export async function scheduleReminders({ company, today, leaveDates = [] }) { /
       } else {
         when = atIst(todayDate, 20 * 60);
       }
-      if (when.getTime() > now) jobs.push({ when, title: "Don't forget to check out", body: 'Tap to check out with Haazri.', data: { screen: 'MarkAttendance', type: 'check-out' } });
+      if (when.getTime() > now) jobs.push({ when, title: tr('reminderOutTitle'), body: tr('reminderOutBody'), data: { screen: 'MarkAttendance', type: 'check-out' } });
     }
 
     for (const j of jobs) {

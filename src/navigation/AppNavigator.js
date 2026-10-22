@@ -1,133 +1,95 @@
-import React, { useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { View, Text, StyleSheet, Platform } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { View, Text, StyleSheet, TouchableOpacity, AppState } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
-import { RADIUS } from '../utils/theme';
+import { useLang } from '../i18n';
+import { Icon, T } from '../ui';
 import { useBottomInset } from '../utils/safeArea';
-import { SHOW_SAMPLE_DATA, ENABLE_CALL_LOGS } from '../config/features';
+import { correctionsAPI, leaveAPI } from '../services/api';
 
 import LoginScreen from '../screens/LoginScreen';
-import HomeScreen from '../screens/HomeScreen';
-import HistoryScreen from '../screens/HistoryScreen';
-import CallLogsScreen from '../screens/CallLogsScreen';
-import GalleryScreen from '../screens/GalleryScreen';
-import ReportsScreen from '../screens/ReportsScreen';
+import RegisterScreen from '../screens/RegisterScreen';
+import RequestsScreen from '../screens/RequestsScreen';
+import ReviewRequestScreen from '../screens/ReviewRequestScreen';
+import LeaveScreen from '../screens/LeaveScreen';
+import StaffListScreen from '../screens/StaffListScreen';
+import AddStaffScreen from '../screens/AddStaffScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import MarkAttendanceScreen from '../screens/MarkAttendanceScreen';
-import AddStaffScreen from '../screens/AddStaffScreen';
-import PayrollScreen from '../screens/PayrollScreen';
-import LeaveScreen from '../screens/LeaveScreen';
 import CorrectionsScreen from '../screens/CorrectionsScreen';
-import LiveTrackScreen from '../screens/LiveTrackScreen';
-import ChatScreen from '../screens/ChatScreen';
-import NotificationsScreen from '../screens/NotificationsScreen';
-import TeamScreen from '../screens/TeamScreen';
-import StaffListScreen from '../screens/StaffListScreen';
 import PayslipsScreen from '../screens/PayslipsScreen';
 import { onNotificationTap, registerForPush } from '../services/notifications';
 
 const navigationRef = createNavigationContainerRef();
-
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-function TabIcon({ icon, label, focused, colors }) {
+// Requests waiting for an admin (leave + attendance corrections): the badge on the Requests tab.
+// Screens call refresh() after approving or rejecting something.
+const RequestsCount = createContext({ count: 0, refresh: () => {} });
+export const useRequestsCount = () => useContext(RequestsCount);
+
+function RequestsCountProvider({ isAdmin, children }) {
+  const [count, setCount] = useState(0);
+  const refresh = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const [l, c] = await Promise.all([leaveAPI.company(), correctionsAPI.company()]);
+      setCount((l.pending?.length || 0) + (c.pending?.length || 0));
+    } catch { /* keep the last count */ }
+  }, [isAdmin]);
+  useEffect(() => {
+    refresh();
+    const sub = AppState.addEventListener('change', (s) => { if (s === 'active') refresh(); });
+    return () => sub.remove();
+  }, [refresh]);
+  return <RequestsCount.Provider value={{ count, refresh }}>{children}</RequestsCount.Provider>;
+}
+
+const TABS = {
+  Register: { icon: 'calendar', label: 'common.tabRegister' },
+  Requests: { icon: 'file-text', label: 'common.tabRequests' },
+  Leave: { icon: 'file-text', label: 'common.tabLeave' },
+  Staff: { icon: 'users', label: 'common.tabStaff' },
+  Profile: { icon: 'user', label: 'common.tabYou' },
+};
+
+function TabBar({ state, navigation }) {
+  const { t } = useLang();
+  const { count } = useRequestsCount();
+  const bottom = useBottomInset(10);
   return (
-    <View style={tabStyles.container}>
-      <Text style={[tabStyles.icon, { color: colors.textMuted }, focused && { color: colors.textAccent, opacity: 1 }]}>{icon}</Text>
-      <Text style={[tabStyles.label, { color: colors.textMuted }, focused && { color: colors.textAccent, fontWeight: '700', opacity: 1 }]}>{label}</Text>
-      {focused && <View style={[tabStyles.dot, { backgroundColor: colors.accent, shadowColor: colors.accent }]} />}
+    <View style={[tab.bar, { paddingBottom: bottom }]}>
+      {state.routes.map((route, index) => {
+        const focused = state.index === index;
+        const cfg = TABS[route.name];
+        const badge = route.name === 'Requests' && count > 0 ? count : null;
+        return (
+          <TouchableOpacity key={route.key} style={tab.item} activeOpacity={0.7} accessibilityRole="button" accessibilityState={{ selected: focused }}
+            onPress={() => { if (!focused) navigation.navigate(route.name); }}>
+            <View>
+              <Icon name={cfg.icon} size={30} color={focused ? T.navyDeep : T.textMuted} />
+              {badge ? <View style={tab.badge}><Text style={tab.badgeText}>{badge > 9 ? '9+' : badge}</Text></View> : null}
+            </View>
+            <Text style={[tab.label, focused && tab.labelOn]} numberOfLines={1}>{t(cfg.label)}</Text>
+            <View style={[tab.underline, focused && { backgroundColor: T.yellow }]} />
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
 
-const tabStyles = StyleSheet.create({
-  container: { alignItems: 'center', justifyContent: 'center', paddingVertical: 6, minWidth: 54 },
-  icon: { fontSize: 20, opacity: 0.5 },
-  label: { fontSize: 9, fontWeight: '500', marginTop: 4, opacity: 0.5 },
-  dot: { width: 4, height: 4, borderRadius: 2, marginTop: 4, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 4 },
-});
-
-function GlassTabBar({ children, isDark }) {
-  const bottomInset = useBottomInset(12);
-  const sizing = { height: TAB_CONTENT_HEIGHT + bottomInset, paddingBottom: bottomInset };
-  const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
-  const hlColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.04)';
-  const fallbackBg = isDark ? 'rgba(21,12,15,0.95)' : 'rgba(247,243,236,0.95)';
-
-  if (Platform.OS === 'ios') {
-    return (
-      <BlurView intensity={60} tint={isDark ? 'dark' : 'light'} style={[glassBarStyles.blur, sizing, { borderTopColor: borderColor }]}>
-        <View style={[glassBarStyles.highlight, { backgroundColor: hlColor }]} />
-        {children}
-      </BlurView>
-    );
-  }
-  return <View style={[glassBarStyles.fallback, sizing, { backgroundColor: fallbackBg, borderTopColor: borderColor }]}>{children}</View>;
-}
-
-// Icon + label rows; the home-indicator inset is added at render time.
-const TAB_CONTENT_HEIGHT = 62;
-
-const glassBarStyles = StyleSheet.create({
-  blur: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    flexDirection: 'row', paddingTop: 10,
-    borderTopWidth: 1,
-  },
-  highlight: {
-    position: 'absolute', top: 0, left: 0, right: 0, height: 0.5,
-  },
-  fallback: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    flexDirection: 'row', paddingTop: 10,
-    borderTopWidth: 1,
-  },
-});
-
-function TabNavigator() {
-  const { colors: C, isDark } = useTheme();
+function Tabs() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   return (
-    <Tab.Navigator
-      tabBar={(props) => (
-        <GlassTabBar isDark={isDark}>
-          {props.state.routes.map((route, index) => {
-            const focused = props.state.index === index;
-            const icons = { Home: '⬡', History: '◷', Team: '◈', CallLogs: '◉', Gallery: '◫', Profile: '◎' };
-            const labels = { Home: 'Home', History: 'Attendance', Team: 'Team', CallLogs: 'Calls', Gallery: 'Media', Profile: 'You' };
-            return (
-              <View key={route.key} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                <TabIcon
-                  icon={icons[route.name] || '◉'}
-                  label={labels[route.name] || route.name}
-                  focused={focused}
-                  colors={C}
-                />
-                <View
-                  style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-                  onTouchEnd={() => props.navigation.navigate(route.name)}
-                />
-              </View>
-            );
-          })}
-        </GlassTabBar>
-      )}
-      screenOptions={{ headerShown: false }}
-    >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="History" component={HistoryScreen} />
-      {isAdmin && <Tab.Screen name="Team" component={TeamScreen} />}
-      {/* iOS has no public API for call history, so the Calls tab only ships on Android. */}
-      {ENABLE_CALL_LOGS && Platform.OS === 'android' && <Tab.Screen name="CallLogs" component={CallLogsScreen} />}
-      {/* Gallery captures photos but does not yet upload or persist them, so it stays out
-          of the store build until it is wired to the backend (see src/config/features.js). */}
-      {SHOW_SAMPLE_DATA && <Tab.Screen name="Gallery" component={GalleryScreen} />}
+    <Tab.Navigator tabBar={(props) => <TabBar {...props} />} screenOptions={{ headerShown: false }}>
+      <Tab.Screen name="Register" component={RegisterScreen} />
+      {isAdmin ? <Tab.Screen name="Requests" component={RequestsScreen} /> : <Tab.Screen name="Leave" component={LeaveScreen} />}
+      {isAdmin && <Tab.Screen name="Staff" component={StaffListScreen} />}
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
@@ -149,38 +111,39 @@ export default function AppNavigator() {
   if (isLoading) return null;
 
   return (
-    <NavigationContainer ref={navigationRef}>
-      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
-        {user ? (
-          <>
-            <Stack.Screen name="Main" component={TabNavigator} />
-            <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-            <Stack.Screen name="Leave" component={LeaveScreen} />
-            <Stack.Screen name="Corrections" component={CorrectionsScreen} />
-            <Stack.Screen name="Payslips" component={PayslipsScreen} />
-            {/* Admin-only screens are not registered for staff, so no shortcut or chat action can open them. */}
-            {isAdmin && <Stack.Screen name="AddStaff" component={AddStaffScreen} />}
-            {isAdmin && <Stack.Screen name="StaffList" component={StaffListScreen} />}
-            {/* Screens that still show sample data are left out of the store build (see src/config/features.js). */}
-            {SHOW_SAMPLE_DATA && (
-              <Stack.Group>
-                <Stack.Screen name="Reports" component={ReportsScreen} />
-                <Stack.Screen name="Chat" component={ChatScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-                <Stack.Screen name="Notifications" component={NotificationsScreen} />
-              </Stack.Group>
-            )}
-            {SHOW_SAMPLE_DATA && isAdmin && (
-              <Stack.Group>
-                <Stack.Screen name="Payroll" component={PayrollScreen} />
-                <Stack.Screen name="Salary" component={PayrollScreen} />
-                <Stack.Screen name="LiveTrack" component={LiveTrackScreen} />
-              </Stack.Group>
-            )}
-          </>
-        ) : (
-          <Stack.Screen name="Login" component={LoginScreen} />
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <RequestsCountProvider isAdmin={isAdmin} key={user?.id || 'out'}>
+      <NavigationContainer ref={navigationRef}>
+        <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
+          {user ? (
+            <>
+              <Stack.Screen name="Main" component={Tabs} />
+              <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+              <Stack.Screen name="Corrections" component={CorrectionsScreen} options={{ animation: 'slide_from_right' }} />
+              <Stack.Screen name="Payslips" component={PayslipsScreen} options={{ animation: 'slide_from_right' }} />
+              {/* Notification taps still use the old names: Team opens the Register's team view, Leave opens Requests for admins. */}
+              <Stack.Screen name="Team" component={RegisterScreen} initialParams={{ mode: 'team' }} options={{ animation: 'slide_from_right' }} />
+              {isAdmin && <Stack.Screen name="Leave" component={RequestsScreen} options={{ animation: 'slide_from_right' }} />}
+              {/* Admin-only screens are not registered for staff, so no shortcut or notification can open them. */}
+              {isAdmin && <Stack.Screen name="ReviewRequest" component={ReviewRequestScreen} options={{ animation: 'slide_from_right' }} />}
+              {isAdmin && <Stack.Screen name="AddStaff" component={AddStaffScreen} options={{ animation: 'slide_from_right' }} />}
+              {isAdmin && <Stack.Screen name="StaffList" component={StaffListScreen} options={{ animation: 'slide_from_right' }} />}
+              {!isAdmin && <Stack.Screen name="MyLeave" component={LeaveScreen} options={{ animation: 'slide_from_right' }} />}
+            </>
+          ) : (
+            <Stack.Screen name="Login" component={LoginScreen} />
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+    </RequestsCountProvider>
   );
 }
+
+const tab = StyleSheet.create({
+  bar: { flexDirection: 'row', backgroundColor: T.bg, borderTopWidth: 1, borderTopColor: T.line, paddingTop: 12 },
+  item: { flex: 1, alignItems: 'center' },
+  label: { fontSize: 15, color: T.textMuted, marginTop: 6 },
+  labelOn: { color: T.navyDeep, fontWeight: '700' },
+  underline: { width: 52, height: 5, borderRadius: 3, marginTop: 6, backgroundColor: 'transparent' },
+  badge: { position: 'absolute', top: -8, right: -12, minWidth: 22, height: 22, borderRadius: 11, backgroundColor: '#E5484D', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5, borderWidth: 2, borderColor: T.bg },
+  badgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+});

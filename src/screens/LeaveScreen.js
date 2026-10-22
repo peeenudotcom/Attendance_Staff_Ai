@@ -1,292 +1,313 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator,
-  KeyboardAvoidingView, Platform, RefreshControl,
-} from 'react-native';
-import { RADIUS, SPACING, FONTS } from '../utils/theme';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
-import { useHeaderInset } from '../utils/safeArea';
 import { leaveAPI } from '../services/api';
+import { useLang, fmtDay, fmtMonth, monthLong, monthShort } from '../i18n';
+import '../i18n/strings/leave';
+import {
+  Screen, AppHeader, ViewToggle, WeekStrip, MonthGrid, Chip, Button, StatRow, ListRow, Field, DateBox, ChoiceRow,
+  SectionTitle, Subtle, Divider, Empty, Loading, Card, Icon, T,
+  istToday, addDays, weekOf, monthWeeks, shiftMonth, datesBetween,
+} from '../ui';
 
-const TYPES = [
-  { key: 'casual', label: 'Casual' },
-  { key: 'sick', label: 'Sick' },
-  { key: 'paid', label: 'Paid' },
-  { key: 'unpaid', label: 'Unpaid' },
-];
+// Leave: staff ask for leave by tapping days on the calendar in the header, see their paid leave balance, and follow
+// their requests. Admins see the same thing under Requests -> My leave (RequestsScreen uses the pieces below).
 
-// Dates are plain "YYYY-MM-DD" strings in India time, the same as the server uses.
-const DAY = 86_400_000;
-const istToday = () => new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
-const addDays = (d, n) => new Date(Date.parse(`${d}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
-const nice = (d) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
-const datesText = (r) => (r.from === r.to ? nice(r.from) : `${nice(r.from)} – ${nice(r.to)}`);
+export const LEAVE_TYPES = ['casual', 'sick', 'paid', 'unpaid'];
+/** Chip colour for a request's status. */
+export const STATUS_TONE = { pending: 'yellow', approved: 'green', rejected: 'red', cancelled: 'grey' };
+/** "1 day" / "3 days" */
+export const daysText = (t, n) => (n === 1 ? t('common.day') : t('common.days', { n }));
+/** "Wed, 14 Oct" or "Wed, 14 Oct – Thu, 15 Oct" */
+export const leaveDates = (t, r) => (r.from === r.to ? fmtDay(t, r.from) : `${fmtDay(t, r.from)} – ${fmtDay(t, r.to)}`);
+/** "Casual leave" */
+export const leaveTypeLong = (t, type) => t(`leave.${type}Leave`);
+/** "12 October", "12 – 15 October", "30 October – 2 November" */
+function rangeLong(t, from, to) {
+  const day = (d) => Number(d.slice(8, 10));
+  const mon = (d) => monthLong(t, Number(d.slice(5, 7)));
+  if (from === to) return `${day(from)} ${mon(from)}`;
+  if (from.slice(0, 7) === to.slice(0, 7)) return `${day(from)} – ${day(to)} ${mon(to)}`;
+  return `${day(from)} ${mon(from)} – ${day(to)} ${mon(to)}`;
+}
+/** "12 Oct – 18 Oct" for a week */
+const weekLabel = (t, dates) => {
+  const short = (d) => `${Number(d.slice(8, 10))} ${monthShort(t, Number(d.slice(5, 7)))}`;
+  return `${short(dates[0])} – ${short(dates[6])}`;
+};
 
-function DateStepper({ label, value, min, onChange, C }) {
-  const canBack = !min || value > min;
+/** Previous / next buttons with a label between them (on the navy header). */
+export function PeriodNav({ label, onPrev, onNext, prevDisabled, nextDisabled, right }) {
+  const { t } = useLang();
+  const btn = (icon, onPress, disabled, a11y) => (
+    <TouchableOpacity onPress={onPress} disabled={disabled} hitSlop={10} accessibilityLabel={a11y}
+      style={[st.navBtn, disabled && { opacity: 0.3 }]}>
+      <Icon name={icon} size={22} color={T.onNavy} />
+    </TouchableOpacity>
+  );
   return (
-    <View style={styles.stepRow}>
-      <Text style={[styles.label, { color: C.textMuted, marginTop: 0, marginBottom: 0, width: 46 }]}>{label}</Text>
-      <TouchableOpacity disabled={!canBack} onPress={() => onChange(addDays(value, -1))}
-        style={[styles.stepBtn, { borderColor: C.border, backgroundColor: C.bgElevated, opacity: canBack ? 1 : 0.35 }]}>
-        <Text style={[styles.stepIcon, { color: C.textPrimary }]}>‹</Text>
-      </TouchableOpacity>
-      <Text style={[styles.stepValue, { color: C.textPrimary }]}>{nice(value)}</Text>
-      <TouchableOpacity onPress={() => onChange(addDays(value, 1))}
-        style={[styles.stepBtn, { borderColor: C.border, backgroundColor: C.bgElevated }]}>
-        <Text style={[styles.stepIcon, { color: C.textPrimary }]}>›</Text>
-      </TouchableOpacity>
+    <View style={st.navRow}>
+      {btn('chevron-left', onPrev, prevDisabled, t('leave.prev'))}
+      <Text style={st.navLabel} numberOfLines={1}>{label}</Text>
+      {btn('chevron-right', onNext, nextDisabled, t('leave.next'))}
+      {right ? <View style={{ marginLeft: 12 }}>{right}</View> : null}
     </View>
   );
 }
 
-export default function LeaveScreen({ navigation }) {
+/**
+ * Everything the leave form needs: my requests and balance (loaded when the screen is focused), the chosen type and
+ * dates, and the calendar shown in the header. Used by LeaveScreen and by RequestsScreen's "My leave".
+ */
+export function useLeaveForm() {
   const { user } = useAuth();
-  const { colors: C } = useTheme();
-  const headerTop = useHeaderInset(12);
+  const { t } = useLang();
+  const tRef = useRef(t);
+  tRef.current = t;
   const isAdmin = user?.role === 'admin';
+  const tomorrow = addDays(istToday(), 1);
 
   const [mine, setMine] = useState([]);
   const [balance, setBalance] = useState(null);
-  const [toApprove, setToApprove] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showForm, setShowForm] = useState(false);
   const [type, setType] = useState('casual');
-  const [from, setFrom] = useState(addDays(istToday(), 1));
-  const [to, setTo] = useState(addDays(istToday(), 1));
+  const [from, setFrom] = useState(tomorrow);
+  const [to, setTo] = useState(tomorrow);
+  // What the next tap on the calendar does: 'start' a new range, set the 'from' day, or set the 'to' day.
+  const [picking, setPicking] = useState('start');
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
-
-  const STATUS = {
-    pending: { label: 'Waiting', color: C.warning },
-    approved: { label: 'Approved', color: C.success },
-    rejected: { label: 'Not approved', color: C.danger },
-    cancelled: { label: 'Cancelled', color: C.textMuted },
-  };
+  const [view, setView] = useState('week');
+  const [anchor, setAnchor] = useState(tomorrow); // a date in the week or month shown
 
   const load = useCallback(async () => {
     try {
-      const [own, company] = await Promise.all([leaveAPI.mine(), isAdmin ? leaveAPI.company() : null]);
-      setMine(own.requests);
+      const own = await leaveAPI.mine();
+      setMine(own.requests || []);
       setBalance(own.balance ?? null);
-      if (company) setToApprove(company.pending);
     } catch (e) {
-      Alert.alert('Could not load leave', e.message);
+      Alert.alert(tRef.current('leave.couldNotLoad'), e.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [isAdmin]);
+  }, []);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+  const refresh = () => { setRefreshing(true); load(); };
 
-  useEffect(() => { load(); }, [load]);
+  const minDate = addDays(istToday(), -30);
+  const pickDay = (d) => {
+    if (d < minDate) { Alert.alert(t('leave.tooFarBack')); return; }
+    if (picking === 'from') {
+      setFrom(d);
+      if (d > to) setTo(d);
+      setPicking('to');
+    } else if (picking === 'to' && d >= from) {
+      setTo(d);
+      setPicking('start');
+    } else { // a new range (or a 'to' tap before the first day starts again from there)
+      setFrom(d);
+      setTo(d);
+      setPicking('to');
+    }
+  };
+  const focusFrom = () => { setPicking('from'); setAnchor(from); };
+  const focusTo = () => { setPicking('to'); setAnchor(to); };
 
-  const changeFrom = (d) => { setFrom(d); if (to < d) setTo(d); };
+  const toggleView = () => setView((v) => (v === 'week' ? 'month' : 'week'));
+  const move = (n) => setAnchor((a) => (view === 'week' ? addDays(a, 7 * n) : `${shiftMonth(a.slice(0, 7), n)}-01`));
+  const periodStart = view === 'week' ? weekOf(anchor)[0] : `${anchor.slice(0, 7)}-01`;
 
   const submit = async () => {
     setBusy(true);
     try {
       await leaveAPI.ask({ from, to, type, reason: reason.trim() });
-      setShowForm(false);
       setReason('');
-      Alert.alert('Leave requested', isAdmin ? 'It is waiting for approval.' : 'Your admin has been told. You will get an email when they decide.');
+      setPicking('start');
+      Alert.alert(t('leave.sentTitle'), isAdmin ? t('leave.sentAdmin') : t('leave.sentStaff'));
       load();
     } catch (e) {
-      Alert.alert('Could not ask for leave', e.message);
+      Alert.alert(t('leave.couldNotAsk'), e.message);
     } finally {
       setBusy(false);
     }
   };
 
-  const cancel = (r) => Alert.alert('Cancel this leave?', datesText(r), [
-    { text: 'Keep it', style: 'cancel' },
-    { text: 'Cancel leave', style: 'destructive', onPress: async () => {
-      try { await leaveAPI.cancel(r.id); load(); } catch (e) { Alert.alert('Could not cancel', e.message); }
+  const cancel = (r) => Alert.alert(t('leave.cancelTitle'), leaveDates(t, r), [
+    { text: t('leave.keepIt'), style: 'cancel' },
+    { text: t('leave.cancelLeave'), style: 'destructive', onPress: async () => {
+      try { await leaveAPI.cancel(r.id); load(); } catch (e) { Alert.alert(t('leave.couldNotCancel'), e.message); }
     } },
   ]);
 
-  const decide = async (r, approve) => {
-    try {
-      await leaveAPI.decide(r.id, { approve });
-      load();
-    } catch (e) {
-      Alert.alert('Could not save', e.message);
+  // Days that already have leave: a dot on the calendar (pending amber, approved blue).
+  const dots = useMemo(() => {
+    const out = {};
+    for (const r of mine) {
+      if (r.status !== 'pending' && r.status !== 'approved') continue;
+      for (const d of datesBetween(r.from, r.to)) out[d] = r.status === 'approved' ? T.blue : T.amber;
     }
+    return out;
+  }, [mine]);
+
+  return {
+    isAdmin, mine, balance, loading, refreshing, refresh, load, type, setType, from, to, picking, pickDay, focusFrom,
+    focusTo, reason, setReason, busy, submit, cancel, view, toggleView, anchor, move, minDate, periodStart, dots,
   };
-  const confirmReject = (r) => Alert.alert(`Reject ${r.staffName}'s leave?`, datesText(r), [
-    { text: 'Back', style: 'cancel' },
-    { text: 'Reject', style: 'destructive', onPress: () => decide(r, false) },
-  ]);
+}
 
-  const canCancel = (r) => r.status === 'pending' || (r.status === 'approved' && r.from > istToday());
+/** The "Month view" pill for the header. */
+export function LeaveViewToggle({ form }) {
+  const { t } = useLang();
+  return <ViewToggle label={form.view === 'week' ? t('common.monthView') : t('common.weekView')} onPress={form.toggleView} />;
+}
 
+/** The calendar on the navy header: tap the first day, then the last day. */
+export function LeavePicker({ form, showToggle }) {
+  const { t } = useLang();
+  const { view, anchor, from, to, pickDay, move, minDate, periodStart, dots } = form;
+  const range = datesBetween(from, to);
+  const week = weekOf(anchor);
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={[styles.header, { paddingTop: headerTop, backgroundColor: C.bgCard, borderBottomColor: C.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backBtn, { backgroundColor: C.bgElevated }]}>
-          <Text style={[styles.backIcon, { color: C.textPrimary }]}>←</Text>
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: C.textPrimary }]}>Leave</Text>
-        <TouchableOpacity style={[styles.applyBtn, { backgroundColor: C.accent }]} onPress={() => setShowForm(!showForm)}>
-          <Text style={styles.applyText}>{showForm ? 'Close' : '+ Ask'}</Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: 40 }}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.accent} />}
-      >
-        {showForm && (
-          <View style={[styles.card, styles.form, { backgroundColor: C.bgCard, borderColor: C.border }]}>
-            <Text style={[styles.formTitle, { color: C.textPrimary }]}>Ask for leave</Text>
-            <Text style={[styles.label, { color: C.textMuted }]}>Type</Text>
-            <View style={styles.typeRow}>
-              {TYPES.map((t) => (
-                <TouchableOpacity key={t.key} onPress={() => setType(t.key)}
-                  style={[styles.typeChip, { borderColor: C.border, backgroundColor: C.bgElevated },
-                    type === t.key && { borderColor: C.accentBorder, backgroundColor: C.accentSoft }]}>
-                  <Text style={[styles.typeText, { color: type === t.key ? C.textAccent : C.textPrimary }]}>{t.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <Text style={[styles.label, { color: C.textMuted }]}>Dates</Text>
-            <DateStepper label="From" value={from} min={addDays(istToday(), -30)} onChange={changeFrom} C={C} />
-            <DateStepper label="To" value={to} min={from} onChange={setTo} C={C} />
-            <Text style={[styles.label, { color: C.textMuted }]}>Reason (optional)</Text>
-            <TextInput
-              style={[styles.reason, { backgroundColor: C.bgElevated, borderColor: C.border, color: C.textPrimary }]}
-              placeholder="e.g. Family function"
-              placeholderTextColor={C.textMuted}
-              value={reason}
-              onChangeText={setReason}
-              maxLength={500}
-              multiline
-            />
-            <TouchableOpacity style={[styles.submitBtn, { backgroundColor: C.accent }]} onPress={submit} disabled={busy} activeOpacity={0.8}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Send request</Text>}
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {loading ? (
-          <ActivityIndicator style={{ marginTop: 40 }} color={C.accent} />
-        ) : (
-          <>
-            {balance?.limited && (
-              <View style={[styles.card, styles.balance, { backgroundColor: C.bgCard, borderColor: C.border }]}>
-                <View style={styles.balanceItem}>
-                  <Text style={[styles.balanceNum, { color: C.success }]}>{balance.available}</Text>
-                  <Text style={[styles.meta, { color: C.textMuted, marginTop: 0 }]}>Paid leave left</Text>
-                </View>
-                <View style={styles.balanceItem}>
-                  <Text style={[styles.balanceNum, { color: C.textPrimary }]}>{balance.used}</Text>
-                  <Text style={[styles.meta, { color: C.textMuted, marginTop: 0 }]}>Used in {balance.year}</Text>
-                </View>
-                <View style={styles.balanceItem}>
-                  <Text style={[styles.balanceNum, { color: C.textPrimary }]}>{balance.earned}</Text>
-                  <Text style={[styles.meta, { color: C.textMuted, marginTop: 0 }]}>Earned so far</Text>
-                </View>
-              </View>
-            )}
-            {balance?.limited && balance.pending > 0 && (
-              <Text style={[styles.meta, { color: C.textMuted, marginHorizontal: SPACING.xl, marginTop: 6 }]}>
-                {balance.pending} day{balance.pending === 1 ? '' : 's'} waiting for approval {balance.pending === 1 ? 'is' : 'are'} already taken off. Unpaid leave doesn't use your balance.
-              </Text>
-            )}
-
-            {isAdmin && (
-              <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: C.textPrimary }]}>To approve ({toApprove.length})</Text>
-                {toApprove.length === 0 && <Text style={[styles.empty, { color: C.textMuted }]}>No requests waiting.</Text>}
-                {toApprove.map((r) => (
-                  <View key={r.id} style={[styles.card, { backgroundColor: C.bgCard, borderColor: C.border }]}>
-                    <Text style={[styles.name, { color: C.textPrimary }]}>{r.staffName}</Text>
-                    <Text style={[styles.dates, { color: C.textPrimary }]}>{datesText(r)}</Text>
-                    <Text style={[styles.meta, { color: C.textMuted }]}>{r.days} day{r.days === 1 ? '' : 's'} · {r.typeLabel}</Text>
-                    {r.balance?.limited && r.type !== 'unpaid' && (
-                      <Text style={[styles.meta, { color: C.textMuted }]}>Paid leave: {r.balance.earned - r.balance.used} left of {r.balance.earned} earned this year</Text>
-                    )}
-                    {!!r.reason && <Text style={[styles.meta, { color: C.textSecondary }]}>“{r.reason}”</Text>}
-                    <View style={styles.actions}>
-                      <TouchableOpacity style={[styles.actBtn, { backgroundColor: C.success }]} onPress={() => decide(r, true)}>
-                        <Text style={styles.actText}>Approve</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.actBtn, { backgroundColor: C.bgElevated, borderWidth: 1, borderColor: C.border }]} onPress={() => confirmReject(r)}>
-                        <Text style={[styles.actText, { color: C.danger }]}>Reject</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: C.textPrimary }]}>My leave</Text>
-              {mine.length === 0 && <Text style={[styles.empty, { color: C.textMuted }]}>No leave yet. Tap “+ Ask” to request some.</Text>}
-              {mine.map((r) => (
-                <View key={r.id} style={[styles.card, { backgroundColor: C.bgCard, borderColor: C.border }]}>
-                  <View style={styles.rowBetween}>
-                    <Text style={[styles.dates, { color: C.textPrimary, marginTop: 0 }]}>{datesText(r)}</Text>
-                    <Text style={[styles.status, { color: STATUS[r.status].color }]}>{STATUS[r.status].label}</Text>
-                  </View>
-                  <Text style={[styles.meta, { color: C.textMuted }]}>{r.days} day{r.days === 1 ? '' : 's'} · {r.typeLabel}</Text>
-                  {!!r.reason && <Text style={[styles.meta, { color: C.textSecondary }]}>“{r.reason}”</Text>}
-                  {!!r.note && <Text style={[styles.meta, { color: C.textSecondary }]}>Note from admin: {r.note}</Text>}
-                  {canCancel(r) && (
-                    <TouchableOpacity onPress={() => cancel(r)} style={{ marginTop: 8 }}>
-                      <Text style={[styles.link, { color: C.textAccent }]}>Cancel request</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ))}
-            </View>
-          </>
-        )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+    <View>
+      <PeriodNav
+        label={view === 'week' ? weekLabel(t, week) : fmtMonth(t, anchor)}
+        onPrev={() => move(-1)} onNext={() => move(1)} prevDisabled={periodStart <= minDate}
+        right={showToggle ? <LeaveViewToggle form={form} /> : null}
+      />
+      {view === 'week'
+        ? <WeekStrip dates={week} selected={range} dots={dots} onPress={pickDay} />
+        : <MonthGrid weeks={monthWeeks(anchor.slice(0, 7))} selected={range} dots={dots} onPress={pickDay} />}
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.xl, paddingBottom: 14, borderBottomWidth: 1 },
-  backBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
-  backIcon: { fontSize: 20 },
-  headerTitle: { ...FONTS.h3 },
-  applyBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.full },
-  applyText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+/** The sheet content: balance, the request form, a link to corrections and my requests. */
+export function MyLeave({ navigation, form }) {
+  const { t } = useLang();
+  const { balance, mine, loading, type, setType, from, to, picking, reason, setReason, busy } = form;
+  const n = datesBetween(from, to).length;
+  const canCancel = (r) => r.status === 'pending' || (r.status === 'approved' && r.from > istToday());
 
-  section: { paddingHorizontal: SPACING.xl, marginTop: 20 },
-  balance: { flexDirection: 'row', marginHorizontal: SPACING.xl, marginTop: 20, marginBottom: 0 },
-  balanceItem: { flex: 1, alignItems: 'center' },
-  balanceNum: { fontSize: 22, fontWeight: '800' },
-  sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 10 },
-  empty: { fontSize: 13 },
+  return (
+    <View>
+      {balance?.limited && (
+        <Card style={st.balance}>
+          <Text style={st.balanceTitle}>{t('leave.balanceTitle', { year: balance.year })}</Text>
+          <StatRow style={{ paddingVertical: 2 }} items={[
+            { label: t('leave.left'), value: balance.available, valueColor: T.green },
+            { label: t('leave.used'), value: balance.used },
+            { label: t('leave.earned'), value: balance.earned },
+          ]} />
+          {balance.pending > 0 && (
+            <Subtle style={{ marginTop: 8 }}>
+              {balance.pending === 1 ? t('leave.pendingTakenOne') : t('leave.pendingTaken', { n: balance.pending })}
+            </Subtle>
+          )}
+        </Card>
+      )}
 
-  card: { borderRadius: RADIUS.lg, borderWidth: 1, padding: SPACING.lg, marginBottom: 10 },
-  form: { margin: SPACING.xl, marginBottom: 0 },
-  formTitle: { fontSize: 16, fontWeight: '700' },
-  label: { fontSize: 12, fontWeight: '600', marginTop: 14, marginBottom: 8 },
-  typeRow: { flexDirection: 'row', gap: 8 },
-  typeChip: { flex: 1, paddingVertical: 10, borderRadius: RADIUS.sm, borderWidth: 1.5, alignItems: 'center' },
-  typeText: { fontSize: 13, fontWeight: '600' },
-  stepRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  stepBtn: { width: 40, height: 40, borderRadius: RADIUS.sm, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  stepIcon: { fontSize: 22, fontWeight: '600', marginTop: -2 },
-  stepValue: { flex: 1, textAlign: 'center', fontSize: 15, fontWeight: '600' },
-  reason: { borderRadius: RADIUS.sm, borderWidth: 1, padding: 12, fontSize: 14, minHeight: 70, textAlignVertical: 'top' },
-  submitBtn: { borderRadius: RADIUS.md, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
-  submitText: { ...FONTS.button, color: '#fff' },
+      <Text style={st.h1}>{t('leave.requestLeave')}</Text>
+      <Subtle style={st.h1Sub}>{t('leave.requestSub')}</Subtle>
 
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  name: { fontSize: 15, fontWeight: '700' },
-  dates: { fontSize: 15, fontWeight: '600', marginTop: 2 },
-  meta: { fontSize: 13, marginTop: 4 },
-  status: { fontSize: 12, fontWeight: '700' },
-  link: { fontSize: 13, fontWeight: '600' },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  actBtn: { flex: 1, paddingVertical: 10, borderRadius: RADIUS.sm, alignItems: 'center' },
-  actText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+      <Text style={st.label}>{t('leave.leaveType')}</Text>
+      <ChoiceRow options={LEAVE_TYPES.map((k) => ({ value: k, label: t(`leave.${k}`) }))} value={type} onChange={setType} />
+
+      <View style={st.dateRow}>
+        <DateBox label={t('leave.from')} value={fmtDay(t, from)} onPress={form.focusFrom}
+          style={picking !== 'to' && st.dateFocus} />
+        <DateBox label={t('leave.to')} value={fmtDay(t, to)} onPress={form.focusTo}
+          style={picking === 'to' && st.dateFocus} />
+      </View>
+      <Subtle style={{ marginTop: 10 }}>
+        {n === 1 ? t('leave.daySelected') : t('leave.daysSelected', { n })}
+        {' · '}{picking === 'to' ? t('leave.tapTo') : t('leave.tapFrom')}
+      </Subtle>
+
+      <Field label={t('leave.reasonOptional')} style={{ marginTop: 20 }} placeholder={t('leave.reasonPlaceholder')}
+        value={reason} onChangeText={setReason} maxLength={500} multiline />
+
+      <Divider style={{ marginTop: 4, marginBottom: 18 }} />
+      <Text style={st.summary}>{leaveTypeLong(t, type)} · {rangeLong(t, from, to)}</Text>
+      <Button title={`${t('leave.sendRequest')}  →`} onPress={form.submit} busy={busy} />
+      <Subtle style={{ marginTop: 10 }}>{t('leave.willBeSent')}</Subtle>
+
+      <View style={{ marginTop: 22 }}>
+        <ListRow
+          left={<View style={st.linkIcon}><Icon name="edit-3" size={22} color={T.navyDeep} /></View>}
+          title={t('leave.corrections')} subtitle={t('leave.correctionsSub')}
+          onPress={() => navigation.navigate('Corrections')}
+        />
+      </View>
+
+      <SectionTitle style={{ marginTop: 22 }}>{t('leave.myRequests')}</SectionTitle>
+      {loading && !mine.length ? <Loading /> : null}
+      {!loading && mine.length === 0 ? <Empty>{t('leave.noRequests')}</Empty> : null}
+      {mine.map((r, i) => (
+        <View key={r.id} style={[st.req, i < mine.length - 1 && st.reqLine]}>
+          <View style={st.reqTop}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Text style={st.reqTitle}>{leaveDates(t, r)}</Text>
+              <Text style={st.reqSub}>{daysText(t, r.days)} · {leaveTypeLong(t, r.type)}</Text>
+            </View>
+            <Chip label={t(`common.${r.status === 'pending' ? 'waiting' : r.status}`)} tone={STATUS_TONE[r.status]} />
+          </View>
+          {!!r.reason && <Text style={st.reqNote}>“{r.reason}”</Text>}
+          {!!r.note && <Text style={st.reqNote}>{t('leave.adminNote', { note: r.note })}</Text>}
+          {canCancel(r) && (
+            <TouchableOpacity onPress={() => form.cancel(r)} hitSlop={8} style={{ marginTop: 10, alignSelf: 'flex-start' }}>
+              <Text style={st.link}>{t('leave.cancelRequest')}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+export default function LeaveScreen({ navigation, route }) {
+  const { user } = useAuth();
+  const { t } = useLang();
+  const form = useLeaveForm();
+  const asPage = route?.name === 'MyLeave'; // opened from a notification or a shortcut, not the tab
+  return (
+    <Screen keyboard refreshing={form.refreshing} onRefresh={form.refresh}
+      header={(
+        <AppHeader
+          title={fmtMonth(t, form.anchor)} subtitle={t('leave.chooseDates')} right={<LeaveViewToggle form={form} />}
+          avatarName={user?.name || ''} onAvatarPress={() => navigation.navigate('Main', { screen: 'Profile' })}
+          onBack={asPage ? () => navigation.goBack() : undefined}
+        >
+          <LeavePicker form={form} />
+        </AppHeader>
+      )}>
+      <MyLeave navigation={navigation} form={form} />
+    </Screen>
+  );
+}
+
+const st = StyleSheet.create({
+  navRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  navBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: T.onNavyGlass },
+  navLabel: { flex: 1, textAlign: 'center', color: T.onNavyMuted, fontSize: 16, fontWeight: '600' },
+
+  balance: { paddingVertical: 12, paddingHorizontal: 12, marginBottom: 24 },
+  balanceTitle: { fontSize: 15, fontWeight: '700', color: T.textMuted, textAlign: 'center', marginBottom: 4 },
+  h1: { fontSize: 30, fontWeight: '800', color: T.navyDeep, letterSpacing: -0.3 },
+  h1Sub: { fontSize: 17, marginTop: 4 },
+  label: { fontSize: 17, fontWeight: '600', color: T.textMuted, marginTop: 22, marginBottom: 10 },
+  dateRow: { flexDirection: 'row', gap: 12, marginTop: 18 },
+  dateFocus: { borderColor: T.yellow, borderWidth: 2 },
+  summary: { fontSize: 20, fontWeight: '800', color: T.navyDeep, marginBottom: 16 },
+  linkIcon: { width: 46, height: 46, borderRadius: 23, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' },
+
+  req: { paddingVertical: 16 },
+  reqLine: { borderBottomWidth: 1, borderBottomColor: T.line },
+  reqTop: { flexDirection: 'row', alignItems: 'center' },
+  reqTitle: { fontSize: 18, fontWeight: '700', color: T.navyDeep },
+  reqSub: { fontSize: 16, color: T.textMuted, marginTop: 3 },
+  reqNote: { fontSize: 16, color: T.text, marginTop: 8, lineHeight: 22 },
+  link: { fontSize: 16, fontWeight: '700', color: T.red },
 });
