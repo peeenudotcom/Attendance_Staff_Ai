@@ -52,7 +52,38 @@ here; the app's base URL is `https://<deployment>/api`.
 | `REVIEW_PHONE`, `REVIEW_CODE` | App Review accounts (one number or several, comma-separated, e.g. `9000000001,9000000002`) that sign in with the fixed code; unset both to disable |
 | `CRON_SECRET` | Any long random string; lets Vercel Cron run the daily erase job for deleted accounts (`/api/cron/erase-accounts`) |
 
-## Email
+## Optional MSG91 SMS login
+
+Set both `MSG91_AUTH_KEY` (secret, a dedicated Haazri server key) and
+`MSG91_OTP_TEMPLATE_ID` in the `tarahut-attendance` Vercel project, then deploy
+the backend. Without both variables, existing email/WhatsApp login is unchanged.
+Never put the AuthKey in the Expo app, browser code, Git or a public environment variable.
+
+Use a **SendOTP template**, not an OTP Widget ID. The template must contain
+`##OTP##` and match the approved sender/content configuration. For branded Indian
+SMS, complete the applicable DLT sender and template approvals in MSG91 first.
+Suggested content for approval: `##OTP## is your Haazri sign-in code. Valid for 5 minutes. Do not share it.`
+Use exactly the content approved for your entity; do not invent a template ID.
+
+The backend sends its existing four-digit code via MSG91 first. If the provider
+rejects the request, times out, or returns an error, it tries the existing
+WhatsApp/email channels with the **same code**. An accepted SMS request suppresses
+those other sends; acceptance does not guarantee handset delivery. Delivery-receipt
+fallback is not implemented. The app's Resend button requests another code.
+Keep registered staff emails for fallback.
+
+Four digits are retained for the currently released app and web dashboard.
+Moving to six digits needs a coordinated update of every OTP entry screen and
+the backend, including store-review handling. Code expiry (5 minutes), attempt
+limits, staff/company authorization and 30-day sessions remain backend-controlled.
+
+Before enabling in production: verify the India rate, set the relevant account
+spending controls, configure a dedicated least-privilege key with appropriate
+network restrictions for the hosting setup, and test an actual staff login,
+resend, email fallback and inactive-account rejection. No real SMS is sent by tests.
+To roll back SMS delivery, remove either MSG91 variable and redeploy.
+
+## Email delivery
 
 Sign-in codes are sent by a Resend account used only for Haazri, from the subdomain
 `haazri.tarahutaibuilds.com` (its DKIM/SPF records live in the tarahutaibuilds.com DNS on Vercel).
