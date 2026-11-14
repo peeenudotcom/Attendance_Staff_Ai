@@ -91,11 +91,18 @@ process.env.REVIEW_PHONE = '9000000001, 90000 00002';
 process.env.REVIEW_CODE = '4826';
 
 const sentWhatsApps = [];
+const sentSms = [];
+let smsReply = 'success';
 const stored = new Map();
 const rekognitionCalls = [];
 let rekognitionReply = { FaceMatches: [{ Similarity: 98.6 }], UnmatchedFaces: [] };
 let whatsAppDown = false;
 globalThis.fetch = async (url, init) => {
+  if (String(url).startsWith('https://control.msg91.com/api/v5/otp?')) {
+    sentSms.push({ url: new URL(url), init });
+    if (smsReply === 'network') throw new Error('network unavailable');
+    return { ok: smsReply !== 'http', json: async () => ({ type: smsReply }) };
+  }
   if (String(url).includes('rekognition.')) {
     rekognitionCalls.push({ url: String(url), headers: init.headers, body: JSON.parse(init.body) });
     if (rekognitionReply.status) return { ok: false, status: rekognitionReply.status, text: async () => JSON.stringify(rekognitionReply.body) };
@@ -948,6 +955,52 @@ test('sign-in code on WhatsApp', async () => {
   } finally {
     whatsAppDown = false;
     delete process.env.WHATSAPP_TOKEN; delete process.env.WHATSAPP_PHONE_ID; delete process.env.WHATSAPP_TEMPLATE;
+  }
+});
+
+test('MSG91 SMS login and fallback preserve staff access checks', async () => {
+  process.env.MSG91_AUTH_KEY = 'test-msg91-key';
+  process.env.MSG91_OTP_TEMPLATE_ID = 'test-template';
+  try {
+    tables.staff.push({ id: 'sms1', org_id: 'org1', name: 'SMS Staff', phone: '9888888888', email: 'sms@example.com', role: 'staff', active: true });
+    tables.staff.push({ id: 'sms2', org_id: 'org1', name: 'SMS Only', phone: '9899999999', email: null, role: 'staff', active: true });
+    const mails = sentEmails.length;
+    let r = await call('auth/login', { method: 'POST', body: { phone: '9888888888' } });
+    assert.equal(r.status, 200); assert.equal(r.json.channel, 'sms');
+    assert.equal(r.json.sentTo, 'SMS +91 ******8888');
+    assert.equal(sentEmails.length, mails);
+    const { url, init } = sentSms.at(-1);
+    assert.equal(url.searchParams.get('mobile'), '919888888888');
+    assert.equal(url.searchParams.get('template_id'), 'test-template');
+    assert.equal(url.searchParams.get('otp_expiry'), '5');
+    assert.equal(url.searchParams.get('authkey'), null);
+    assert.equal(init.headers.authkey, 'test-msg91-key');
+    const code = url.searchParams.get('otp');
+    assert.match(code, /^\d{4}$/);
+    assert.equal((await call('auth/verify-otp', { method: 'POST', body: { phone: '9888888888', otp: code } })).status, 200);
+    assert.equal((await call('auth/verify-otp', { method: 'POST', body: { phone: '9888888888', otp: code } })).status, 401);
+    // No email is needed when SMS is configured.
+    assert.equal((await call('auth/login', { method: 'POST', body: { phone: '9899999999' } })).json.channel, 'sms');
+    // Unregistered/inactive staff and review accounts never incur SMS charges.
+    const before = sentSms.length;
+    assert.equal((await call('auth/login', { method: 'POST', body: { phone: '9812345678' } })).status, 404);
+    tables.staff.find((s) => s.id === 'sms2').active = false;
+    assert.equal((await call('auth/login', { method: 'POST', body: { phone: '9899999999' } })).status, 404);
+    tables.staff.find((s) => s.id === 'sms2').active = true;
+    assert.equal((await call('auth/login', { method: 'POST', body: { phone: '9000000001' } })).json.channel, 'review');
+    assert.equal(sentSms.length, before);
+    // Both HTTP failures and HTTP-200 provider errors must fall back.
+    for (const failure of ['http', 'error', 'network']) {
+      smsReply = failure;
+      r = await call('auth/login', { method: 'POST', body: { phone: '9888888888' } });
+      assert.equal(r.status, 200); assert.equal(r.json.channel, 'email');
+      const fallbackCode = sentSms.at(-1).url.searchParams.get('otp');
+      assert.match(sentEmails.at(-1).subject, new RegExp(`^${fallbackCode} is your`));
+    }
+    assert.equal((await call('auth/login', { method: 'POST', body: { phone: '9899999999' } })).status, 502);
+  } finally {
+    smsReply = 'success';
+    delete process.env.MSG91_AUTH_KEY; delete process.env.MSG91_OTP_TEMPLATE_ID;
   }
 });
 
